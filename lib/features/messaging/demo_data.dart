@@ -59,6 +59,16 @@ Future<void> seedDemo(LocalDb db) async {
     (false, '', 'Mándame la foto del carro, que la quiero ver', 60 * 50),
     (true, '', 'Ahorita te la mando sin comprimir 📷', 60 * 49),
   ]);
+  // Una ubicación de ejemplo: el aeropuerto de Las Américas
+  await db.addMessage(Message(
+    id: uuid.v4(),
+    chatId: 'demo-ramon',
+    kind: MessageKind.incoming,
+    body: 'Te espero aquí en Las Américas 🛬',
+    status: MessageStatus.read,
+    createdAt: ago(60 * 48),
+    media: const MessageMedia(type: MediaType.location, lat: 18.42966, lng: -69.66892),
+  ));
 }
 
 const _replies = [

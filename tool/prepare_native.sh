@@ -24,6 +24,15 @@ if command -v /usr/libexec/PlistBuddy >/dev/null; then
     || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string KLK" "$PLIST"
   /usr/libexec/PlistBuddy -c "Set :CFBundleName KLK" "$PLIST" 2>/dev/null || true
 fi
+# Permisos (textos que ve el usuario cuando KLK los pide)
+if command -v plutil >/dev/null; then
+  addkey() { plutil -replace "$1" -string "$2" "$PLIST"; }
+  addkey NSCameraUsageDescription "KLK usa la cámara para que hagas fotos y vídeos y los envíes a tu gente."
+  addkey NSMicrophoneUsageDescription "KLK usa el micrófono para grabar notas de voz y vídeos."
+  addkey NSPhotoLibraryUsageDescription "KLK accede a tus fotos para que puedas enviarlas en calidad original."
+  addkey NSPhotoLibraryAddUsageDescription "KLK guarda en tu galería las fotos que decidas descargar."
+  addkey NSLocationWhenInUseUsageDescription "KLK usa tu ubicación solo cuando decides enviarla en un chat."
+fi
 sed -i.bak "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g" ios/Runner.xcodeproj/project.pbxproj
 sed -i.bak "s/PRODUCT_BUNDLE_IDENTIFIER = [A-Za-z0-9.]*klk;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" ios/Runner.xcodeproj/project.pbxproj
 if [ -f ios/Podfile ]; then
@@ -36,6 +45,19 @@ sed -i.bak 's/android:label="[^"]*"/android:label="KLK"/' "$MANIFEST"
 if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
   perl -0pi -e 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
 fi
+
+for perm in RECORD_AUDIO ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION; do
+  if ! grep -q "android.permission.$perm" "$MANIFEST"; then
+    perl -0pi -e "s#<application#<uses-permission android:name=\"android.permission.$perm\"/>\n    <application#" "$MANIFEST"
+  fi
+done
+
+# Android: versión mínima 23 (la necesitan la grabadora y la ubicación)
+for g in android/app/build.gradle android/app/build.gradle.kts; do
+  if [ -f "$g" ]; then
+    sed -i.bak -E 's/minSdk(Version)? *=? *flutter\.minSdkVersion/minSdk = 23/' "$g"
+  fi
+done
 
 find ios android -name "*.bak" -delete
 echo "Carpetas nativas listas (bundle: $BUNDLE_ID)"

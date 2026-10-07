@@ -57,21 +57,29 @@ class ChatListView extends ConsumerWidget {
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 88),
       itemCount: chats.length,
-      itemBuilder: (context, i) => _ChatTile(chat: chats[i], typing: app.isTyping(chats[i].id)),
+      itemBuilder: (context, i) => _ChatTile(
+        chat: chats[i],
+        activity: app.isRecording(chats[i].id)
+            ? 'grabando audio…'
+            : app.isTyping(chats[i].id)
+                ? 'escribiendo…'
+                : null,
+      ),
     );
   }
 }
 
 class _ChatTile extends ConsumerWidget {
   final Chat chat;
-  final bool typing;
-  const _ChatTile({required this.chat, required this.typing});
+  final String? activity; // "escribiendo…" / "grabando audio…"
+  const _ChatTile({required this.chat, this.activity});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
     final muted = cs.onSurface.withValues(alpha: 0.6);
     final unread = chat.unread > 0;
+    final typing = activity != null;
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
@@ -93,7 +101,7 @@ class _ChatTile extends ConsumerWidget {
       subtitle: Row(children: [
         Expanded(
           child: Text(
-            typing ? 'escribiendo…' : chat.lastText,
+            activity ?? chat.lastText,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: typing ? cs.secondary : muted, fontWeight: typing ? FontWeight.w600 : null),

@@ -11,6 +11,7 @@ import 'package:web_socket_channel/io.dart';
 import '../../core/config.dart';
 import '../../core/crypto/crypto_engine.dart';
 import '../../core/database/local_db.dart';
+import '../../core/media/media_store.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/presence_gate.dart';
 import '../../core/security/secure_store.dart';
@@ -50,6 +51,8 @@ class AppController extends ChangeNotifier {
   final Map<String, String> _outbox = {}; // ref -> frame, hasta recibir "sent"
   final Map<String, List<Message>> _messages = {};
   final Map<String, DateTime> _typingUntil = {};
+  final Map<String, DateTime> _recordingUntil = {};
+  final Set<String> _downloading = {};
   DateTime _lastTypingSent = DateTime.fromMillisecondsSinceEpoch(0);
 
   // Datos del registro en curso
@@ -62,6 +65,7 @@ class AppController extends ChangeNotifier {
 
   List<Message> messagesFor(String chatId) => _messages[chatId] ?? const [];
   bool isTyping(String chatId) => (_typingUntil[chatId]?.isAfter(DateTime.now())) ?? false;
+  bool isRecording(String chatId) => (_recordingUntil[chatId]?.isAfter(DateTime.now())) ?? false;
 
   // ---------- Arranque ----------
 
@@ -184,6 +188,7 @@ class AppController extends ChangeNotifier {
       for (final frame in _outbox.values) {
         ch.sink.add(frame);
       }
+      unawaited(_resumeDownloads());
     } catch (e) {
       debugPrint('WebSocket: $e');
       _onDisconnect();
@@ -266,26 +271,32 @@ class AppController extends ChangeNotifier {
 
       switch (p.kind) {
         case 'text':
+          {
           final id = p.id;
           if (id != null && !await db.hasMessage(id)) {
             final ts = DateTime.tryParse(f['ts'] as String? ?? '')?.toLocal() ?? DateTime.now();
-            await db.addMessage(
-              Message(id: id, chatId: from, kind: MessageKind.incoming, body: p.text ?? '',
-                  status: MessageStatus.delivered, createdAt: ts),
-              countUnread: openChatId != from,
-            );
+            final media = p.media == null ? null : MessageMedia.fromJson(p.media!);
+            final msg = Message(id: id, chatId: from, kind: MessageKind.incoming, body: p.text ?? '',
+                status: MessageStatus.delivered, createdAt: ts, media: media);
+            await db.addMessage(msg, countUnread: openChatId != from);
+            if (media?.needsDownload ?? false) unawaited(_downloadMedia(msg));
             _typingUntil.remove(from);
+            _recordingUntil.remove(from);
             await _sendEncrypted(from, Payload(kind: 'delivered', ids: [id]), ref: 'x-${_uuid.v4()}');
             if (openChatId == from) await _sendReadReceipts(from);
           }
-        case 'typing':
-          if (p.on == true) {
-            _typingUntil[from] = DateTime.now().add(const Duration(seconds: 6));
-            Timer(const Duration(seconds: 6, milliseconds: 100), notifyListeners);
-          } else {
-            _typingUntil.remove(from);
           }
-          notifyListeners();
+        case 'typing' || 'recording':
+          {
+            final target = p.kind == 'typing' ? _typingUntil : _recordingUntil;
+            if (p.on == true) {
+              target[from] = DateTime.now().add(const Duration(seconds: 6));
+              Timer(const Duration(seconds: 6, milliseconds: 100), notifyListeners);
+            } else {
+              target.remove(from);
+            }
+            notifyListeners();
+          }
         case 'delivered':
           await db.advanceStatus(p.ids ?? const [], MessageStatus.delivered);
         case 'read':
@@ -348,6 +359,100 @@ class AppController extends ChangeNotifier {
       await _db!.setStatus(m.id, MessageStatus.failed);
       await _refresh();
     }
+  }
+
+  /// Envía una foto, vídeo, nota de voz, documento o ubicación.
+  ///
+  /// El archivo se cifra en el móvil con una clave propia, se sube cifrado y la
+  /// clave viaja dentro del mensaje (cifrado de punta a punta).
+  Future<void> sendMedia(String chatId, MessageMedia media, {String caption = ''}) async {
+    final m = Message(
+      id: _uuid.v4(),
+      chatId: chatId,
+      kind: MessageKind.outgoing,
+      body: caption,
+      status: MessageStatus.sending,
+      createdAt: DateTime.now(),
+      media: media,
+    );
+    await _db!.addMessage(m);
+    await _refresh();
+
+    if (isDemo) {
+      _simulateReply(chatId, m.id);
+      return;
+    }
+    try {
+      var wire = media;
+      final path = media.localPath;
+      if (media.type != MediaType.location && path != null) {
+        final sealed = await MediaStore.seal(path);
+        final attId = await _api!.uploadAttachment(sealed.bytes);
+        wire = media.copyWith(
+          attachmentId: attId,
+          key: base64Encode(sealed.key),
+          nonce: base64Encode(sealed.nonce),
+          mac: base64Encode(sealed.mac),
+        );
+      }
+      await _sendEncrypted(
+        chatId,
+        Payload(kind: 'text', id: m.id, text: caption, senderPhone: session!.phone, media: wire.forWire().toJson()),
+        ref: m.id,
+      );
+    } catch (e) {
+      debugPrint('Adjunto: $e');
+      await _db!.setStatus(m.id, MessageStatus.failed);
+      await _refresh();
+      rethrow;
+    }
+  }
+
+  Future<void> _downloadMedia(Message msg) async {
+    final media = msg.media;
+    if (media == null || !media.needsDownload || _downloading.contains(msg.id) || _api == null) return;
+    _downloading.add(msg.id);
+    try {
+      final cipher = await _api!.downloadAttachment(media.attachmentId!);
+      final path = await MediaStore.open(
+        cipher,
+        key: base64Decode(media.key!),
+        nonce: base64Decode(media.nonce!),
+        mac: base64Decode(media.mac!),
+        extension: MediaStore.extensionFor(media.mime, media.name),
+      );
+      await _db?.setMedia(msg.id, media.copyWith(localPath: path));
+      await _refresh();
+    } catch (e) {
+      debugPrint('Descarga de adjunto: $e');
+    } finally {
+      _downloading.remove(msg.id);
+    }
+  }
+
+  Future<void> _resumeDownloads() async {
+    final db = _db;
+    if (db == null) return;
+    for (final m in await db.pendingDownloads()) {
+      await _downloadMedia(m);
+    }
+  }
+
+  /// Reintenta descargar un adjunto (al tocarlo si falló).
+  Future<void> retryDownload(Message m) => _downloadMedia(m);
+
+  /// Borra un mensaje solo en este móvil.
+  Future<void> deleteMessage(String id) async {
+    await _db!.deleteMessage(id);
+    await _refresh();
+  }
+
+  /// Avisa de que estoy grabando una nota de voz, si la privacidad lo permite.
+  Future<void> setRecording(String chatId, bool on) async {
+    if (isDemo || !_gate.canSendRecording()) return;
+    try {
+      await _sendEncrypted(chatId, Payload(kind: 'recording', on: on), ref: 'x-recording', ephemeral: true);
+    } catch (_) {}
   }
 
   /// Avisa de que estoy escribiendo, si la privacidad lo permite.
@@ -418,6 +523,7 @@ class AppController extends ChangeNotifier {
     await _db?.close();
     _db = null;
     await LocalDb.destroy();
+    await MediaStore.wipe();
     await _store.panicWipe();
     session = null;
     chats = [];

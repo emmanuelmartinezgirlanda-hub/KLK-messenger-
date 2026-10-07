@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -18,7 +19,10 @@ class LocalDb {
     final db = await openDatabase(
       p.join(dir, _file),
       password: key,
-      version: 1,
+      version: 2,
+      onUpgrade: (db, oldVersion, _) async {
+        if (oldVersion < 2) await db.execute('ALTER TABLE messages ADD COLUMN media_json TEXT');
+      },
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE chats (
@@ -40,7 +44,8 @@ class LocalDb {
             body TEXT NOT NULL,
             status TEXT NOT NULL,
             created_at INTEGER NOT NULL,
-            scheduled_for INTEGER
+            scheduled_for INTEGER,
+            media_json TEXT
           )''');
         await db.execute('CREATE INDEX messages_chat_idx ON messages(chat_id, created_at)');
       },
@@ -103,6 +108,24 @@ class LocalDb {
       );
     });
   }
+
+  Future<Message?> message(String id) async {
+    final r = await _db.query('messages', where: 'id = ?', whereArgs: [id], limit: 1);
+    return r.isEmpty ? null : Message.fromRow(r.first);
+  }
+
+  /// Actualiza el adjunto de un mensaje (p. ej. cuando termina de descargarse).
+  Future<void> setMedia(String messageId, MessageMedia media) => _db.update(
+      'messages', {'media_json': jsonEncode(media.toJson())}, where: 'id = ?', whereArgs: [messageId]);
+
+  /// Mensajes recibidos cuyo adjunto aún no se ha descargado.
+  Future<List<Message>> pendingDownloads() async {
+    final rows = await _db.query('messages',
+        where: 'kind = ? AND media_json IS NOT NULL', whereArgs: [MessageKind.incoming.index]);
+    return rows.map(Message.fromRow).where((m) => m.media?.needsDownload ?? false).toList();
+  }
+
+  Future<void> deleteMessage(String id) => _db.delete('messages', where: 'id = ?', whereArgs: [id]);
 
   Future<void> setStatus(String messageId, MessageStatus status) => _db.update(
       'messages', {'status': status.name}, where: 'id = ?', whereArgs: [messageId]);

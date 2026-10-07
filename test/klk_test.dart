@@ -55,4 +55,36 @@ void main() {
     // Carla no puede abrirlo.
     await expectLater(carla.decrypt(sealed), throwsA(anything));
   });
+
+  test('Adjuntos: ida y vuelta por JSON y sin ruta local al enviar', () {
+    const m = MessageMedia(
+      type: MediaType.audio,
+      localPath: '/privado/nota.m4a',
+      mime: 'audio/mp4',
+      durationMs: 75000,
+      attachmentId: 'abc',
+      key: 'k',
+      nonce: 'n',
+      mac: 'm',
+    );
+    final wire = m.forWire().toJson();
+    expect(wire.containsKey('path'), isFalse);
+    final back = MessageMedia.fromJson(wire);
+    expect(back.type, MediaType.audio);
+    expect(back.needsDownload, isTrue);
+    expect(back.label, '🎤 Nota de voz 1:15');
+    expect(formatBytes(2500000), '2,4 MB');
+  });
+
+  test('Ubicación en un mensaje', () {
+    const loc = MessageMedia(type: MediaType.location, lat: 18.4297, lng: -69.6689);
+    final msg = Message(
+      id: '1', chatId: 'c', kind: MessageKind.incoming, body: '',
+      status: MessageStatus.read, createdAt: DateTime(2026), media: loc,
+    );
+    final back = Message.fromRow(msg.toRow());
+    expect(back.media!.lat, 18.4297);
+    expect(back.preview, '📍 Ubicación');
+    expect(loc.needsDownload, isFalse);
+  });
 }

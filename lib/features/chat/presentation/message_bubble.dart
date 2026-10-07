@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../messaging/models.dart';
+import 'media_bubbles.dart';
 import '../../theming/domain/klk_theme.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -11,11 +12,15 @@ class MessageBubble extends StatelessWidget {
   /// Reciprocidad: si oculto mis confirmaciones de lectura, no veo las ajenas.
   final bool showReadReceipts;
 
+  /// Reintentar la descarga de un adjunto.
+  final VoidCallback? onRetryMedia;
+
   const MessageBubble({
     super.key,
     required this.message,
     this.showSender = false,
     this.showReadReceipts = true,
+    this.onRetryMedia,
   });
 
   @override
@@ -51,7 +56,9 @@ class MessageBubble extends StatelessWidget {
         child: Container(
           constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2.5),
-          padding: const EdgeInsets.fromLTRB(13, 8, 10, 6),
+          padding: message.media == null
+              ? const EdgeInsets.fromLTRB(13, 8, 10, 6)
+              : const EdgeInsets.fromLTRB(5, 5, 8, 5),
           decoration: BoxDecoration(
             color: bg,
             border: scheduled ? Border.all(color: fg.withValues(alpha: 0.6), width: 1.2) : null,
@@ -63,7 +70,8 @@ class MessageBubble extends StatelessWidget {
             ),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            // Con adjunto, la hora queda alineada a la derecha bajo la foto/audio.
+            crossAxisAlignment: message.media == null ? CrossAxisAlignment.start : CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
               if (showSender && message.sender.isNotEmpty)
@@ -72,12 +80,18 @@ class MessageBubble extends StatelessWidget {
                   child: Text(message.sender,
                       style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: cs.secondary)),
                 ),
+              if (message.media != null)
+                MediaContent(message: message, fg: fg, onRetry: onRetryMedia),
               Wrap(
                 alignment: WrapAlignment.end,
                 crossAxisAlignment: WrapCrossAlignment.end,
                 spacing: 8,
                 children: [
-                  Text(message.body, style: TextStyle(color: fg, fontSize: 15.5, height: 1.35)),
+                  if (message.body.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(left: message.media == null ? 0 : 6, top: message.media == null ? 0 : 4),
+                      child: Text(message.body, style: TextStyle(color: fg, fontSize: 15.5, height: 1.35)),
+                    ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

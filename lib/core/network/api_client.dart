@@ -91,4 +91,41 @@ class ApiClient {
     final primary = devices.firstWhere((d) => d['deviceId'] == 1, orElse: () => devices.first);
     return base64Decode(primary['identityKey'] as String);
   }
+
+  /// Sube un adjunto YA CIFRADO. Devuelve su id.
+  Future<String> uploadAttachment(List<int> bytes) async {
+    http.Response res;
+    try {
+      res = await http
+          .post(_u('/v1/attachments'),
+              headers: {'Content-Type': 'application/octet-stream', if (token != null) 'Authorization': 'Bearer $token'},
+              body: bytes)
+          .timeout(const Duration(minutes: 5));
+    } on Exception {
+      throw const ApiException(0, 'network', 'No se pudo subir el archivo. Revisa tu conexión.');
+    }
+    if (res.statusCode == 413) {
+      throw const ApiException(413, 'too_large', 'El archivo es demasiado grande (máximo 64 MB).');
+    }
+    if (res.statusCode != 201) {
+      throw ApiException(res.statusCode, 'upload', 'No se pudo subir el archivo (${res.statusCode}).');
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['id'] as String;
+  }
+
+  /// Descarga un adjunto cifrado.
+  Future<List<int>> downloadAttachment(String id) async {
+    http.Response res;
+    try {
+      res = await http
+          .get(_u('/v1/attachments/$id'), headers: {if (token != null) 'Authorization': 'Bearer $token'})
+          .timeout(const Duration(minutes: 5));
+    } on Exception {
+      throw const ApiException(0, 'network', 'No se pudo descargar el archivo.');
+    }
+    if (res.statusCode != 200) {
+      throw ApiException(res.statusCode, 'download', 'El archivo ya no está disponible.');
+    }
+    return res.bodyBytes;
+  }
 }
