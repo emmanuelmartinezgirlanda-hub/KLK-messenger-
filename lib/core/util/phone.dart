@@ -32,6 +32,39 @@ String toE164(Country c, String local) {
 
 bool isValidE164(String p) => RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(p);
 
+/// Convierte un número de la agenda ("(809) 555-1234", "0034 612…", "612 34 56 78")
+/// a E.164. [defaultDial] es el prefijo de mi país ("+1", "+34"…).
+/// Devuelve null si no parece un número válido.
+String? normalizePhone(String raw, String defaultDial) {
+  var s = raw.trim().replaceAll(RegExp(r'[^\d+]'), '');
+  if (s.isEmpty) return null;
+  if (s.startsWith('00')) s = '+${s.substring(2)}';
+  if (!s.startsWith('+')) {
+    final digits = s.replaceAll('+', '');
+    // Números de RD/EE. UU. escritos sin prefijo: 10 cifras o 11 empezando por 1
+    if (digits.length == 11 && digits.startsWith('1')) {
+      s = '+$digits';
+    } else if (digits.length == 10 && defaultDial == '+1') {
+      s = '+1$digits';
+    } else if (digits.length == 10 && const ['809', '829', '849'].contains(digits.substring(0, 3))) {
+      s = '+1$digits'; // un número dominicano en la agenda de alguien que vive fuera
+    } else {
+      s = '$defaultDial$digits';
+    }
+  }
+  return isValidE164(s) ? s : null;
+}
+
+/// Prefijo del país de un número E.164 propio (para normalizar la agenda).
+String dialCodeOf(String e164) {
+  final codes = countries.map((c) => c.dialCode).toSet().toList()
+    ..sort((a, b) => b.length.compareTo(a.length));
+  for (final c in codes) {
+    if (e164.startsWith(c)) return c;
+  }
+  return '+1';
+}
+
 /// Muestra un E.164 de forma legible: "+1 809 555 1234".
 String prettyPhone(String e164) {
   for (final c in countries) {

@@ -98,4 +98,15 @@ void main() {
     expect(Chat.fromRow(chat.toRow()).avatarPath, '/fotos/y.jpg');
     expect(chat.copyWith(unread: 2).avatarPath, '/fotos/y.jpg');
   });
+
+  test('Números de la agenda a E.164', () {
+    expect(normalizePhone('(809) 555-1234', '+34'), '+18095551234'); // dominicano en agenda española
+    expect(normalizePhone('612 34 56 78', '+34'), '+34612345678');
+    expect(normalizePhone('0034 612 34 56 78', '+1'), '+34612345678');
+    expect(normalizePhone('+1 (212) 555-1234', '+34'), '+12125551234');
+    expect(normalizePhone('212-555-1234', '+1'), '+12125551234');
+    expect(normalizePhone('123', '+1'), isNull);
+    expect(dialCodeOf('+353851234567'), '+353');
+    expect(dialCodeOf('+18095551234'), '+1');
+  });
 }

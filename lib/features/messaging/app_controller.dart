@@ -591,8 +591,30 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// Prefijo de mi país, para entender los números de mi agenda.
+  String get myDialCode => dialCodeOf(session?.phone ?? '+1');
+
+  /// Qué números usan KLK (número -> id de cuenta).
+  /// En modo demo, se inventa que la mitad de tus contactos ya están en KLK.
+  Future<Map<String, String>> discover(List<String> phones) async {
+    if (phones.isEmpty) return {};
+    if (isDemo) {
+      return {
+        for (final p in phones)
+          if (int.parse(p[p.length - 1]) % 2 == 0) p: 'demo-$p',
+      };
+    }
+    final found = <String, String>{};
+    for (var i = 0; i < phones.length; i += 1000) {
+      final end = i + 1000 > phones.length ? phones.length : i + 1000;
+      found.addAll(await _api!.lookupBatch(phones.sublist(i, end)));
+    }
+    return found;
+  }
+
   /// Abre (o crea) un chat con un número. Devuelve el id del chat.
-  Future<String> startChatWithPhone(String phone, String name) async {
+  /// Si ya sé su id de cuenta ([knownAccountId]), me ahorro la búsqueda.
+  Future<String> startChatWithPhone(String phone, String name, {String? knownAccountId}) async {
     final title = name.trim().isEmpty ? prettyPhone(phone) : name.trim();
     if (isDemo) {
       final id = 'demo-$phone';
@@ -605,7 +627,7 @@ class AppController extends ChangeNotifier {
     if (phone == session!.phone) {
       throw const ApiException(400, 'self', 'Ese es tu propio número.');
     }
-    final id = await _api!.lookup(phone);
+    final id = knownAccountId ?? await _api!.lookup(phone);
     final identity = base64Encode(await _api!.identityOf(id));
     final existing = await _db!.chat(id);
     await _db!.upsertChat(existing?.copyWith(title: title, identityKey: identity) ??

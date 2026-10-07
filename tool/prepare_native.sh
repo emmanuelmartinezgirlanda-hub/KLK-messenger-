@@ -31,6 +31,7 @@ if command -v plutil >/dev/null; then
   addkey NSMicrophoneUsageDescription "KLK usa el micrófono para grabar notas de voz y vídeos."
   addkey NSPhotoLibraryUsageDescription "KLK accede a tus fotos para que puedas enviarlas en calidad original."
   addkey NSPhotoLibraryAddUsageDescription "KLK guarda en tu galería las fotos que decidas descargar."
+  addkey NSContactsUsageDescription "KLK mira tu agenda para mostrarte qué contactos ya usan KLK. Tu agenda no se guarda en nuestros servidores."
   addkey NSLocationWhenInUseUsageDescription "KLK usa tu ubicación solo cuando decides enviarla en un chat."
   # Que la llamada siga sonando si sales un momento de KLK
   plutil -replace UIBackgroundModes -json '["audio"]' "$PLIST"
@@ -48,7 +49,7 @@ if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
   perl -0pi -e 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
 fi
 
-for perm in RECORD_AUDIO ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT; do
+for perm in RECORD_AUDIO ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT READ_CONTACTS; do
   if ! grep -q "android.permission.$perm" "$MANIFEST"; then
     perl -0pi -e "s#<application#<uses-permission android:name=\"android.permission.$perm\"/>\n    <application#" "$MANIFEST"
   fi

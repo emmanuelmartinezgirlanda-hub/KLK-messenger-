@@ -128,4 +128,10 @@ class ApiClient {
     }
     return res.bodyBytes;
   }
+
+  /// Qué números de la lista usan KLK (devuelve número -> accountId).
+  Future<Map<String, String>> lookupBatch(List<String> phones) async {
+    final j = await _send('POST', '/v1/accounts/lookup-batch', {'phones': phones}) as Map<String, dynamic>;
+    return (j['found'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as String));
+  }
 }
