@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/brand/klk_brand.dart';
+import '../../core/brand/klk_logo.dart';
 import '../chat/presentation/chat_list_view.dart';
 import '../chat/presentation/new_chat_sheet.dart';
 import '../communities/communities_view.dart';
@@ -27,6 +28,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         titleSpacing: 16,
         title: Row(children: [
+          const KlkEmblem(size: 34),
+          const SizedBox(width: 10),
           Text(KlkBrand.name,
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 26, color: cs.primary, letterSpacing: 0.5)),
           const SizedBox(width: 10),

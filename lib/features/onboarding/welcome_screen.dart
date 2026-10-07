@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/brand/klk_brand.dart';
+import '../../core/brand/klk_logo.dart';
 import '../../core/config.dart';
 import '../../core/util/phone.dart';
 import '../messaging/app_controller.dart';
@@ -59,12 +60,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
           children: [
-            Center(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: Image.asset('assets/brand/klk_logo.png', height: 220, fit: BoxFit.contain),
-              ),
-            ),
+            const Center(child: KlkLogo(height: 220)),
             const SizedBox(height: 24),
             Text(KlkBrand.slogan, style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/brand/klk_logo.dart';
 import '../../core/util/phone.dart';
 import '../messaging/app_controller.dart';
 import '../privacy/presentation/privacy_screen.dart';
@@ -59,6 +60,8 @@ class SettingsView extends ConsumerWidget {
           onTap: () => _confirmPanic(context, ref),
         ),
         const SizedBox(height: 24),
+        const Center(child: KlkLogo(height: 120)),
+        const SizedBox(height: 12),
         Center(
           child: Text('KLK 0.1.0 · Tu gente, donde tú estés.',
               style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),

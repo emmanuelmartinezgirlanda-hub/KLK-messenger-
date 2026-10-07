@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/brand/klk_logo.dart';
 import 'features/home/home_screen.dart';
 import 'features/messaging/app_controller.dart';
 import 'features/onboarding/welcome_screen.dart';
@@ -68,11 +69,7 @@ class _Splash extends StatelessWidget {
   const _Splash();
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: Center(
-          child: Text('KLK',
-              style: TextStyle(
-                  fontSize: 56, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary)),
-        ),
+  Widget build(BuildContext context) => const Scaffold(
+        body: Center(child: KlkEmblem(size: 120)),
       );
 }
