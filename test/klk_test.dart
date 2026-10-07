@@ -87,4 +87,15 @@ void main() {
     expect(back.preview, '📍 Ubicación');
     expect(loc.needsDownload, isFalse);
   });
+
+  test('Perfil y foto del contacto se guardan', () {
+    const me = Profile(name: 'Emmanuel', photoPath: '/fotos/yo.jpg');
+    final back = Profile.fromJson(me.toJson());
+    expect(back.name, 'Emmanuel');
+    expect(back.copyWith(clearPhoto: true).photoPath, isNull);
+
+    final chat = Chat(id: 'c', title: 'Yaniris', updatedAt: DateTime(2026), avatarPath: '/fotos/y.jpg');
+    expect(Chat.fromRow(chat.toRow()).avatarPath, '/fotos/y.jpg');
+    expect(chat.copyWith(unread: 2).avatarPath, '/fotos/y.jpg');
+  });
 }

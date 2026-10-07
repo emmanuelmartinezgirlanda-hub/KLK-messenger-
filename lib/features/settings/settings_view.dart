@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/brand/klk_logo.dart';
 import '../../core/util/phone.dart';
+import '../chat/presentation/chat_avatar.dart';
 import '../messaging/app_controller.dart';
 import '../privacy/presentation/privacy_screen.dart';
 import '../theming/presentation/theme_picker_screen.dart';
@@ -20,17 +22,7 @@ class SettingsView extends ConsumerWidget {
 
     return ListView(
       children: [
-        ListTile(
-          contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          leading: CircleAvatar(
-            radius: 28,
-            backgroundColor: cs.primary,
-            child: const Text('TÚ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          ),
-          title: Text(s == null ? '' : prettyPhone(s.phone),
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-          subtitle: Text(app.isDemo ? 'Modo demo · sin servidor' : (app.online ? 'Conectado' : 'Sin conexión')),
-        ),
+        const _ProfileHeader(),
         const Divider(),
         ListTile(
           leading: const Icon(Icons.shield_outlined),
@@ -89,5 +81,129 @@ class SettingsView extends ConsumerWidget {
       ),
     );
     if (ok == true) await ref.read(appProvider).panic();
+  }
+}
+
+
+/// Cabecera de Ajustes: mi foto y mi nombre, editables.
+class _ProfileHeader extends ConsumerWidget {
+  const _ProfileHeader();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final app = ref.watch(appProvider);
+    final cs = Theme.of(context).colorScheme;
+    final s = app.session;
+    final name = app.profile.name;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 8, 12),
+      child: Row(children: [
+        GestureDetector(
+          onTap: () => _changePhoto(context, ref),
+          child: Stack(children: [
+            ChatAvatar(id: 'me', title: name.isEmpty ? 'Tú' : name, photoPath: app.profile.photoPath, radius: 36),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(color: cs.secondary, shape: BoxShape.circle,
+                    border: Border.all(color: cs.surface, width: 2)),
+                child: Icon(Icons.photo_camera, size: 14, color: cs.onSecondary),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name.isEmpty ? 'Ponte un nombre' : name,
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+                    color: name.isEmpty ? cs.onSurface.withValues(alpha: 0.5) : null)),
+            const SizedBox(height: 2),
+            Text(s == null ? '' : prettyPhone(s.phone), style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65))),
+            Text(app.isDemo ? 'Modo demo · sin servidor' : (app.online ? 'Conectado' : 'Sin conexión'),
+                style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
+          ]),
+        ),
+        IconButton(
+          tooltip: 'Cambiar nombre',
+          icon: const Icon(Icons.edit_outlined),
+          onPressed: () => _editName(context, ref, name),
+        ),
+      ]),
+    );
+  }
+
+  Future<void> _changePhoto(BuildContext context, WidgetRef ref) async {
+    final hasPhoto = ref.read(appProvider).profile.photoPath != null;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Elegir de la galería'),
+            onTap: () => Navigator.pop(ctx, 'gallery'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Hacer una foto'),
+            onTap: () => Navigator.pop(ctx, 'camera'),
+          ),
+          if (hasPhoto)
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A)),
+              title: const Text('Quitar foto', style: TextStyle(color: Color(0xFFFF6B7A))),
+              onTap: () => Navigator.pop(ctx, 'remove'),
+            ),
+        ]),
+      ),
+    );
+    if (choice == null) return;
+    final app = ref.read(appProvider);
+    if (choice == 'remove') {
+      await app.updateProfile(removePhoto: true);
+      return;
+    }
+    try {
+      final x = await ImagePicker().pickImage(
+        source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+        maxWidth: 800, // la foto de perfil no necesita más resolución
+        imageQuality: 85,
+        preferredCameraDevice: CameraDevice.front,
+      );
+      if (x != null) await app.updateProfile(photoSourcePath: x.path);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('KLK no tiene permiso para tus fotos o la cámara. Actívalo en Ajustes del iPhone → KLK.')));
+      }
+    }
+  }
+
+  Future<void> _editName(BuildContext context, WidgetRef ref, String current) async {
+    final ctrl = TextEditingController(text: current);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tu nombre'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 40,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(hintText: 'Como te verán tus contactos'),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (name != null) await ref.read(appProvider).updateProfile(name: name);
   }
 }

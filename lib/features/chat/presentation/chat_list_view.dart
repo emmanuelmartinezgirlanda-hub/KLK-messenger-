@@ -4,15 +4,10 @@ import 'package:intl/intl.dart';
 
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
+import 'chat_avatar.dart';
 import 'chat_screen.dart';
 import 'new_chat_sheet.dart';
 
-const _avatarColors = [
-  Color(0xFFCE1126), Color(0xFF00A6B4), Color(0xFF6A2C91),
-  Color(0xFF1F7A4D), Color(0xFFC46A00), Color(0xFF002D62),
-];
-
-Color avatarColor(String id) => _avatarColors[id.hashCode.abs() % _avatarColors.length];
 
 String chatTime(DateTime t) {
   final now = DateTime.now();
@@ -83,12 +78,7 @@ class _ChatTile extends ConsumerWidget {
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: CircleAvatar(
-        radius: 26,
-        backgroundColor: avatarColor(chat.id),
-        child: Text(chat.title.characters.first,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
-      ),
+      leading: ChatAvatar(id: chat.id, title: chat.title, photoPath: chat.avatarPath),
       title: Row(children: [
         Expanded(
           child: Text(chat.title,

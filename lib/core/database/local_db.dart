@@ -19,9 +19,10 @@ class LocalDb {
     final db = await openDatabase(
       p.join(dir, _file),
       password: key,
-      version: 2,
+      version: 3,
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await db.execute('ALTER TABLE messages ADD COLUMN media_json TEXT');
+        if (oldVersion < 3) await db.execute('ALTER TABLE chats ADD COLUMN avatar_path TEXT');
       },
       onCreate: (db, _) async {
         await db.execute('''
@@ -33,7 +34,8 @@ class LocalDb {
             is_group INTEGER NOT NULL DEFAULT 0,
             unread INTEGER NOT NULL DEFAULT 0,
             last_text TEXT NOT NULL DEFAULT '',
-            updated_at INTEGER NOT NULL
+            updated_at INTEGER NOT NULL,
+            avatar_path TEXT
           )''');
         await db.execute('''
           CREATE TABLE messages (
@@ -76,11 +78,22 @@ class LocalDb {
     return rows.isEmpty ? null : Chat.fromRow(rows.first);
   }
 
-  Future<void> upsertChat(Chat c) =>
-      _db.insert('chats', c.toRow(), conflictAlgorithm: ConflictAlgorithm.replace);
+  /// Crea o actualiza un chat. No usa REPLACE: en SQLite eso borra la fila
+  /// y, por la clave foránea en cascada, también todos sus mensajes.
+  Future<void> upsertChat(Chat c) async {
+    final row = c.toRow();
+    final updated = await _db.update('chats', row, where: 'id = ?', whereArgs: [c.id]);
+    if (updated == 0) await _db.insert('chats', row);
+  }
 
   Future<void> setIdentity(String chatId, String identityB64) =>
       _db.update('chats', {'identity_key': identityB64}, where: 'id = ?', whereArgs: [chatId]);
+
+  Future<void> setAvatar(String chatId, String? path) =>
+      _db.update('chats', {'avatar_path': path}, where: 'id = ?', whereArgs: [chatId]);
+
+  Future<void> setTitle(String chatId, String title) =>
+      _db.update('chats', {'title': title}, where: 'id = ?', whereArgs: [chatId]);
 
   Future<void> clearUnread(String chatId) =>
       _db.update('chats', {'unread': 0}, where: 'id = ?', whereArgs: [chatId]);

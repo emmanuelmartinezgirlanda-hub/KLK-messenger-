@@ -16,7 +16,7 @@ import '../../../core/util/phone.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import '../../privacy/presentation/privacy_provider.dart';
-import 'chat_list_view.dart' show avatarColor;
+import 'chat_avatar.dart';
 import 'message_bubble.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -369,12 +369,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       appBar: AppBar(
         titleSpacing: 0,
         title: Row(children: [
-          CircleAvatar(
-            radius: 19,
-            backgroundColor: avatarColor(widget.chatId),
-            child: Text(title.isEmpty ? '?' : title.characters.first,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          ),
+          ChatAvatar(id: widget.chatId, title: title, photoPath: chat?.avatarPath, radius: 19),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

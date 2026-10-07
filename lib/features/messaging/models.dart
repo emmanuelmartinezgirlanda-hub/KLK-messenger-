@@ -14,6 +14,7 @@ class Chat {
   final int unread;
   final String lastText;
   final DateTime updatedAt;
+  final String? avatarPath; // foto de perfil del contacto (ya descifrada)
 
   const Chat({
     required this.id,
@@ -24,6 +25,7 @@ class Chat {
     this.unread = 0,
     this.lastText = '',
     required this.updatedAt,
+    this.avatarPath,
   });
 
   Chat copyWith({String? title, String? identityKey, int? unread, String? lastText, DateTime? updatedAt}) => Chat(
@@ -35,6 +37,7 @@ class Chat {
         unread: unread ?? this.unread,
         lastText: lastText ?? this.lastText,
         updatedAt: updatedAt ?? this.updatedAt,
+        avatarPath: avatarPath,
       );
 
   Map<String, Object?> toRow() => {
@@ -46,6 +49,7 @@ class Chat {
         'unread': unread,
         'last_text': lastText,
         'updated_at': updatedAt.millisecondsSinceEpoch,
+        'avatar_path': avatarPath,
       };
 
   factory Chat.fromRow(Map<String, Object?> r) => Chat(
@@ -57,6 +61,7 @@ class Chat {
         unread: r['unread'] as int? ?? 0,
         lastText: r['last_text'] as String? ?? '',
         updatedAt: DateTime.fromMillisecondsSinceEpoch(r['updated_at'] as int),
+        avatarPath: r['avatar_path'] as String?,
       );
 }
 
@@ -243,7 +248,7 @@ String formatBytes(int bytes) {
 /// Contenido que viaja CIFRADO dentro de cada sobre.
 /// El servidor no puede distinguir un texto de un "escribiendo..." o un "leído".
 class Payload {
-  final String kind; // text | typing | recording | read | delivered
+  final String kind; // text | typing | recording | read | delivered | profile
   final String? id; // id del mensaje de texto
   final String? text;
   final bool? on; // typing
@@ -275,4 +280,19 @@ class Payload {
       media: (j['m'] as Map?)?.cast<String, dynamic>(),
     );
   }
+}
+
+
+/// Mi perfil: nombre y foto que ven mis contactos.
+class Profile {
+  final String name;
+  final String? photoPath;
+  const Profile({this.name = '', this.photoPath});
+
+  Profile copyWith({String? name, String? photoPath, bool clearPhoto = false}) =>
+      Profile(name: name ?? this.name, photoPath: clearPhoto ? null : (photoPath ?? this.photoPath));
+
+  Map<String, dynamic> toJson() => {'name': name, if (photoPath != null) 'photo': photoPath};
+  factory Profile.fromJson(Map<String, dynamic> j) =>
+      Profile(name: j['name'] as String? ?? '', photoPath: j['photo'] as String?);
 }

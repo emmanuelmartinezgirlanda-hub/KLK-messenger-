@@ -39,6 +39,8 @@ class AppController extends ChangeNotifier {
   bool online = false;
   List<Chat> chats = [];
   String? openChatId;
+  Profile profile = const Profile();
+  static const _profileKey = 'klk.profile';
 
   LocalDb? _db;
   CryptoEngine? _crypto;
@@ -87,6 +89,8 @@ class AppController extends ChangeNotifier {
 
   Future<void> _openSession() async {
     _db = await LocalDb.open(await _store.databaseKey());
+    final savedProfile = await _store.read(_profileKey);
+    if (savedProfile != null) profile = Profile.fromJson(jsonDecode(savedProfile) as Map<String, dynamic>);
     _crypto = await _loadCrypto();
     if (session!.isDemo) {
       if ((await _db!.chats()).isEmpty) await seedDemo(_db!);
@@ -254,6 +258,8 @@ class AppController extends ChangeNotifier {
           updatedAt: DateTime.now(),
         );
         await db.upsertChat(chat);
+        await _reloadChats();
+        unawaited(_broadcastProfile(from));
       } else if (chat.identityKey == null) {
         await db.setIdentity(from, identity);
       } else if (chat.identityKey != identity) {
@@ -296,6 +302,30 @@ class AppController extends ChangeNotifier {
               target.remove(from);
             }
             notifyListeners();
+          }
+        case 'profile':
+          {
+            final name = (p.text ?? '').trim();
+            final current = await db.chat(from);
+            // Si el chat aún muestra solo el número, usa el nombre que el contacto eligió.
+            if (name.isNotEmpty && current != null &&
+                (current.title == prettyPhone(current.phone) || current.title == 'Contacto nuevo')) {
+              await db.setTitle(from, name);
+            }
+            final photo = p.media == null ? null : MessageMedia.fromJson(p.media!);
+            if (photo == null) {
+              await db.setAvatar(from, null);
+            } else if (photo.needsDownload) {
+              unawaited(() async {
+                try {
+                  final path = await _fetchMedia(photo);
+                  await _db?.setAvatar(from, path);
+                  await _refresh();
+                } catch (e) {
+                  debugPrint('Foto de perfil: $e');
+                }
+              }());
+            }
           }
         case 'delivered':
           await db.advanceStatus(p.ids ?? const [], MessageStatus.delivered);
@@ -386,14 +416,7 @@ class AppController extends ChangeNotifier {
       var wire = media;
       final path = media.localPath;
       if (media.type != MediaType.location && path != null) {
-        final sealed = await MediaStore.seal(path);
-        final attId = await _api!.uploadAttachment(sealed.bytes);
-        wire = media.copyWith(
-          attachmentId: attId,
-          key: base64Encode(sealed.key),
-          nonce: base64Encode(sealed.nonce),
-          mac: base64Encode(sealed.mac),
-        );
+        wire = await _sealAndUpload(media);
       }
       await _sendEncrypted(
         chatId,
@@ -413,20 +436,69 @@ class AppController extends ChangeNotifier {
     if (media == null || !media.needsDownload || _downloading.contains(msg.id) || _api == null) return;
     _downloading.add(msg.id);
     try {
-      final cipher = await _api!.downloadAttachment(media.attachmentId!);
-      final path = await MediaStore.open(
-        cipher,
-        key: base64Decode(media.key!),
-        nonce: base64Decode(media.nonce!),
-        mac: base64Decode(media.mac!),
-        extension: MediaStore.extensionFor(media.mime, media.name),
-      );
+      final path = await _fetchMedia(media);
       await _db?.setMedia(msg.id, media.copyWith(localPath: path));
       await _refresh();
     } catch (e) {
       debugPrint('Descarga de adjunto: $e');
     } finally {
       _downloading.remove(msg.id);
+    }
+  }
+
+  /// Descarga y descifra un adjunto; devuelve la ruta local.
+  Future<String> _fetchMedia(MessageMedia media) async {
+    final cipher = await _api!.downloadAttachment(media.attachmentId!);
+    return MediaStore.open(
+      cipher,
+      key: base64Decode(media.key!),
+      nonce: base64Decode(media.nonce!),
+      mac: base64Decode(media.mac!),
+      extension: MediaStore.extensionFor(media.mime, media.name),
+    );
+  }
+
+  /// Sube cifrado un archivo local y devuelve el adjunto listo para enviar.
+  Future<MessageMedia> _sealAndUpload(MessageMedia media) async {
+    final sealed = await MediaStore.seal(media.localPath!);
+    final attId = await _api!.uploadAttachment(sealed.bytes);
+    return media.copyWith(
+      attachmentId: attId,
+      key: base64Encode(sealed.key),
+      nonce: base64Encode(sealed.nonce),
+      mac: base64Encode(sealed.mac),
+    );
+  }
+
+  // ---------- Perfil ----------
+
+  /// Cambia mi nombre y/o foto y lo envía (cifrado) a mis contactos.
+  Future<void> updateProfile({String? name, String? photoSourcePath, bool removePhoto = false}) async {
+    String? newPhoto;
+    if (photoSourcePath != null) newPhoto = await MediaStore.importFile(photoSourcePath);
+    profile = profile.copyWith(name: name?.trim(), photoPath: newPhoto, clearPhoto: removePhoto);
+    await _store.write(_profileKey, jsonEncode(profile.toJson()));
+    notifyListeners();
+    if (!isDemo) unawaited(_broadcastProfile());
+  }
+
+  /// Envía mi perfil a un chat concreto o a todos mis chats individuales.
+  Future<void> _broadcastProfile([String? onlyChatId]) async {
+    try {
+      Map<String, dynamic>? photo;
+      final path = profile.photoPath;
+      if (path != null && await File(path).exists()) {
+        final up = await _sealAndUpload(
+            MessageMedia(type: MediaType.image, localPath: path, mime: MediaStore.mimeFor(path)));
+        photo = up.forWire().toJson();
+      }
+      final targets = chats.where((c) => !c.isGroup && c.identityKey != null && (onlyChatId == null || c.id == onlyChatId));
+      for (final c in targets) {
+        await _sendEncrypted(c.id, Payload(kind: 'profile', text: profile.name, media: photo),
+            ref: 'x-${_uuid.v4()}');
+      }
+    } catch (e) {
+      debugPrint('Enviar perfil: $e');
     }
   }
 
@@ -510,6 +582,7 @@ class AppController extends ChangeNotifier {
     await _db!.upsertChat(existing?.copyWith(title: title, identityKey: identity) ??
         Chat(id: id, title: title, phone: phone, identityKey: identity, updatedAt: DateTime.now()));
     await _reloadChats();
+    if (existing == null) unawaited(_broadcastProfile(id));
     return id;
   }
 
@@ -526,6 +599,7 @@ class AppController extends ChangeNotifier {
     await MediaStore.wipe();
     await _store.panicWipe();
     session = null;
+    profile = const Profile();
     chats = [];
     _messages.clear();
     _outbox.clear();
