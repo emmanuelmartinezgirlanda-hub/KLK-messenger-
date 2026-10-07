@@ -73,7 +73,7 @@ class SettingsView extends ConsumerWidget {
         const Center(child: KlkLogo(height: 120)),
         const SizedBox(height: 12),
         Center(
-          child: Text('KLK 0.1.0 · Tu gente, donde tú estés.',
+          child: Text('KLK messenger 0.1.0 · Tu gente, donde tú estés.',
               style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
         ),
         const SizedBox(height: 24),

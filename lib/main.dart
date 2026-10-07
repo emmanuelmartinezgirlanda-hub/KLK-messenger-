@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/brand/klk_brand.dart';
 import 'core/brand/klk_logo.dart';
 import 'core/media/media_store.dart';
 import 'features/calls/call_controller.dart';
@@ -76,7 +77,7 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
 
     return MaterialApp(
       navigatorKey: ref.watch(navigatorKeyProvider),
-      title: 'KLK',
+      title: KlkBrand.fullName,
       debugShowCheckedModeBanner: false,
       theme: theme.toThemeData(),
       locale: const Locale('es'),

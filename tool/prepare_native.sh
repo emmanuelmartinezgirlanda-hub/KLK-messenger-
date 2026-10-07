@@ -20,13 +20,15 @@ dart run flutter_launcher_icons
 # 3. iOS: nombre visible, iOS mínimo 15.5 y textos de permisos
 PLIST=ios/Runner/Info.plist
 if command -v /usr/libexec/PlistBuddy >/dev/null; then
-  /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName KLK" "$PLIST" 2>/dev/null \
-    || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string KLK" "$PLIST"
+  # Nombre bajo el icono: "KLK messenger"
+  /usr/libexec/PlistBuddy -c "Delete :CFBundleDisplayName" "$PLIST" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'KLK messenger'" "$PLIST" 2>/dev/null || true
   /usr/libexec/PlistBuddy -c "Set :CFBundleName KLK" "$PLIST" 2>/dev/null || true
 fi
 # Permisos (textos que ve el usuario cuando KLK los pide)
 if command -v plutil >/dev/null; then
   addkey() { plutil -replace "$1" -string "$2" "$PLIST"; }
+  addkey CFBundleDisplayName "KLK messenger"
   addkey NSCameraUsageDescription "KLK usa la cámara para que hagas fotos y vídeos y los envíes a tu gente."
   addkey NSMicrophoneUsageDescription "KLK usa el micrófono para grabar notas de voz y vídeos."
   addkey NSPhotoLibraryUsageDescription "KLK accede a tus fotos para que puedas enviarlas en calidad original."
@@ -47,7 +49,7 @@ fi
 
 # 4. Android: nombre visible y permiso de Internet en la versión final
 MANIFEST=android/app/src/main/AndroidManifest.xml
-sed -i.bak 's/android:label="[^"]*"/android:label="KLK"/' "$MANIFEST"
+sed -i.bak 's/android:label="[^"]*"/android:label="KLK messenger"/' "$MANIFEST"
 if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
   perl -0pi -e 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
 fi

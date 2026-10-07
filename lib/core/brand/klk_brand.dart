@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 /// Paleta inspirada en la bandera dominicana y el Caribe.
 abstract final class KlkBrand {
   static const String name = 'KLK';
+  static const String fullName = 'KLK messenger'; // nombre de la app en el móvil
   static const String slogan = 'Tu gente, donde tú estés.';
   static const String greeting = '¿Klk, mi gente?';
 

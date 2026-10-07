@@ -66,8 +66,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: Row(children: [
           const KlkEmblem(size: 34),
           const SizedBox(width: 10),
-          Text(KlkBrand.name,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 26, color: cs.primary, letterSpacing: 0.5)),
+          Flexible(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(
+                    text: KlkBrand.name,
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 26, color: cs.primary, letterSpacing: 0.5)),
+                TextSpan(
+                    text: ' messenger',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: cs.onSurface.withValues(alpha: 0.7))),
+              ]),
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
+            ),
+          ),
           const SizedBox(width: 10),
           if (app.isDemo)
             const _Pill(text: 'Modo demo')
