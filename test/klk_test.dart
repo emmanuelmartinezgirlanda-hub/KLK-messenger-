@@ -109,4 +109,64 @@ void main() {
     expect(dialCodeOf('+353851234567'), '+353');
     expect(dialCodeOf('+18095551234'), '+1');
   });
+
+  test('Mensaje con respuesta, reacciones, borrado y caducidad se guarda entero', () {
+    final m = Message(
+      id: 'm1', chatId: 'g-1', kind: MessageKind.incoming, sender: 'Pedro', body: 'Klk',
+      status: MessageStatus.delivered, createdAt: DateTime(2026, 10, 7, 12),
+      replyToId: 'm0', replyPreview: 'Tú: ¿Vienes el sábado?',
+      reactions: const {'me': '👍', 'abc': '🇩🇴'},
+      expiresAt: DateTime(2026, 10, 8, 12),
+    );
+    final back = Message.fromRow(m.toRow());
+    expect(back.replyPreview, 'Tú: ¿Vienes el sábado?');
+    expect(back.reactions['abc'], '🇩🇴');
+    expect(back.expiresAt, DateTime(2026, 10, 8, 12));
+    final borrado = back.copyWith(deleted: true);
+    expect(borrado.summary, '🚫 Mensaje eliminado');
+  });
+
+  test('Grupo: miembros por JSON y señales nuevas en el payload', () {
+    final chat = Chat(
+      id: 'g-1', title: 'La Familia', isGroup: true, updatedAt: DateTime(2026),
+      members: const [GroupMember(id: 'a', phone: '+18095550101', name: 'Mami', identityKey: 'k')],
+      disappearSec: 86400,
+    );
+    final back = Chat.fromRow(chat.toRow());
+    expect(back.members.single.name, 'Mami');
+    expect(back.members.single.identityKey, 'k');
+    expect(back.disappearSec, 86400);
+    expect(disappearLabel(back.disappearSec), '24 horas');
+    expect(disappearLabel(null), 'Desactivados');
+
+    const p = Payload(kind: 'reaction', target: 'm1', emoji: '❤️', group: {'id': 'g-1', 'n': 'La Familia'});
+    final d = Payload.decode(p.encode());
+    expect(d.target, 'm1');
+    expect(d.emoji, '❤️');
+    expect(d.group?['n'], 'La Familia');
+  });
+
+  test('Sticker, viaje y ver una vez', () {
+    const sticker = MessageMedia(type: MediaType.sticker, name: 'klk');
+    expect(sticker.needsDownload, isFalse);
+    expect(sticker.label, '🎨 Sticker');
+
+    final trip = MessageMedia(type: MediaType.trip, tripDate: DateTime(2026, 12, 20), tripFrom: 'Madrid', tripTo: 'Santiago');
+    final t = MessageMedia.fromJson(trip.forWire().toJson());
+    expect(t.tripFrom, 'Madrid');
+    expect(t.tripDate, DateTime(2026, 12, 20));
+    expect(t.label, '✈️ Viaje a Santiago');
+
+    const once = MessageMedia(type: MediaType.image, viewOnce: true, attachmentId: 'a', key: 'k', nonce: 'n', mac: 'm');
+    expect(once.needsDownload, isTrue);
+    expect(once.copyWith(opened: true, clearPath: true).needsDownload, isFalse);
+    expect(once.label, '📷 Foto · ver una vez');
+  });
+
+  test('Estado de 24 horas', () {
+    final s = StatusPost(id: 's', ownerId: 'me', ownerName: 'Yo', text: 'Klk', createdAt: DateTime(2026, 10, 7, 9));
+    final back = StatusPost.fromRow(s.toRow());
+    expect(back.isMine, isTrue);
+    expect(back.expiresAt, DateTime(2026, 10, 8, 9));
+  });
 }

@@ -14,15 +14,43 @@ class LocalDb {
 
   static const _file = 'klk.db';
 
+  /// Versión 4: respuestas, reacciones, borrado, temporales, ocultos, grupos y estados.
+  static const _v4 = [
+    'ALTER TABLE chats ADD COLUMN disappear_sec INTEGER',
+    'ALTER TABLE chats ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE chats ADD COLUMN members_json TEXT',
+    'ALTER TABLE messages ADD COLUMN reply_id TEXT',
+    'ALTER TABLE messages ADD COLUMN reply_preview TEXT',
+    'ALTER TABLE messages ADD COLUMN reactions_json TEXT',
+    'ALTER TABLE messages ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE messages ADD COLUMN expires_at INTEGER',
+    '''CREATE TABLE statuses (
+         id TEXT PRIMARY KEY,
+         owner_id TEXT NOT NULL,
+         owner_name TEXT NOT NULL DEFAULT '',
+         text TEXT NOT NULL DEFAULT '',
+         color INTEGER NOT NULL DEFAULT 0,
+         media_path TEXT,
+         created_at INTEGER NOT NULL,
+         allow_save INTEGER NOT NULL DEFAULT 0,
+         viewed INTEGER NOT NULL DEFAULT 0
+       )''',
+  ];
+
   static Future<LocalDb> open(String key) async {
     final dir = await getDatabasesPath();
     final db = await openDatabase(
       p.join(dir, _file),
       password: key,
-      version: 3,
+      version: 4,
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await db.execute('ALTER TABLE messages ADD COLUMN media_json TEXT');
         if (oldVersion < 3) await db.execute('ALTER TABLE chats ADD COLUMN avatar_path TEXT');
+        if (oldVersion < 4) {
+          for (final sql in _v4) {
+            await db.execute(sql);
+          }
+        }
       },
       onCreate: (db, _) async {
         await db.execute('''
@@ -50,6 +78,9 @@ class LocalDb {
             media_json TEXT
           )''');
         await db.execute('CREATE INDEX messages_chat_idx ON messages(chat_id, created_at)');
+        for (final sql in _v4) {
+          await db.execute(sql);
+        }
       },
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
     );
@@ -166,4 +197,57 @@ class LocalDb {
   Future<void> settleScheduled(DateTime now) => _db.rawUpdate(
       "UPDATE messages SET status = 'sent' WHERE status = 'scheduled' AND scheduled_for <= ?",
       [now.millisecondsSinceEpoch]);
+
+  // ---------- v4: mensajes ----------
+
+  /// Reescribe un mensaje entero (reacciones, borrado, adjunto abierto…).
+  Future<void> updateMessage(Message m) =>
+      _db.update('messages', m.toRow(), where: 'id = ?', whereArgs: [m.id]);
+
+  /// Borra los mensajes temporales caducados. Devuelve los adjuntos a borrar del disco.
+  Future<List<String>> purgeExpired(DateTime now) async {
+    final rows = await _db.query('messages',
+        columns: ['media_json'],
+        where: 'expires_at IS NOT NULL AND expires_at <= ? AND media_json IS NOT NULL',
+        whereArgs: [now.millisecondsSinceEpoch]);
+    final files = <String>[];
+    for (final r in rows) {
+      final path = (jsonDecode(r['media_json'] as String) as Map)['path'] as String?;
+      if (path != null) files.add(path);
+    }
+    await _db.delete('messages', where: 'expires_at IS NOT NULL AND expires_at <= ?', whereArgs: [now.millisecondsSinceEpoch]);
+    return files;
+  }
+
+  // ---------- v4: chats ----------
+
+  Future<void> setHidden(String chatId, bool hidden) =>
+      _db.update('chats', {'hidden': hidden ? 1 : 0}, where: 'id = ?', whereArgs: [chatId]);
+
+  Future<void> setDisappear(String chatId, int? seconds) =>
+      _db.update('chats', {'disappear_sec': seconds}, where: 'id = ?', whereArgs: [chatId]);
+
+  Future<void> deleteChat(String chatId) => _db.delete('chats', where: 'id = ?', whereArgs: [chatId]);
+
+  // ---------- v4: estados ----------
+
+  Future<void> addStatus(StatusPost s) =>
+      _db.insert('statuses', s.toRow(), conflictAlgorithm: ConflictAlgorithm.ignore);
+
+  Future<List<StatusPost>> statuses(DateTime now) async {
+    final since = now.subtract(const Duration(hours: 24)).millisecondsSinceEpoch;
+    final rows = await _db.query('statuses', where: 'created_at > ?', whereArgs: [since], orderBy: 'created_at ASC');
+    return rows.map(StatusPost.fromRow).toList();
+  }
+
+  Future<void> markStatusViewed(String id) =>
+      _db.update('statuses', {'viewed': 1}, where: 'id = ?', whereArgs: [id]);
+
+  /// Borra los estados de más de 24 h. Devuelve sus fotos para borrarlas del disco.
+  Future<List<String>> purgeStatuses(DateTime now) async {
+    final before = now.subtract(const Duration(hours: 24)).millisecondsSinceEpoch;
+    final rows = await _db.query('statuses', columns: ['media_path'], where: 'created_at <= ?', whereArgs: [before]);
+    await _db.delete('statuses', where: 'created_at <= ?', whereArgs: [before]);
+    return [for (final r in rows) if (r['media_path'] != null) r['media_path'] as String];
+  }
 }

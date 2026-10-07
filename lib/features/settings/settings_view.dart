@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/brand/klk_logo.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
+import '../hidden/hidden_chats_screen.dart';
 import '../messaging/app_controller.dart';
 import '../privacy/presentation/privacy_screen.dart';
 import '../theming/presentation/theme_picker_screen.dart';
@@ -37,6 +38,13 @@ class SettingsView extends ConsumerWidget {
           subtitle: Text('${theme.name} · colores, burbujas y fuente'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ThemePickerScreen())),
+        ),
+        ListTile(
+          leading: const Icon(Icons.lock_outline),
+          title: const Text('Chats ocultos'),
+          subtitle: Text(app.hiddenChats.isEmpty ? 'Protegidos con tu PIN' : '${app.hiddenChats.length} ocultos · protegidos con tu PIN'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HiddenChatsScreen())),
         ),
         if (s != null && !s.isDemo)
           ListTile(

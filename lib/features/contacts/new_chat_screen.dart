@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_screen.dart';
+import '../groups/create_group_screen.dart';
 import '../messaging/app_controller.dart';
 import 'device_contacts.dart';
 import 'new_contact_screen.dart';
@@ -128,8 +129,8 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
               icon: Icons.group_add,
               color: const Color(0xFF6A2C91),
               title: 'Nuevo grupo',
-              subtitle: 'Hasta 1.024 personas',
-              onTap: () => _soon('Crear grupos'),
+              subtitle: 'Con tus contactos de KLK',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateGroupScreen())),
             ),
             _Action(
               icon: Icons.location_city,

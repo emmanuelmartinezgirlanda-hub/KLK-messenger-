@@ -69,6 +69,24 @@ Future<void> seedDemo(LocalDb db) async {
     createdAt: ago(60 * 48),
     media: const MessageMedia(type: MediaType.location, lat: 18.42966, lng: -69.66892),
   ));
+
+  // Estados de ejemplo (duran 24 h)
+  await db.addStatus(StatusPost(
+    id: uuid.v4(),
+    ownerId: 'demo-yaniris',
+    ownerName: 'Yaniris',
+    text: 'Llegué a Nueva York 🗽❄️ ¡qué frío, mi gente!',
+    color: 0xFF00A6B4,
+    createdAt: ago(35),
+  ));
+  await db.addStatus(StatusPost(
+    id: uuid.v4(),
+    ownerId: 'demo-ramon',
+    ownerName: 'Ramón (el primo)',
+    text: 'Domingo de sancocho en casa de la abuela 🍲🇩🇴',
+    color: 0xFFCE1126,
+    createdAt: ago(130),
+  ));
 }
 
 const _replies = [

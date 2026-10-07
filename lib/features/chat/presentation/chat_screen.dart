@@ -12,12 +12,15 @@ import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 
 import '../../../core/media/media_store.dart';
+import '../../../core/translate/translator.dart';
 import '../../../core/util/phone.dart';
 import '../../calls/call_controller.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import '../../privacy/presentation/privacy_provider.dart';
 import 'chat_avatar.dart';
+import 'chat_sheets.dart';
+import 'media_bubbles.dart';
 import 'message_bubble.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -35,6 +38,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _typingOff;
   Timer? _clock;
   int _lastCount = 0;
+  Message? _replyTo; // mensaje al que respondo
 
   // Nota de voz
   final _recorder = AudioRecorder();
@@ -94,8 +98,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (text.isEmpty) return;
     _input.clear();
     _typingOff?.cancel();
-    setState(() {});
-    await _app.sendText(widget.chatId, text, at: at);
+    final reply = _replyTo;
+    setState(() => _replyTo = null);
+    await _app.sendText(widget.chatId, text, at: at, replyTo: reply);
     if (at != null) _snack('Mensaje programado para el ${DateFormat.MMMd('es').add_jm().format(at)}');
   }
 
@@ -132,18 +137,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Envía un adjunto; el texto escrito (si hay) va como pie de foto.
   Future<void> _sendMedia(MessageMedia media) async {
     final caption = _input.text.trim();
-    if (caption.isNotEmpty) {
-      _input.clear();
-      setState(() {});
-    }
+    final reply = _replyTo;
+    _input.clear();
+    setState(() => _replyTo = null);
     try {
-      await _app.sendMedia(widget.chatId, media, caption: caption);
+      await _app.sendMedia(widget.chatId, media, caption: caption, replyTo: reply);
     } catch (e) {
       _snack(e.toString());
     }
   }
 
-  Future<void> _sendFile(String sourcePath, {MediaType? forceType, String? name}) async {
+  Future<void> _sendFile(String sourcePath, {MediaType? forceType, String? name, bool viewOnce = false}) async {
     final path = await MediaStore.importFile(sourcePath);
     final ext = p.extension(path).toLowerCase();
     final type = forceType ??
@@ -159,6 +163,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       mime: MediaStore.mimeFor(path),
       name: name ?? p.basename(sourcePath),
       size: size,
+      viewOnce: viewOnce,
     ));
   }
 
@@ -192,11 +197,65 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           {
             await _sendLocation();
           }
+        case 'viewonce':
+          {
+            final x = await picker.pickMedia();
+            if (x != null) await _sendFile(x.path, viewOnce: true);
+            if (x != null) _snack('Enviada para ver una vez: se borrará al abrirla');
+          }
+        case 'sticker':
+          {
+            final id = await pickSticker(context);
+            if (id != null) await _sendMedia(MessageMedia(type: MediaType.sticker, name: id));
+          }
+        case 'trip':
+          {
+            final trip = await pickTrip(context);
+            if (trip != null) await _sendMedia(trip);
+          }
+        case 'translate':
+          await _translateDraft();
+        case 'money':
+          await showMoneyInfo(context, recharge: false);
+        case 'recharge':
+          await showMoneyInfo(context, recharge: true);
       }
     } on PlatformException catch (e) {
       _snack(e.code.contains('denied') || e.code.contains('access')
           ? 'KLK no tiene permiso. Actívalo en Ajustes del iPhone → KLK.'
           : 'No se pudo abrir: ${e.message ?? e.code}');
+    }
+  }
+
+  /// Traduce lo que estoy escribiendo a otro idioma (dentro del móvil).
+  Future<void> _translateDraft() async {
+    final text = _input.text.trim();
+    if (text.isEmpty) {
+      _snack('Escribe primero en español lo que quieres decir y luego toca Traducir');
+      return;
+    }
+    final lang = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(
+            title: Text('Traducir mi mensaje al…', style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text('Se traduce dentro de tu móvil. La primera vez descarga el idioma.'),
+          ),
+          for (final name in translateTargets.keys)
+            ListTile(leading: const Icon(Icons.translate), title: Text(name), onTap: () => Navigator.pop(ctx, name)),
+        ]),
+      ),
+    );
+    if (lang == null) return;
+    _snack('Traduciendo al $lang…');
+    try {
+      final out = await ref.read(translatorProvider).translateOutgoing(text, translateTargets[lang]!);
+      _input.text = out;
+      setState(() {});
+    } catch (_) {
+      _snack('No se pudo traducir. Revisa tu conexión la primera vez.');
     }
   }
 
@@ -241,7 +300,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: GridView.count(
-            crossAxisCount: 3,
+            crossAxisCount: 4,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: [
@@ -250,6 +309,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               item(Icons.videocam, 'Vídeo', const Color(0xFFC46A00), 'video'),
               item(Icons.insert_drive_file, 'Documento', const Color(0xFF002D62), 'file'),
               item(Icons.location_on, 'Ubicación', const Color(0xFF1F7A4D), 'location'),
+              item(Icons.looks_one_outlined, 'Ver una vez', const Color(0xFF0E4D64), 'viewonce'),
+              item(Icons.emoji_emotions_outlined, 'Stickers', const Color(0xFFFFB627), 'sticker'),
+              item(Icons.flight_takeoff, "Bajando pa' RD", const Color(0xFF002D62), 'trip'),
+              item(Icons.translate, 'Traducir', const Color(0xFF00A6B4), 'translate'),
+              item(Icons.payments_outlined, 'Enviar dinero', const Color(0xFF2E7D32), 'money'),
+              item(Icons.phone_iphone, 'Recarga', const Color(0xFF7A3B2E), 'recharge'),
             ],
           ),
         ),
@@ -302,13 +367,62 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   // ---------- Acciones sobre un mensaje ----------
 
+  static const _quickReactions = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🇩🇴'];
+
   void _messageActions(Message m) {
+    final cs = Theme.of(context).colorScheme;
+    final canTranslate = !m.isMine && m.body.isNotEmpty && !m.deleted;
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (m.body.isNotEmpty)
+          if (!m.deleted)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                for (final e in _quickReactions)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(24),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _app.react(m, e);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: m.reactions['me'] == e ? cs.secondary.withValues(alpha: 0.25) : null,
+                      ),
+                      child: Text(e, style: const TextStyle(fontSize: 26)),
+                    ),
+                  ),
+              ]),
+            ),
+          if (!m.deleted)
+            ListTile(
+              leading: const Icon(Icons.reply),
+              title: const Text('Responder'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() => _replyTo = m);
+              },
+            ),
+          if (!m.deleted && !(m.media?.viewOnce ?? false))
+            ListTile(
+              leading: const Icon(Icons.forward),
+              title: const Text('Reenviar'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final targets = await pickForwardTargets(
+                    context, _app.visibleChats.where((c) => c.id != widget.chatId).toList());
+                if (targets != null && targets.isNotEmpty) {
+                  await _app.forward(m, targets);
+                  _snack('Reenviado a ${targets.length} ${targets.length == 1 ? 'chat' : 'chats'}');
+                }
+              },
+            ),
+          if (m.body.isNotEmpty && !m.deleted)
             ListTile(
               leading: const Icon(Icons.copy),
               title: const Text('Copiar'),
@@ -316,6 +430,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 Clipboard.setData(ClipboardData(text: m.body));
                 Navigator.pop(ctx);
                 _snack('Copiado');
+              },
+            ),
+          if (canTranslate)
+            ListTile(
+              leading: const Icon(Icons.translate),
+              title: const Text('Traducir al español'),
+              onTap: () {
+                Navigator.pop(ctx);
+                ref.read(translatorProvider).translateIncoming(m.id, m.body);
+              },
+            ),
+          if (m.isMine && !m.deleted)
+            ListTile(
+              leading: const Icon(Icons.delete_forever_outlined, color: Color(0xFFFF6B7A)),
+              title: const Text('Borrar para todos', style: TextStyle(color: Color(0xFFFF6B7A))),
+              onTap: () {
+                Navigator.pop(ctx);
+                _app.deleteForEveryone(m);
               },
             ),
           ListTile(
@@ -329,6 +461,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ]),
       ),
     );
+  }
+
+  Future<void> _openViewOnce(Message m) async {
+    final media = m.media;
+    if (media?.localPath == null) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ViewOnceViewer(media: media!)));
+    await _app.markViewOnceOpened(m);
+  }
+
+  Future<void> _chatMenu(String action, Chat? chat) async {
+    if (chat == null) return;
+    switch (action) {
+      case 'timer':
+        {
+          final sec = await pickDisappearing(context, chat.disappearSec);
+          if (sec != null) await _app.setDisappearing(widget.chatId, sec == 0 ? null : sec);
+        }
+      case 'hide':
+        {
+          if (!chat.hidden && !await _app.hasPin) {
+            _snack('Primero crea tu PIN en Ajustes → Chats ocultos');
+            return;
+          }
+          await _app.setHidden(widget.chatId, !chat.hidden);
+          _snack(chat.hidden ? 'El chat vuelve a la lista' : 'Chat oculto. Lo verás en Ajustes → Chats ocultos');
+          if (!chat.hidden && mounted) Navigator.of(context).pop();
+        }
+      case 'group':
+        await showGroupInfo(context, chat);
+    }
   }
 
   void _scrollToEndIfNew(int count) {
@@ -348,6 +510,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final app = ref.watch(appProvider);
     final privacy = ref.watch(privacyProvider);
+    final translator = ref.watch(translatorProvider);
     final cs = Theme.of(context).colorScheme;
     final chat = app.chats.where((c) => c.id == widget.chatId).firstOrNull;
     final messages = app.messagesFor(widget.chatId);
@@ -382,6 +545,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onPressed: () => ref.read(callProvider).startCall(widget.chatId, video: false),
             ),
           ],
+          PopupMenuButton<String>(
+            onSelected: (a) => _chatMenu(a, chat),
+            itemBuilder: (_) => [
+              if (chat?.isGroup ?? false) const PopupMenuItem(value: 'group', child: Text('Info del grupo')),
+              PopupMenuItem(
+                value: 'timer',
+                child: Text('Mensajes temporales · ${disappearLabel(chat?.disappearSec)}'),
+              ),
+              PopupMenuItem(value: 'hide', child: Text((chat?.hidden ?? false) ? 'Mostrar en la lista' : 'Ocultar chat')),
+            ],
+          ),
         ],
         title: Row(children: [
           ChatAvatar(id: widget.chatId, title: title, photoPath: chat?.avatarPath, radius: 19),
@@ -426,6 +600,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     showSender: chat?.isGroup ?? false,
                     showReadReceipts: privacy.canSeeOthersReadReceipts,
                     onRetryMedia: () => _app.retryDownload(m),
+                    onOpenViewOnce: () => _openViewOnce(m),
+                    translation: translator.results[m.id],
+                    translating: translator.working.contains(m.id),
                   ),
                 ),
             ],
@@ -435,8 +612,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(4, 4, 8, 8),
-            child: _recording ? _recordingBar(cs) : _composer(),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (_replyTo != null && !_recording) _replyBar(cs),
+              _recording ? _recordingBar(cs) : _composer(),
+            ]),
           ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _replyBar(ColorScheme cs) {
+    final m = _replyTo!;
+    final who = m.isMine ? 'Tú' : (m.sender.isNotEmpty ? m.sender : 'Respondiendo');
+    return Container(
+      margin: const EdgeInsets.fromLTRB(8, 0, 4, 6),
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border(left: BorderSide(color: cs.secondary, width: 3)),
+      ),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(who, style: TextStyle(color: cs.secondary, fontWeight: FontWeight.w700, fontSize: 13)),
+            Text(m.summary, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
+          ]),
+        ),
+        IconButton(
+          tooltip: 'Cancelar respuesta',
+          icon: const Icon(Icons.close, size: 20),
+          onPressed: () => setState(() => _replyTo = null),
         ),
       ]),
     );

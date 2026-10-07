@@ -2,26 +2,38 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../messaging/models.dart';
+import '../../messaging/stickers.dart';
 
 /// Contenido multimedia dentro de una burbuja.
 class MediaContent extends StatelessWidget {
   final Message message;
   final Color fg;
   final VoidCallback? onRetry;
-  const MediaContent({super.key, required this.message, required this.fg, this.onRetry});
+  final VoidCallback? onOpenViewOnce;
+  const MediaContent({super.key, required this.message, required this.fg, this.onRetry, this.onOpenViewOnce});
 
   @override
   Widget build(BuildContext context) {
     final media = message.media!;
     final path = media.localPath;
 
-    if (media.type != MediaType.location && path == null) {
+    if (media.viewOnce) {
+      return _ViewOnceTile(
+        media: media,
+        fg: fg,
+        mine: message.isMine,
+        onOpen: (!message.isMine && !media.opened && path != null) ? onOpenViewOnce : null,
+        downloading: !message.isMine && !media.opened && path == null,
+      );
+    }
+    if (media.hasFile && path == null) {
       return _Downloading(media: media, fg: fg, onRetry: onRetry);
     }
 
@@ -31,7 +43,130 @@ class MediaContent extends StatelessWidget {
       MediaType.audio => VoiceNotePlayer(path: path!, fg: fg, durationMs: media.durationMs),
       MediaType.file => _FileTile(media: media, fg: fg),
       MediaType.location => _LocationCard(lat: media.lat ?? 0, lng: media.lng ?? 0, fg: fg),
+      MediaType.sticker => Image.asset(stickerAsset(media.name), width: 150, height: 150),
+      MediaType.trip => _TripCard(media: media, fg: fg),
     };
+  }
+}
+
+// ---------- Ver una vez ----------
+
+class _ViewOnceTile extends StatelessWidget {
+  final MessageMedia media;
+  final Color fg;
+  final bool mine;
+  final bool downloading;
+  final VoidCallback? onOpen;
+  const _ViewOnceTile({required this.media, required this.fg, required this.mine, required this.downloading, this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final isVideo = media.type == MediaType.video;
+    final text = mine
+        ? (isVideo ? 'Vídeo de ver una vez' : 'Foto de ver una vez')
+        : media.opened
+            ? 'Abierta'
+            : downloading
+                ? 'Descargando…'
+                : (isVideo ? 'Ver vídeo · una vez' : 'Ver foto · una vez');
+    return InkWell(
+      onTap: onOpen,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 210,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: fg, width: 2)),
+            alignment: Alignment.center,
+            child: media.opened
+                ? Icon(Icons.check, size: 18, color: fg)
+                : Text('1', style: TextStyle(color: fg, fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: TextStyle(color: fg, fontWeight: FontWeight.w600))),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Pantalla de "ver una vez": al cerrarla, la foto se borra del móvil.
+class ViewOnceViewer extends StatelessWidget {
+  final MessageMedia media;
+  const ViewOnceViewer({super.key, required this.media});
+
+  @override
+  Widget build(BuildContext context) => media.type == MediaType.video
+      ? VideoViewer(path: media.localPath!)
+      : Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: const Text('Ver una vez', style: TextStyle(fontSize: 16)),
+        ),
+        body: Center(child: InteractiveViewer(child: Image.file(File(media.localPath!)))),
+        bottomNavigationBar: const SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Al cerrar, se borrará de este móvil para siempre.',
+                textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
+          ),
+        ),
+      );
+}
+
+// ---------- Viaje ("Bajando pa' RD") ----------
+
+class _TripCard extends StatelessWidget {
+  final MessageMedia media;
+  final Color fg;
+  const _TripCard({required this.media, required this.fg});
+
+  @override
+  Widget build(BuildContext context) {
+    final date = media.tripDate;
+    final days = date == null ? null : date.difference(DateTime.now()).inDays;
+    return Container(
+      width: 240,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: fg.withValues(alpha: 0.08)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(colors: [Color(0xFF002D62), Color(0xFFCE1126)]),
+          ),
+          child: Row(children: [
+            const Icon(Icons.flight_takeoff, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text("¡Bajando pa' ${media.tripTo ?? 'RD'}!",
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+            const Text('🇩🇴', style: TextStyle(fontSize: 18)),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (media.tripFrom != null && media.tripFrom!.isNotEmpty)
+              Text('Desde ${media.tripFrom}', style: TextStyle(color: fg, fontWeight: FontWeight.w600)),
+            if (date != null)
+              Text(
+                '${DateFormat.yMMMMd('es').format(date)}'
+                '${days != null && days >= 0 ? ' · ${days == 0 ? '¡hoy!' : 'en $days días'}' : ''}',
+                style: TextStyle(color: fg.withValues(alpha: 0.75), fontSize: 13),
+              ),
+            const SizedBox(height: 6),
+            Text('¿Necesitan que les lleve algo?', style: TextStyle(color: fg.withValues(alpha: 0.85), fontSize: 13)),
+          ]),
+        ),
+      ]),
+    );
   }
 }
 

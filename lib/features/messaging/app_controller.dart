@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:cryptography/cryptography.dart' show Sha256;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -16,6 +17,7 @@ import '../../core/network/api_client.dart';
 import '../../core/network/presence_gate.dart';
 import '../../core/security/secure_store.dart';
 import '../../core/util/phone.dart';
+import '../privacy/presentation/privacy_provider.dart';
 import 'demo_data.dart';
 import 'models.dart';
 
@@ -23,7 +25,8 @@ final appProvider = ChangeNotifierProvider<AppController>((ref) => AppController
 
 enum AppPhase { loading, onboarding, ready }
 
-/// Estado global de la app: sesión, chats, mensajes y conexión con el servidor.
+/// Estado global de la app: sesión, chats, mensajes, grupos, estados y
+/// conexión con el servidor.
 ///
 /// En modo demo (sin servidor) todo funciona en local con respuestas de ejemplo.
 class AppController extends ChangeNotifier {
@@ -38,12 +41,19 @@ class AppController extends ChangeNotifier {
   Session? session;
   bool online = false;
   List<Chat> chats = [];
+  List<StatusPost> statuses = [];
   String? openChatId;
   Profile profile = const Profile();
 
   /// Lo registra el controlador de llamadas para recibir sus señales.
   void Function(String fromChatId, Map<String, dynamic> signal)? onCallSignal;
+
+  /// La interfaz lo usa para mostrar un aviso cuando llega un mensaje
+  /// a un chat que no está abierto.
+  void Function(Chat chat, Message message)? onNotify;
+
   static const _profileKey = 'klk.profile';
+  static const _pinKey = 'klk.hidden.pin';
 
   LocalDb? _db;
   CryptoEngine? _crypto;
@@ -67,10 +77,20 @@ class AppController extends ChangeNotifier {
   SecureStore get _store => _ref.read(secureStoreProvider);
   PresenceGate get _gate => _ref.read(presenceGateProvider);
   bool get isDemo => session?.isDemo ?? true;
+  String get myId => session?.accountId ?? 'me';
 
   List<Message> messagesFor(String chatId) => _messages[chatId] ?? const [];
   bool isTyping(String chatId) => (_typingUntil[chatId]?.isAfter(DateTime.now())) ?? false;
   bool isRecording(String chatId) => (_recordingUntil[chatId]?.isAfter(DateTime.now())) ?? false;
+
+  /// Chats de la lista principal (sin los ocultos).
+  List<Chat> get visibleChats => chats.where((c) => !c.hidden).toList();
+  List<Chat> get hiddenChats => chats.where((c) => c.hidden).toList();
+
+  /// Mis contactos individuales (para crear grupos y enviar estados).
+  List<Chat> get contactChats => chats.where((c) => !c.isGroup).toList();
+
+  Chat? chatById(String id) => chats.where((c) => c.id == id).firstOrNull;
 
   // ---------- Arranque ----------
 
@@ -104,7 +124,7 @@ class AppController extends ChangeNotifier {
     await _db!.settleScheduled(DateTime.now());
     _tick?.cancel();
     _tick = Timer.periodic(const Duration(seconds: 10), (_) => _onTick());
-    await _reloadChats();
+    await _onTick();
   }
 
   Future<CryptoEngine> _loadCrypto() async {
@@ -116,10 +136,17 @@ class AppController extends ChangeNotifier {
     return ProvisionalCrypto.fromSeed(base64Decode(seed));
   }
 
+  /// Cada 10 s: programados que vencen, mensajes temporales y estados caducados.
   Future<void> _onTick() async {
     final db = _db;
     if (db == null) return;
-    await db.settleScheduled(DateTime.now());
+    final now = DateTime.now();
+    await db.settleScheduled(now);
+    for (final path in [...await db.purgeExpired(now), ...await db.purgeStatuses(now)]) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+    }
     await _reloadChats();
   }
 
@@ -220,25 +247,29 @@ class AppController extends ChangeNotifier {
         await _onEnvelope(f);
       case 'sent':
         {
-          final sentRef = f['ref'] as String? ?? '';
-          _outbox.remove(sentRef);
-          if (f['scheduled'] != true && !sentRef.startsWith('x-')) {
-            await _db!.advanceStatus([sentRef], MessageStatus.sent);
+          final ref = f['ref'] as String? ?? '';
+          _outbox.remove(ref);
+          // En grupos el ref es "<idMensaje>|<miembro>"
+          final msgId = ref.split('|').first;
+          if (f['scheduled'] != true && !ref.startsWith('x-')) {
+            await _db!.advanceStatus([msgId], MessageStatus.sent);
             await _refresh();
           }
         }
       case 'error':
         {
-          final errRef = f['ref'] as String? ?? '';
-          _outbox.remove(errRef);
+          final ref = f['ref'] as String? ?? '';
+          _outbox.remove(ref);
           debugPrint('Servidor: ${f['code']} ${f['message']}');
-          if (errRef.isNotEmpty && !errRef.startsWith('x-')) {
-            await _db!.setStatus(errRef, MessageStatus.failed);
+          if (ref.isNotEmpty && !ref.startsWith('x-') && !ref.contains('|')) {
+            await _db!.setStatus(ref, MessageStatus.failed);
             await _refresh();
           }
         }
     }
   }
+
+  // ---------- Recepción ----------
 
   Future<void> _onEnvelope(Map<String, dynamic> f) async {
     final from = f['from'] as String;
@@ -248,88 +279,84 @@ class AppController extends ChangeNotifier {
       final p = Payload.decode(opened.plaintext);
       final identity = base64Encode(opened.senderIdentity);
       final db = _db!;
+      final g = p.group;
 
-      var chat = await db.chat(from);
-      if (chat == null) {
+      // Chat individual con el remitente: lo creo solo si me escribe directamente.
+      var direct = await db.chat(from);
+      if (direct == null && g == null) {
         if (p.kind != 'text') return;
         final phone = p.senderPhone ?? '';
-        chat = Chat(
+        direct = Chat(
           id: from,
           title: phone.isEmpty ? 'Contacto nuevo' : prettyPhone(phone),
           phone: phone,
           identityKey: identity,
           updatedAt: DateTime.now(),
         );
-        await db.upsertChat(chat);
+        await db.upsertChat(direct);
         await _reloadChats();
         unawaited(_broadcastProfile(from));
-      } else if (chat.identityKey == null) {
+      } else if (direct != null && direct.identityKey == null) {
         await db.setIdentity(from, identity);
-      } else if (chat.identityKey != identity) {
+      } else if (direct != null && direct.identityKey != identity) {
         // Primera clave vista = de confianza. Si cambia, se avisa al usuario.
         await db.setIdentity(from, identity);
-        await db.addMessage(Message(
-          id: _uuid.v4(),
-          chatId: from,
-          kind: MessageKind.system,
-          body: 'La clave de seguridad de este contacto cambió. Puede que haya reinstalado KLK.',
-          status: MessageStatus.read,
-          createdAt: DateTime.now(),
-        ));
+        await _system(from, 'La clave de seguridad de este contacto cambió. Puede que haya reinstalado KLK.');
       }
+
+      // Chat de destino: el grupo o el chat individual
+      final chatId = g == null ? from : await _ensureGroup(g, from, identity);
+      final senderName = g == null ? '' : _nameOf(from, g);
 
       switch (p.kind) {
         case 'text':
-          {
-          final id = p.id;
-          if (id != null && !await db.hasMessage(id)) {
-            final ts = DateTime.tryParse(f['ts'] as String? ?? '')?.toLocal() ?? DateTime.now();
-            final media = p.media == null ? null : MessageMedia.fromJson(p.media!);
-            final msg = Message(id: id, chatId: from, kind: MessageKind.incoming, body: p.text ?? '',
-                status: MessageStatus.delivered, createdAt: ts, media: media);
-            await db.addMessage(msg, countUnread: openChatId != from);
-            if (media?.needsDownload ?? false) unawaited(_downloadMedia(msg));
-            _typingUntil.remove(from);
-            _recordingUntil.remove(from);
-            await _sendEncrypted(from, Payload(kind: 'delivered', ids: [id]), ref: 'x-${_uuid.v4()}');
-            if (openChatId == from) await _sendReadReceipts(from);
-          }
-          }
+          await _receiveText(p, f, from: from, chatId: chatId, senderName: senderName, isGroup: g != null);
         case 'typing' || 'recording':
           {
             final target = p.kind == 'typing' ? _typingUntil : _recordingUntil;
             if (p.on == true) {
-              target[from] = DateTime.now().add(const Duration(seconds: 6));
+              target[chatId] = DateTime.now().add(const Duration(seconds: 6));
               Timer(const Duration(seconds: 6, milliseconds: 100), notifyListeners);
             } else {
-              target.remove(from);
+              target.remove(chatId);
             }
             notifyListeners();
           }
-        case 'profile':
+        case 'reaction':
           {
-            final name = (p.text ?? '').trim();
-            final current = await db.chat(from);
-            // Si el chat aún muestra solo el número, usa el nombre que el contacto eligió.
-            if (name.isNotEmpty && current != null &&
-                (current.title == prettyPhone(current.phone) || current.title == 'Contacto nuevo')) {
-              await db.setTitle(from, name);
-            }
-            final photo = p.media == null ? null : MessageMedia.fromJson(p.media!);
-            if (photo == null) {
-              await db.setAvatar(from, null);
-            } else if (photo.needsDownload) {
-              unawaited(() async {
-                try {
-                  final path = await _fetchMedia(photo);
-                  await _db?.setAvatar(from, path);
-                  await _refresh();
-                } catch (e) {
-                  debugPrint('Foto de perfil: $e');
-                }
-              }());
+            final m = await db.message(p.target ?? '');
+            if (m != null && m.chatId == chatId) {
+              final r = Map<String, String>.from(m.reactions);
+              if ((p.emoji ?? '').isEmpty) {
+                r.remove(from);
+              } else {
+                r[from] = p.emoji!;
+              }
+              await db.updateMessage(m.copyWith(reactions: r));
             }
           }
+        case 'delete':
+          {
+            final m = await db.message(p.target ?? '');
+            // Solo el autor puede borrar para todos
+            if (m != null && m.kind == MessageKind.incoming && m.chatId == chatId && (g != null || chatId == from)) {
+              await _wipe(m);
+            }
+          }
+        case 'timer':
+          {
+            final sec = (p.exp ?? 0) > 0 ? p.exp : null;
+            await db.setDisappear(chatId, sec);
+            final who = g == null ? (direct?.title ?? 'Tu contacto') : senderName;
+            await _system(chatId,
+                sec == null ? '⏱️ $who desactivó los mensajes temporales' : '⏱️ $who activó los mensajes temporales: ${disappearLabel(sec)}');
+          }
+        case 'group':
+          await _system(chatId, '👥 ${senderName.isEmpty ? 'Alguien' : senderName} te añadió al grupo «${g?['n'] ?? ''}»');
+        case 'status':
+          await _receiveStatus(p, from: from, name: direct?.title ?? prettyPhone(p.senderPhone ?? ''));
+        case 'profile':
+          await _receiveProfile(p, from: from);
         case 'call':
           if (p.call != null) onCallSignal?.call(from, p.call!);
         case 'delivered':
@@ -346,16 +373,152 @@ class AppController extends ChangeNotifier {
     await _refresh();
   }
 
+  Future<void> _receiveText(Payload p, Map<String, dynamic> f,
+      {required String from, required String chatId, required String senderName, required bool isGroup}) async {
+    final db = _db!;
+    final id = p.id;
+    if (id == null || await db.hasMessage(id)) return;
+    final ts = DateTime.tryParse(f['ts'] as String? ?? '')?.toLocal() ?? DateTime.now();
+    final media = p.media == null ? null : MessageMedia.fromJson(p.media!);
+    final exp = p.exp;
+    final msg = Message(
+      id: id,
+      chatId: chatId,
+      kind: MessageKind.incoming,
+      sender: senderName,
+      body: p.text ?? '',
+      status: MessageStatus.delivered,
+      createdAt: ts,
+      media: media,
+      replyToId: p.reply?['id'] as String?,
+      replyPreview: p.reply?['p'] as String?,
+      expiresAt: exp == null || exp <= 0 ? null : ts.add(Duration(seconds: exp)),
+    );
+    await db.addMessage(msg, countUnread: openChatId != chatId);
+    if (media?.needsDownload ?? false) unawaited(_downloadMedia(msg));
+    _typingUntil.remove(chatId);
+    _recordingUntil.remove(chatId);
+
+    if (openChatId != chatId) {
+      final chat = await db.chat(chatId);
+      if (chat != null && !chat.hidden) onNotify?.call(chat, msg);
+    }
+    // Confirmaciones solo en chats individuales
+    if (!isGroup) {
+      await _sendEncrypted(from, Payload(kind: 'delivered', ids: [id]), ref: 'x-${_uuid.v4()}');
+      if (openChatId == chatId) await _sendReadReceipts(chatId);
+    }
+  }
+
+  Future<void> _receiveProfile(Payload p, {required String from}) async {
+    final db = _db!;
+    final name = (p.text ?? '').trim();
+    final current = await db.chat(from);
+    // Si el chat aún muestra solo el número, usa el nombre que el contacto eligió.
+    if (name.isNotEmpty && current != null &&
+        (current.title == prettyPhone(current.phone) || current.title == 'Contacto nuevo')) {
+      await db.setTitle(from, name);
+    }
+    final photo = p.media == null ? null : MessageMedia.fromJson(p.media!);
+    if (photo == null) {
+      await db.setAvatar(from, null);
+    } else if (photo.needsDownload) {
+      try {
+        final path = await _fetchMedia(photo);
+        await _db?.setAvatar(from, path);
+      } catch (e) {
+        debugPrint('Foto de perfil: $e');
+      }
+    }
+  }
+
+  Future<void> _receiveStatus(Payload p, {required String from, required String name}) async {
+    final s = p.status;
+    if (s == null || p.id == null) return;
+    String? path;
+    final media = p.media == null ? null : MessageMedia.fromJson(p.media!);
+    if (media != null && media.needsDownload) {
+      try {
+        path = await _fetchMedia(media);
+      } catch (e) {
+        debugPrint('Estado: $e');
+        return;
+      }
+    }
+    await _db!.addStatus(StatusPost(
+      id: p.id!,
+      ownerId: from,
+      ownerName: name,
+      text: p.text ?? '',
+      color: (s['c'] as num?)?.toInt() ?? 0xFF002D62,
+      mediaPath: path,
+      createdAt: DateTime.tryParse(s['at'] as String? ?? '') ?? DateTime.now(),
+      allowSave: s['save'] == true,
+    ));
+  }
+
+  /// Crea o actualiza el grupo descrito en un mensaje. Devuelve su id.
+  Future<String> _ensureGroup(Map<String, dynamic> g, String from, String fromIdentity) async {
+    final db = _db!;
+    final id = g['id'] as String;
+    final incoming = ((g['m'] as List?) ?? const [])
+        .map((e) => GroupMember.fromJson((e as Map).cast<String, dynamic>()))
+        .where((m) => m.id != myId)
+        .toList();
+    final existing = await db.chat(id);
+    // Conservo las claves que ya conocía y aprendo la del remitente.
+    final known = {for (final m in existing?.members ?? const <GroupMember>[]) m.id: m};
+    final members = [
+      for (final m in incoming)
+        m.id == from
+            ? m.withIdentity(fromIdentity)
+            : (known[m.id]?.identityKey != null ? m.withIdentity(known[m.id]!.identityKey!) : m),
+    ];
+    final title = (g['n'] as String?)?.trim();
+    if (existing == null) {
+      await db.upsertChat(Chat(
+        id: id,
+        title: (title == null || title.isEmpty) ? 'Grupo' : title,
+        isGroup: true,
+        members: members,
+        updatedAt: DateTime.now(),
+      ));
+    } else {
+      await db.upsertChat(existing.copyWith(title: title, members: members));
+    }
+    return id;
+  }
+
+  String _nameOf(String accountId, Map<String, dynamic> g) {
+    final contact = chatById(accountId);
+    if (contact != null && !contact.isGroup) return contact.title;
+    for (final e in (g['m'] as List?) ?? const []) {
+      final m = (e as Map).cast<String, dynamic>();
+      if (m['id'] == accountId) {
+        final n = (m['n'] as String?) ?? '';
+        return n.isNotEmpty ? n : prettyPhone((m['p'] as String?) ?? '');
+      }
+    }
+    return 'Alguien';
+  }
+
+  // ---------- Envío ----------
+
   Future<void> _sendEncrypted(String chatId, Payload p,
       {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
     final chat = await _db!.chat(chatId);
     final key = chat?.identityKey;
     if (key == null) throw StateError('Sin clave del contacto');
-    final sealed = await _crypto!.encrypt(p.encode(), base64Decode(key));
+    await _sendTo(chatId, key, p, ref: ref, deliverAt: deliverAt, ephemeral: ephemeral);
+  }
+
+  Future<void> _sendTo(String accountId, String identityKey, Payload p,
+      {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
+    final sealed = await _crypto!.encrypt(p.encode(), base64Decode(identityKey));
     final frame = jsonEncode({
       't': 'send',
       'ref': ref,
-      'to': chatId,
+      'to': accountId,
       'messages': [
         {'device': 1, 'type': 1, 'content': base64Encode(sealed)}
       ],
@@ -366,18 +529,87 @@ class AppController extends ChangeNotifier {
     _ws?.sink.add(frame);
   }
 
-  // ---------- Acciones del usuario ----------
+  /// Envía a un chat individual o a cada miembro de un grupo.
+  Future<void> _sendToChat(String chatId, Payload p,
+      {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
+    final chat = await _db!.chat(chatId);
+    if (chat == null) throw StateError('Chat no encontrado');
+    if (!chat.isGroup) {
+      return _sendEncrypted(chatId, p, ref: ref, deliverAt: deliverAt, ephemeral: ephemeral);
+    }
+    final members = await _membersWithKeys(chat);
+    final withGroup = Payload(
+      kind: p.kind,
+      id: p.id,
+      text: p.text,
+      on: p.on,
+      senderPhone: session?.phone,
+      media: p.media,
+      reply: p.reply,
+      exp: p.exp,
+      emoji: p.emoji,
+      target: p.target,
+      group: _groupMeta(chat, members),
+    );
+    for (final m in members) {
+      if (m.identityKey == null) continue;
+      await _sendTo(m.id, m.identityKey!, withGroup,
+          ref: ephemeral ? 'x-${p.kind}' : '$ref|${m.id}', deliverAt: deliverAt, ephemeral: ephemeral);
+    }
+  }
 
-  Future<void> sendText(String chatId, String text, {DateTime? at}) async {
+  Map<String, dynamic> _groupMeta(Chat chat, List<GroupMember> members) => {
+        'id': chat.id,
+        'n': chat.title,
+        'm': [
+          GroupMember(id: myId, phone: session?.phone ?? '', name: profile.name).toJson(withKey: false),
+          for (final m in members) m.toJson(withKey: false),
+        ],
+      };
+
+  /// Pide al servidor las claves que falten de los miembros del grupo.
+  Future<List<GroupMember>> _membersWithKeys(Chat chat) async {
+    var changed = false;
+    final out = <GroupMember>[];
+    for (final m in chat.members) {
+      if (m.identityKey != null) {
+        out.add(m);
+        continue;
+      }
+      final contact = chatById(m.id);
+      String? key = contact?.identityKey;
+      if (key == null && _api != null) {
+        try {
+          key = base64Encode(await _api!.identityOf(m.id));
+        } catch (_) {}
+      }
+      out.add(key == null ? m : m.withIdentity(key));
+      changed = changed || key != null;
+    }
+    if (changed) await _db!.upsertChat(chat.copyWith(members: out));
+    return out;
+  }
+
+  /// Segundos de vida de los mensajes nuevos en este chat (null = no caducan).
+  int? _timerOf(String chatId) => chatById(chatId)?.disappearSec;
+
+  // ---------- Acciones: mensajes ----------
+
+  Future<void> sendText(String chatId, String text, {DateTime? at, Message? replyTo}) async {
     final scheduled = at != null && at.isAfter(DateTime.now());
+    final timer = _timerOf(chatId);
+    final now = DateTime.now();
     final m = Message(
       id: _uuid.v4(),
       chatId: chatId,
       kind: MessageKind.outgoing,
       body: text,
       status: scheduled ? MessageStatus.scheduled : MessageStatus.sending,
-      createdAt: scheduled ? at : DateTime.now(),
+      createdAt: scheduled ? at : now,
       scheduledFor: scheduled ? at : null,
+      replyToId: replyTo?.id,
+      replyPreview: replyTo == null ? null : _replyPreview(replyTo),
+      expiresAt: timer == null ? null : (scheduled ? at : now).add(Duration(seconds: timer)),
     );
     await _db!.addMessage(m);
     await _refresh();
@@ -387,28 +619,49 @@ class AppController extends ChangeNotifier {
       return;
     }
     try {
-      await _sendEncrypted(chatId,
-          Payload(kind: 'text', id: m.id, text: text, senderPhone: session!.phone),
-          ref: m.id, deliverAt: scheduled ? at : null);
+      await _sendToChat(
+        chatId,
+        Payload(
+          kind: 'text',
+          id: m.id,
+          text: text,
+          senderPhone: session!.phone,
+          reply: replyTo == null ? null : {'id': replyTo.id, 'p': m.replyPreview},
+          exp: timer,
+        ),
+        ref: m.id,
+        deliverAt: scheduled ? at : null,
+      );
     } catch (e) {
       await _db!.setStatus(m.id, MessageStatus.failed);
       await _refresh();
     }
   }
 
-  /// Envía una foto, vídeo, nota de voz, documento o ubicación.
+  String _replyPreview(Message m) {
+    final who = m.isMine ? 'Tú' : (m.sender.isNotEmpty ? m.sender : (chatById(m.chatId)?.title ?? ''));
+    final text = m.summary;
+    return '$who: ${text.length > 80 ? '${text.substring(0, 80)}…' : text}';
+  }
+
+  /// Envía una foto, vídeo, nota de voz, documento, ubicación, sticker o viaje.
   ///
   /// El archivo se cifra en el móvil con una clave propia, se sube cifrado y la
   /// clave viaja dentro del mensaje (cifrado de punta a punta).
-  Future<void> sendMedia(String chatId, MessageMedia media, {String caption = ''}) async {
+  Future<void> sendMedia(String chatId, MessageMedia media, {String caption = '', Message? replyTo}) async {
+    final timer = _timerOf(chatId);
+    final now = DateTime.now();
     final m = Message(
       id: _uuid.v4(),
       chatId: chatId,
       kind: MessageKind.outgoing,
       body: caption,
       status: MessageStatus.sending,
-      createdAt: DateTime.now(),
+      createdAt: now,
       media: media,
+      replyToId: replyTo?.id,
+      replyPreview: replyTo == null ? null : _replyPreview(replyTo),
+      expiresAt: timer == null ? null : now.add(Duration(seconds: timer)),
     );
     await _db!.addMessage(m);
     await _refresh();
@@ -419,13 +672,18 @@ class AppController extends ChangeNotifier {
     }
     try {
       var wire = media;
-      final path = media.localPath;
-      if (media.type != MediaType.location && path != null) {
-        wire = await _sealAndUpload(media);
-      }
-      await _sendEncrypted(
+      if (media.hasFile && media.localPath != null) wire = await _sealAndUpload(media);
+      await _sendToChat(
         chatId,
-        Payload(kind: 'text', id: m.id, text: caption, senderPhone: session!.phone, media: wire.forWire().toJson()),
+        Payload(
+          kind: 'text',
+          id: m.id,
+          text: caption,
+          senderPhone: session!.phone,
+          media: wire.forWire().toJson(),
+          reply: replyTo == null ? null : {'id': replyTo.id, 'p': m.replyPreview},
+          exp: timer,
+        ),
         ref: m.id,
       );
     } catch (e) {
@@ -435,6 +693,221 @@ class AppController extends ChangeNotifier {
       rethrow;
     }
   }
+
+  /// Pongo o quito mi reacción (tocar el mismo emoji la quita).
+  Future<void> react(Message m, String emoji) async {
+    final r = Map<String, String>.from(m.reactions);
+    final remove = r['me'] == emoji;
+    if (remove) {
+      r.remove('me');
+    } else {
+      r['me'] = emoji;
+    }
+    await _db!.updateMessage(m.copyWith(reactions: r));
+    await _refresh();
+    if (isDemo) return;
+    try {
+      await _sendToChat(m.chatId, Payload(kind: 'reaction', target: m.id, emoji: remove ? '' : emoji),
+          ref: 'x-${_uuid.v4()}');
+    } catch (_) {}
+  }
+
+  /// Borra un mensaje mío para todos.
+  Future<void> deleteForEveryone(Message m) async {
+    if (!m.isMine) return;
+    await _wipe(m);
+    await _refresh();
+    if (isDemo) return;
+    try {
+      await _sendToChat(m.chatId, Payload(kind: 'delete', target: m.id), ref: 'x-${_uuid.v4()}');
+    } catch (_) {}
+  }
+
+  /// Deja el mensaje como "Este mensaje se eliminó" y borra su archivo.
+  Future<void> _wipe(Message m) async {
+    final path = m.media?.localPath;
+    if (path != null) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+    }
+    await _db!.updateMessage(Message(
+      id: m.id,
+      chatId: m.chatId,
+      kind: m.kind,
+      sender: m.sender,
+      body: '',
+      status: m.status,
+      createdAt: m.createdAt,
+      deleted: true,
+    ));
+  }
+
+  /// Reenvía un mensaje a otros chats.
+  Future<void> forward(Message m, List<String> chatIds) async {
+    for (final id in chatIds) {
+      final media = m.media;
+      if (media == null) {
+        await sendText(id, m.body);
+      } else {
+        // Se reenvía la copia local; "ver una vez" no se puede reenviar.
+        if (media.viewOnce) continue;
+        final copy = MessageMedia(
+          type: media.type,
+          localPath: media.localPath,
+          mime: media.mime,
+          name: media.name,
+          size: media.size,
+          durationMs: media.durationMs,
+          lat: media.lat,
+          lng: media.lng,
+          tripDate: media.tripDate,
+          tripFrom: media.tripFrom,
+          tripTo: media.tripTo,
+        );
+        await sendMedia(id, copy, caption: m.body);
+      }
+    }
+  }
+
+  /// Al cerrar una foto de "ver una vez": se borra del móvil para siempre.
+  Future<void> markViewOnceOpened(Message m) async {
+    final media = m.media;
+    if (media == null || !media.viewOnce) return;
+    final path = media.localPath;
+    if (path != null) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+    }
+    await _db!.updateMessage(m.copyWith(media: media.copyWith(opened: true, clearPath: true)));
+    await _refresh();
+  }
+
+  /// Activa o desactiva los mensajes temporales del chat (para todos).
+  Future<void> setDisappearing(String chatId, int? seconds) async {
+    await _db!.setDisappear(chatId, seconds);
+    await _system(chatId,
+        seconds == null ? '⏱️ Desactivaste los mensajes temporales' : '⏱️ Activaste los mensajes temporales: ${disappearLabel(seconds)}');
+    await _refresh();
+    if (isDemo) return;
+    try {
+      await _sendToChat(chatId, Payload(kind: 'timer', exp: seconds ?? 0), ref: 'x-${_uuid.v4()}');
+    } catch (_) {}
+  }
+
+  /// Borra un mensaje solo en este móvil.
+  Future<void> deleteMessage(String id) async {
+    await _db!.deleteMessage(id);
+    await _refresh();
+  }
+
+  Future<void> _system(String chatId, String text) async {
+    final db = _db;
+    if (db == null || await db.chat(chatId) == null) return;
+    await db.addMessage(Message(
+      id: _uuid.v4(),
+      chatId: chatId,
+      kind: MessageKind.system,
+      body: text,
+      status: MessageStatus.read,
+      createdAt: DateTime.now(),
+    ));
+  }
+
+  // ---------- Grupos ----------
+
+  /// Crea un grupo con mis contactos y avisa a los miembros.
+  Future<String> createGroup(String name, List<Chat> contacts) async {
+    final id = 'g-${_uuid.v4()}';
+    final members = [
+      for (final c in contacts)
+        GroupMember(id: c.id, phone: c.phone, name: c.title, identityKey: c.identityKey),
+    ];
+    await _db!.upsertChat(Chat(id: id, title: name.trim(), isGroup: true, members: members, updatedAt: DateTime.now()));
+    await _system(id, '👥 Creaste el grupo «${name.trim()}» con ${members.length} ${members.length == 1 ? 'persona' : 'personas'}');
+    await _reloadChats();
+    if (!isDemo) {
+      try {
+        await _sendToChat(id, const Payload(kind: 'group'), ref: 'x-${_uuid.v4()}');
+      } catch (e) {
+        debugPrint('Crear grupo: $e');
+      }
+    }
+    return id;
+  }
+
+  // ---------- Chats ocultos ----------
+
+  Future<bool> get hasPin async => (await _store.read(_pinKey)) != null;
+
+  Future<String> _hashPin(String pin) async {
+    final h = await Sha256().hash(utf8.encode('klk-pin:$pin'));
+    return base64Encode(h.bytes);
+  }
+
+  Future<void> setPin(String pin) async => _store.write(_pinKey, await _hashPin(pin));
+
+  Future<bool> checkPin(String pin) async => (await _store.read(_pinKey)) == await _hashPin(pin);
+
+  Future<void> setHidden(String chatId, bool hidden) async {
+    await _db!.setHidden(chatId, hidden);
+    await _refresh();
+  }
+
+  // ---------- Estados ----------
+
+  /// Publica un estado de 24 h para todos mis contactos.
+  Future<void> postStatus({String text = '', int color = 0xFF002D62, String? photoSourcePath}) async {
+    final allowSave = _ref.read(privacyProvider).allowStorySaving;
+    String? path;
+    if (photoSourcePath != null) path = await MediaStore.importFile(photoSourcePath);
+    final post = StatusPost(
+      id: _uuid.v4(),
+      ownerId: 'me',
+      ownerName: profile.name.isEmpty ? 'Mi estado' : profile.name,
+      text: text,
+      color: color,
+      mediaPath: path,
+      createdAt: DateTime.now(),
+      allowSave: allowSave,
+      viewed: true,
+    );
+    await _db!.addStatus(post);
+    await _reloadChats();
+    if (isDemo) return;
+
+    try {
+      Map<String, dynamic>? media;
+      if (path != null) {
+        media = (await _sealAndUpload(MessageMedia(type: MediaType.image, localPath: path, mime: MediaStore.mimeFor(path))))
+            .forWire()
+            .toJson();
+      }
+      final payload = Payload(
+        kind: 'status',
+        id: post.id,
+        text: text,
+        media: media,
+        senderPhone: session!.phone,
+        status: {'c': color, 'at': post.createdAt.toUtc().toIso8601String(), 'save': allowSave},
+      );
+      for (final c in chats.where((c) => !c.isGroup && c.identityKey != null)) {
+        await _sendTo(c.id, c.identityKey!, payload, ref: 'x-${_uuid.v4()}');
+        // Pequeña pausa para no superar el límite de envíos por segundo
+        await Future.delayed(const Duration(milliseconds: 60));
+      }
+    } catch (e) {
+      debugPrint('Publicar estado: $e');
+    }
+  }
+
+  Future<void> markStatusViewed(String id) async {
+    await _db!.markStatusViewed(id);
+    await _reloadChats();
+  }
+
+  // ---------- Descargas ----------
 
   Future<void> _downloadMedia(Message msg) async {
     final media = msg.media;
@@ -475,6 +948,17 @@ class AppController extends ChangeNotifier {
     );
   }
 
+  Future<void> _resumeDownloads() async {
+    final db = _db;
+    if (db == null) return;
+    for (final m in await db.pendingDownloads()) {
+      await _downloadMedia(m);
+    }
+  }
+
+  /// Reintenta descargar un adjunto (al tocarlo si falló).
+  Future<void> retryDownload(Message m) => _downloadMedia(m);
+
   // ---------- Perfil ----------
 
   /// Cambia mi nombre y/o foto y lo envía (cifrado) a mis contactos.
@@ -497,7 +981,8 @@ class AppController extends ChangeNotifier {
             MessageMedia(type: MediaType.image, localPath: path, mime: MediaStore.mimeFor(path)));
         photo = up.forWire().toJson();
       }
-      final targets = chats.where((c) => !c.isGroup && c.identityKey != null && (onlyChatId == null || c.id == onlyChatId));
+      final targets =
+          chats.where((c) => !c.isGroup && c.identityKey != null && (onlyChatId == null || c.id == onlyChatId));
       for (final c in targets) {
         await _sendEncrypted(c.id, Payload(kind: 'profile', text: profile.name, media: photo),
             ref: 'x-${_uuid.v4()}');
@@ -505,23 +990,6 @@ class AppController extends ChangeNotifier {
     } catch (e) {
       debugPrint('Enviar perfil: $e');
     }
-  }
-
-  Future<void> _resumeDownloads() async {
-    final db = _db;
-    if (db == null) return;
-    for (final m in await db.pendingDownloads()) {
-      await _downloadMedia(m);
-    }
-  }
-
-  /// Reintenta descargar un adjunto (al tocarlo si falló).
-  Future<void> retryDownload(Message m) => _downloadMedia(m);
-
-  /// Borra un mensaje solo en este móvil.
-  Future<void> deleteMessage(String id) async {
-    await _db!.deleteMessage(id);
-    await _refresh();
   }
 
   // ---------- Llamadas ----------
@@ -533,26 +1001,17 @@ class AppController extends ChangeNotifier {
 
   /// Anota la llamada en el chat ("Llamada de voz · 2:31", "Llamada perdida"…).
   Future<void> logCall(String chatId, String text, {bool incoming = false}) async {
-    final db = _db;
-    if (db == null || await db.chat(chatId) == null) return;
-    await db.addMessage(Message(
-      id: _uuid.v4(),
-      chatId: chatId,
-      kind: MessageKind.system,
-      body: text,
-      status: MessageStatus.read,
-      createdAt: DateTime.now(),
-    ));
+    await _system(chatId, text);
     await _refresh();
   }
 
-  Chat? chatById(String id) => chats.where((c) => c.id == id).firstOrNull;
+  // ---------- Presencia ----------
 
   /// Avisa de que estoy grabando una nota de voz, si la privacidad lo permite.
   Future<void> setRecording(String chatId, bool on) async {
     if (isDemo || !_gate.canSendRecording()) return;
     try {
-      await _sendEncrypted(chatId, Payload(kind: 'recording', on: on), ref: 'x-recording', ephemeral: true);
+      await _sendToChat(chatId, Payload(kind: 'recording', on: on), ref: 'x-recording', ephemeral: true);
     } catch (_) {}
   }
 
@@ -563,7 +1022,7 @@ class AppController extends ChangeNotifier {
     if (on && now.difference(_lastTypingSent).inSeconds < 4) return;
     _lastTypingSent = on ? now : DateTime.fromMillisecondsSinceEpoch(0);
     try {
-      await _sendEncrypted(chatId, Payload(kind: 'typing', on: on), ref: 'x-typing', ephemeral: true);
+      await _sendToChat(chatId, Payload(kind: 'typing', on: on), ref: 'x-typing', ephemeral: true);
     } catch (_) {}
   }
 
@@ -584,12 +1043,15 @@ class AppController extends ChangeNotifier {
     final ids = await _db!.unreadIncoming(chatId);
     if (ids.isEmpty) return;
     await _db!.advanceStatus(ids, MessageStatus.read);
-    if (!isDemo && _gate.canSendReadReceipt()) {
+    final chat = await _db!.chat(chatId);
+    if (!isDemo && !(chat?.isGroup ?? true) && _gate.canSendReadReceipt()) {
       try {
         await _sendEncrypted(chatId, Payload(kind: 'read', ids: ids), ref: 'x-${_uuid.v4()}');
       } catch (_) {}
     }
   }
+
+  // ---------- Contactos ----------
 
   /// Prefijo de mi país, para entender los números de mi agenda.
   String get myDialCode => dialCodeOf(session?.phone ?? '+1');
@@ -652,6 +1114,7 @@ class AppController extends ChangeNotifier {
     session = null;
     profile = const Profile();
     chats = [];
+    statuses = [];
     _messages.clear();
     _outbox.clear();
     openChatId = null;
@@ -662,7 +1125,7 @@ class AppController extends ChangeNotifier {
   // ---------- Modo demo ----------
 
   void _simulateReply(String chatId, String messageId) {
-    final chat = chats.where((c) => c.id == chatId).firstOrNull;
+    final chat = chatById(chatId);
     Future<void> later(int ms, Future<void> Function() f) =>
         Future.delayed(Duration(milliseconds: ms), () async {
           if (_db != null) await f();
@@ -678,13 +1141,27 @@ class AppController extends ChangeNotifier {
     });
     later(3400, () async {
       _typingUntil.remove(chatId);
-      final sender = (chat?.isGroup ?? false) ? 'Pedro' : '';
-      await _db!.addMessage(
-        Message(id: _uuid.v4(), chatId: chatId, kind: MessageKind.incoming, sender: sender,
-            body: demoReply(), status: MessageStatus.delivered, createdAt: DateTime.now()),
-        countUnread: openChatId != chatId,
+      final group = chat?.isGroup ?? false;
+      final members = chat?.members ?? const <GroupMember>[];
+      final sender = group ? (members.isNotEmpty ? members[Random().nextInt(members.length)].name : 'Pedro') : '';
+      final timer = chat?.disappearSec;
+      final now = DateTime.now();
+      final reply = Message(
+        id: _uuid.v4(),
+        chatId: chatId,
+        kind: MessageKind.incoming,
+        sender: sender,
+        body: demoReply(),
+        status: MessageStatus.delivered,
+        createdAt: now,
+        expiresAt: timer == null ? null : now.add(Duration(seconds: timer)),
       );
-      if (openChatId == chatId) await _sendReadReceipts(chatId);
+      await _db!.addMessage(reply, countUnread: openChatId != chatId);
+      if (openChatId == chatId) {
+        await _sendReadReceipts(chatId);
+      } else if (chat != null && !chat.hidden) {
+        onNotify?.call(chat, reply);
+      }
       await _refresh();
     });
   }
@@ -695,6 +1172,7 @@ class AppController extends ChangeNotifier {
     final db = _db;
     if (db == null) return;
     chats = await db.chats();
+    statuses = await db.statuses(DateTime.now());
     final open = openChatId;
     if (open != null) _messages[open] = await db.messages(open);
     notifyListeners();

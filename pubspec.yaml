@@ -42,6 +42,10 @@ dependencies:
   open_filex: ^4.5.0
   flutter_contacts: ^1.1.9
 
+  # Traductor dentro del móvil (sin enviar los mensajes a ningún servidor)
+  google_mlkit_translation: ">=0.11.0 <1.0.0"
+  google_mlkit_language_id: ">=0.11.0 <1.0.0"
+
   # Llamadas de voz y vídeo (WebRTC: cifrado DTLS-SRTP de móvil a móvil)
   flutter_webrtc: ">=0.12.0 <2.0.0"
 
@@ -61,6 +65,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/brand/
+    - assets/stickers/
 
 flutter_launcher_icons:
   android: true

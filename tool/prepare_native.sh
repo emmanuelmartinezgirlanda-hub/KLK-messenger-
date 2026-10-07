@@ -17,7 +17,7 @@ flutter pub get
 # 2. Icono
 dart run flutter_launcher_icons
 
-# 3. iOS: nombre visible, iOS mínimo 13 y textos de permisos
+# 3. iOS: nombre visible, iOS mínimo 15.5 y textos de permisos
 PLIST=ios/Runner/Info.plist
 if command -v /usr/libexec/PlistBuddy >/dev/null; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName KLK" "$PLIST" 2>/dev/null \
@@ -36,10 +36,11 @@ if command -v plutil >/dev/null; then
   # Que la llamada siga sonando si sales un momento de KLK
   plutil -replace UIBackgroundModes -json '["audio"]' "$PLIST"
 fi
-sed -i.bak "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g" ios/Runner.xcodeproj/project.pbxproj
+# iOS 15.5 mínimo: lo exige el traductor de Google ML Kit
+sed -i.bak "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 15.5;/g" ios/Runner.xcodeproj/project.pbxproj
 sed -i.bak "s/PRODUCT_BUNDLE_IDENTIFIER = [A-Za-z0-9.]*klk;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" ios/Runner.xcodeproj/project.pbxproj
 if [ -f ios/Podfile ]; then
-  sed -i.bak "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
+  sed -i.bak "s/^# platform :ios.*/platform :ios, '15.5'/" ios/Podfile
 fi
 
 # 4. Android: nombre visible y permiso de Internet en la versión final

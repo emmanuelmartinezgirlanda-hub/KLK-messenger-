@@ -25,7 +25,7 @@ class ChatListView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final app = ref.watch(appProvider);
     final cs = Theme.of(context).colorScheme;
-    final chats = app.chats;
+    final chats = app.visibleChats;
 
     if (chats.isEmpty) {
       return Center(
@@ -107,6 +107,31 @@ class _ChatTile extends ConsumerWidget {
           ),
       ]),
       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: chat.id))),
+      onLongPress: () => showModalBottomSheet(
+        context: context,
+        showDragHandle: true,
+        builder: (ctx) => SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: const Text('Ocultar chat'),
+              subtitle: const Text('Solo se verá en Ajustes → Chats ocultos, con tu PIN'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final app = ref.read(appProvider);
+                if (!await app.hasPin) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Primero crea tu PIN en Ajustes → Chats ocultos')));
+                  }
+                  return;
+                }
+                await app.setHidden(chat.id, true);
+              },
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }
