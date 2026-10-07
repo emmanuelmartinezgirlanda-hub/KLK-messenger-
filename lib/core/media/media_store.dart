@@ -85,6 +85,7 @@ class MediaStore {
         '.webp' => 'image/webp',
         '.mp4' => 'video/mp4',
         '.mov' => 'video/quicktime',
+        '.m4v' => 'video/mp4',
         '.m4a' => 'audio/mp4',
         '.aac' => 'audio/aac',
         '.pdf' => 'application/pdf',

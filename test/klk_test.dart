@@ -169,4 +169,13 @@ void main() {
     expect(back.isMine, isTrue);
     expect(back.expiresAt, DateTime(2026, 10, 8, 9));
   });
+
+  test('estados de vídeo se reconocen por la extensión', () {
+    StatusPost post(String? path) =>
+        StatusPost(id: 'v', ownerId: 'me', ownerName: 'Yo', mediaPath: path, createdAt: DateTime(2026, 10, 7));
+    expect(post('/m/a.MOV').isVideo, isTrue);
+    expect(post('/m/a.mp4').isVideo, isTrue);
+    expect(post('/m/a.jpg').isVideo, isFalse);
+    expect(post(null).isVideo, isFalse);
+  });
 }

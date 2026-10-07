@@ -858,10 +858,11 @@ class AppController extends ChangeNotifier {
   // ---------- Estados ----------
 
   /// Publica un estado de 24 h para todos mis contactos.
-  Future<void> postStatus({String text = '', int color = 0xFF002D62, String? photoSourcePath}) async {
+  /// Publica un estado de texto, foto o vídeo (el tipo se deduce del archivo).
+  Future<void> postStatus({String text = '', int color = 0xFF002D62, String? mediaSourcePath}) async {
     final allowSave = _ref.read(privacyProvider).allowStorySaving;
     String? path;
-    if (photoSourcePath != null) path = await MediaStore.importFile(photoSourcePath);
+    if (mediaSourcePath != null) path = await MediaStore.importFile(mediaSourcePath);
     final post = StatusPost(
       id: _uuid.v4(),
       ownerId: 'me',
@@ -880,7 +881,9 @@ class AppController extends ChangeNotifier {
     try {
       Map<String, dynamic>? media;
       if (path != null) {
-        media = (await _sealAndUpload(MessageMedia(type: MediaType.image, localPath: path, mime: MediaStore.mimeFor(path))))
+        final mime = MediaStore.mimeFor(path);
+        final type = mime.startsWith('video/') ? MediaType.video : MediaType.image;
+        media = (await _sealAndUpload(MessageMedia(type: type, localPath: path, mime: mime)))
             .forWire()
             .toJson();
       }

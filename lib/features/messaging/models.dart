@@ -414,6 +414,10 @@ class StatusPost {
   });
 
   bool get isMine => ownerId == 'me';
+  bool get isVideo {
+    final m = mediaPath?.toLowerCase() ?? '';
+    return m.endsWith('.mp4') || m.endsWith('.mov') || m.endsWith('.m4v');
+  }
   DateTime get expiresAt => createdAt.add(const Duration(hours: 24));
 
   Map<String, Object?> toRow() => {
