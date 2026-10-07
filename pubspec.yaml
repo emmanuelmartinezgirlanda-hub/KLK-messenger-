@@ -44,11 +44,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/brand/
 
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/klk_icon.png"
   remove_alpha_ios: true
-  adaptive_icon_background: "#002D62"
+  adaptive_icon_background: "#E9ECF1"
   adaptive_icon_foreground: "assets/icon/klk_icon_foreground.png"

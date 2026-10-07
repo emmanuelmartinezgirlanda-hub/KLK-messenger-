@@ -59,12 +59,13 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
           children: [
-            Row(children: [
-              Text('KLK', style: TextStyle(fontSize: 64, fontWeight: FontWeight.w900, color: cs.primary, height: 1)),
-              const SizedBox(width: 12),
-              const _Flag(width: 54),
-            ]),
-            const SizedBox(height: 20),
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: Image.asset('assets/brand/klk_logo.png', height: 220, fit: BoxFit.contain),
+              ),
+            ),
+            const SizedBox(height: 24),
             Text(KlkBrand.slogan, style: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
             Text(
@@ -146,32 +147,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Bandera dominicana dibujada (sin escudo).
-class _Flag extends StatelessWidget {
-  final double width;
-  const _Flag({required this.width});
-
-  @override
-  Widget build(BuildContext context) {
-    final h = width * 2 / 3;
-    final bar = width * 0.13;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: SizedBox(
-        width: width,
-        height: h,
-        child: Stack(children: [
-          Container(color: KlkBrand.blancoPaz),
-          Positioned(left: 0, top: 0, width: (width - bar) / 2, height: (h - bar) / 2, child: Container(color: KlkBrand.azulQuisqueya)),
-          Positioned(right: 0, top: 0, width: (width - bar) / 2, height: (h - bar) / 2, child: Container(color: KlkBrand.rojoPatria)),
-          Positioned(left: 0, bottom: 0, width: (width - bar) / 2, height: (h - bar) / 2, child: Container(color: KlkBrand.rojoPatria)),
-          Positioned(right: 0, bottom: 0, width: (width - bar) / 2, height: (h - bar) / 2, child: Container(color: KlkBrand.azulQuisqueya)),
-        ]),
       ),
     );
   }
