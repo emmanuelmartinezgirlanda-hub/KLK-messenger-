@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/privacy_settings.dart';
+import '../../lock/app_lock.dart';
+import '../../messaging/app_controller.dart';
+import '../../settings/blocked_screen.dart';
 import 'privacy_provider.dart';
 
 class PrivacyScreen extends ConsumerWidget {
@@ -59,10 +62,33 @@ class PrivacyScreen extends ConsumerWidget {
           ),
           const _Section('Seguridad'),
           SwitchListTile(
-            secondary: const Icon(Icons.lock_outline),
-            title: const Text('Bloquear KLK con PIN o huella'),
+            secondary: const Icon(Icons.face_unlock_outlined),
+            title: const Text('Bloquear KLK con Face ID'),
+            subtitle: const Text('Al abrir KLK, o al volver tras 30 segundos fuera'),
             value: s.appLock,
-            onChanged: (v) => notifier.update(s.copyWith(appLock: v)),
+            onChanged: (v) async {
+              if (v) {
+                final messenger = ScaffoldMessenger.of(context);
+                if (!await AppLockService.available()) {
+                  messenger.showSnackBar(const SnackBar(
+                      content: Text('Configura Face ID o un código en tu iPhone para poder bloquear KLK.')));
+                  return;
+                }
+                // Confirmo que funciona antes de activarlo, para no quedarte fuera.
+                if (!await AppLockService.authenticate('Confirma para activar el bloqueo de KLK')) return;
+              }
+              await notifier.update(s.copyWith(appLock: v));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.block),
+            title: const Text('Contactos bloqueados'),
+            subtitle: Consumer(builder: (_, ref, __) {
+              final n = ref.watch(appProvider).blockedChats.length;
+              return Text(n == 0 ? 'Ninguno' : '$n bloqueado${n == 1 ? '' : 's'}');
+            }),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BlockedScreen())),
           ),
         ],
       ),

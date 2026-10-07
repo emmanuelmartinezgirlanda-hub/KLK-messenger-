@@ -9,40 +9,202 @@ import 'chat_avatar.dart';
 /// Hojas inferiores del chat: stickers, viaje, reenviar, temporales,
 /// información del grupo y servicios de dinero.
 
-/// Elige un sticker criollo. Devuelve su id.
-Future<String?> pickSticker(BuildContext context) => showModalBottomSheet<String>(
+/// Elige un sticker (por packs: criollos, pelota, Navidad…). Devuelve su id.
+Future<String?> pickSticker(BuildContext context, {int initialPack = 0}) => showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (ctx) => SafeArea(
         child: SizedBox(
-          height: MediaQuery.sizeOf(ctx).height * 0.55,
-          child: Column(children: [
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Text('Stickers criollos 🇩🇴', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-            ),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 3,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                children: [
-                  for (final s in klkStickers)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () => Navigator.pop(ctx, s.id),
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Image.asset(s.asset, semanticLabel: s.label),
-                      ),
+          height: MediaQuery.sizeOf(ctx).height * 0.6,
+          child: DefaultTabController(
+            length: stickerPacks.length,
+            initialIndex: initialPack.clamp(0, stickerPacks.length - 1).toInt(),
+            child: Column(children: [
+              TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                tabs: [for (final p in stickerPacks) Tab(text: '${p.icon} ${p.name}')],
+              ),
+              Expanded(
+                child: TabBarView(children: [
+                  for (final pack in stickerPacks)
+                    GridView.count(
+                      crossAxisCount: 3,
+                      padding: const EdgeInsets.all(12),
+                      children: [
+                        for (final st in pack.stickers)
+                          InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => Navigator.pop(ctx, st.id),
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Image.asset(st.asset, semanticLabel: st.label),
+                            ),
+                          ),
+                      ],
                     ),
-                ],
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+
+/// Índice del pack de cumpleaños (para felicitar).
+int get birthdayPackIndex => stickerPacks.indexWhere((p) => p.name == 'Cumpleaños');
+
+/// Crear una encuesta. Devuelve (pregunta, opciones, varias respuestas).
+Future<(String, List<String>, bool)?> pickPoll(BuildContext context) {
+  final question = TextEditingController();
+  final options = [TextEditingController(), TextEditingController()];
+  var multi = false;
+  return showModalBottomSheet<(String, List<String>, bool)>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) {
+        final filled = options.where((o) => o.text.trim().isNotEmpty).length;
+        final ok = question.text.trim().isNotEmpty && filled >= 2;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.viewInsetsOf(ctx).bottom + 20),
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text('📊 Nueva encuesta', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: question,
+                autofocus: true,
+                maxLength: 140,
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                    labelText: 'Pregunta', hintText: '¿Quién va al sancocho del sábado?', border: OutlineInputBorder()),
+              ),
+              for (var i = 0; i < options.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: TextField(
+                    controller: options[i],
+                    maxLength: 60,
+                    textCapitalization: TextCapitalization.sentences,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Opción ${i + 1}',
+                      border: const OutlineInputBorder(),
+                      counterText: '',
+                      suffixIcon: options.length > 2
+                          ? IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => setState(() => options.removeAt(i)),
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+              if (options.length < 8)
+                TextButton.icon(
+                  onPressed: () => setState(() => options.add(TextEditingController())),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Añadir opción'),
+                ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Permitir varias respuestas'),
+                value: multi,
+                onChanged: (v) => setState(() => multi = v),
+              ),
+              FilledButton(
+                onPressed: ok
+                    ? () => Navigator.pop(ctx, (question.text.trim(), [for (final o in options) o.text.trim()], multi))
+                    : null,
+                child: const Text('Enviar encuesta'),
+              ),
+            ]),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+/// Cuánto tiempo compartir la ubicación en tiempo real.
+Future<Duration?> pickLiveDuration(BuildContext context) => showModalBottomSheet<Duration>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(
+            title: Text('Ubicación en tiempo real', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+            subtitle: Text('Tu gente verá dónde estás mientras KLK esté abierta. '
+                'Puedes dejar de compartir cuando quieras. Va cifrada de punta a punta.'),
+          ),
+          for (final (label, d) in const [
+            ('15 minutos', Duration(minutes: 15)),
+            ('1 hora', Duration(hours: 1)),
+            ('8 horas', Duration(hours: 8)),
+          ])
+            ListTile(leading: const Icon(Icons.share_location), title: Text(label), onTap: () => Navigator.pop(ctx, d)),
+        ]),
+      ),
+    );
+
+/// Denunciar a un contacto. Devuelve (motivo, incluir mensajes, bloquear).
+Future<(String, bool, bool)?> pickReport(BuildContext context, String name) {
+  var reason = 'spam';
+  var include = true;
+  var block = true;
+  return showModalBottomSheet<(String, bool, bool)>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            ListTile(
+              title: Text('Denunciar a $name', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+              subtitle: const Text('KLK no puede leer tus chats. Solo recibimos lo que tú decidas enviar aquí.'),
+            ),
+            for (final (id, label) in const [
+              ('spam', 'Spam o publicidad'),
+              ('estafa', 'Estafa o fraude'),
+              ('acoso', 'Acoso o amenazas'),
+              ('otro', 'Otro motivo'),
+            ])
+              ListTile(
+                leading: Icon(reason == id ? Icons.radio_button_checked : Icons.radio_button_off),
+                title: Text(label),
+                onTap: () => setState(() => reason = id),
+              ),
+            CheckboxListTile(
+              value: include,
+              onChanged: (v) => setState(() => include = v ?? false),
+              title: const Text('Adjuntar los últimos 5 mensajes que te envió'),
+              subtitle: const Text('Ayuda a revisar la denuncia. Nada más sale de tu móvil.'),
+            ),
+            CheckboxListTile(
+              value: block,
+              onChanged: (v) => setState(() => block = v ?? false),
+              title: const Text('Bloquear también'),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFCE1126)),
+                onPressed: () => Navigator.pop(ctx, (reason, include, block)),
+                child: const Text('Enviar denuncia'),
               ),
             ),
           ]),
         ),
       ),
-    );
+    ),
+  );
+}
 
 /// Formulario "Bajando pa' RD". Devuelve el adjunto de viaje.
 Future<MessageMedia?> pickTrip(BuildContext context) async {

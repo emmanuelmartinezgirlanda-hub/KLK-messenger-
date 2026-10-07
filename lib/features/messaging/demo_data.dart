@@ -87,7 +87,41 @@ Future<void> seedDemo(LocalDb db) async {
     color: 0xFFCE1126,
     createdAt: ago(130),
   ));
+
+  // Una encuesta en el grupo de Madrid, ya con votos, y fijada arriba
+  final pollId = uuid.v4();
+  await db.addMessage(Message(
+    id: pollId,
+    chatId: 'demo-madrid',
+    kind: MessageKind.incoming,
+    sender: 'Pedro',
+    body: '',
+    status: MessageStatus.read,
+    createdAt: ago(58),
+    media: const MessageMedia(
+      type: MediaType.poll,
+      pollQuestion: '¿Qué llevamos al sancocho del sábado?',
+      pollOptions: ['Tostones', 'Arroz blanco', 'Aguacate', 'Bebida'],
+      pollMulti: true,
+      votes: {
+        'Pedro': [0, 3],
+        'Lisbeth': [0],
+        'Yokasta': [2],
+      },
+    ),
+  ));
+  await db.setPinned('demo-madrid', pollId);
+
+  // Hoy es el cumpleaños de Yaniris (para enseñar el aviso)
+  await db.setBirthday('demo-yaniris', '${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}');
 }
+
+/// Nombres para los votos de ejemplo.
+const demoVoters = ['Pedro', 'Lisbeth', 'Junior', 'Mami', 'Tía Mery', 'Yokasta'];
+
+/// Texto de ejemplo al pasar a texto una nota de voz en modo demo.
+const demoTranscript = 'Mi amor, ya compré todo pa\' la cena de Nochebuena. '
+    'Avísame cuando aterrices que tu papá te va a buscar al aeropuerto.';
 
 const _replies = [
   'Tá to\' 👌',

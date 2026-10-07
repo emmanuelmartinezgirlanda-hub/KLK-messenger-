@@ -18,6 +18,7 @@ import '../../calls/call_controller.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import '../../privacy/presentation/privacy_provider.dart';
+import '../../theming/wallpapers.dart';
 import 'chat_avatar.dart';
 import 'chat_sheets.dart';
 import 'media_bubbles.dart';
@@ -25,7 +26,10 @@ import 'message_bubble.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
-  const ChatScreen({super.key, required this.chatId});
+
+  /// Texto ya escrito al abrir (p. ej. "¡Feliz cumpleaños!").
+  final String? initialText;
+  const ChatScreen({super.key, required this.chatId, this.initialText});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -40,6 +44,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   int _lastCount = 0;
   Message? _replyTo; // mensaje al que respondo
 
+  // Buscar dentro del chat
+  bool _searching = false;
+  final _search = TextEditingController();
+
+  // Notas de voz que se están pasando a texto
+  final Set<String> _transcribing = {};
+
   // Nota de voz
   final _recorder = AudioRecorder();
   bool _recording = false;
@@ -51,6 +62,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.initState();
     _app = ref.read(appProvider);
     _app.openChat(widget.chatId);
+    final initial = widget.initialText;
+    if (initial != null && initial.isNotEmpty) _input.text = initial;
     // Refresca la "hora de allá" cada minuto.
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
@@ -70,6 +83,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (_input.text.isNotEmpty) _app.setTyping(widget.chatId, false);
     _app.closeChat();
     _input.dispose();
+    _search.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -197,6 +211,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           {
             await _sendLocation();
           }
+        case 'live':
+          await _shareLive();
+        case 'poll':
+          {
+            final poll = await pickPoll(context);
+            if (poll != null) await _app.sendPoll(widget.chatId, poll.$1, poll.$2, multi: poll.$3);
+          }
         case 'viewonce':
           {
             final x = await picker.pickMedia();
@@ -224,6 +245,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _snack(e.code.contains('denied') || e.code.contains('access')
           ? 'KLK no tiene permiso. Actívalo en Ajustes del iPhone → KLK.'
           : 'No se pudo abrir: ${e.message ?? e.code}');
+    } catch (_) {
+      _snack('No se pudo enviar. Revisa tu conexión e inténtalo otra vez.');
     }
   }
 
@@ -259,20 +282,74 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  Future<void> _sendLocation() async {
+  Future<bool> _locationAllowed() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
       _snack('Activa la localización del teléfono para enviar tu ubicación');
-      return;
+      return false;
     }
     var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
     if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
       _snack('KLK no tiene permiso de ubicación. Actívalo en Ajustes del iPhone → KLK.');
-      return;
+      return false;
     }
+    return true;
+  }
+
+  Future<void> _sendLocation() async {
+    if (!await _locationAllowed()) return;
     _snack('Buscando tu ubicación…');
     final pos = await Geolocator.getCurrentPosition();
     await _sendMedia(MessageMedia(type: MediaType.location, lat: pos.latitude, lng: pos.longitude));
+  }
+
+  /// Ubicación en tiempo real: 15 min, 1 h u 8 h.
+  Future<void> _shareLive() async {
+    final duration = await pickLiveDuration(context);
+    if (duration == null || !await _locationAllowed()) return;
+    _snack('Buscando tu ubicación…');
+    final pos = await Geolocator.getCurrentPosition();
+    await _app.startLiveLocation(widget.chatId, duration, pos);
+  }
+
+  // ---------- Llamadas ----------
+
+  /// Antes de llamar, si allá es de madrugada, pregunta.
+  Future<void> _call(Chat? chat, {required bool video}) async {
+    final zone = chat == null ? null : zoneForPhone(chat.phone);
+    if (zone != null) {
+      final there = nowIn(zone.zone);
+      if (there.hour >= 23 || there.hour < 7) {
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: const Icon(Icons.bedtime_outlined),
+            title: Text('En ${zone.place} son las ${DateFormat.jm('es').format(there)}'),
+            content: Text('Puede que ${chat!.title} esté durmiendo. ¿Llamar de todas formas?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Mejor luego')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Llamar')),
+            ],
+          ),
+        );
+        if (ok != true) return;
+      }
+    }
+    await ref.read(callProvider).startCall(widget.chatId, video: video);
+  }
+
+  // ---------- Notas de voz a texto ----------
+
+  Future<void> _transcribe(Message m) async {
+    if (_transcribing.contains(m.id)) return;
+    setState(() => _transcribing.add(m.id));
+    try {
+      await _app.transcribe(m);
+    } catch (e) {
+      _snack(e.toString());
+    } finally {
+      if (mounted) setState(() => _transcribing.remove(m.id));
+    }
   }
 
   void _showAttachSheet() {
@@ -309,6 +386,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               item(Icons.videocam, 'Vídeo', const Color(0xFFC46A00), 'video'),
               item(Icons.insert_drive_file, 'Documento', const Color(0xFF002D62), 'file'),
               item(Icons.location_on, 'Ubicación', const Color(0xFF1F7A4D), 'location'),
+              item(Icons.share_location, 'En vivo', const Color(0xFF00897B), 'live'),
+              item(Icons.poll_outlined, 'Encuesta', const Color(0xFF3949AB), 'poll'),
               item(Icons.looks_one_outlined, 'Ver una vez', const Color(0xFF0E4D64), 'viewonce'),
               item(Icons.emoji_emotions_outlined, 'Stickers', const Color(0xFFFFB627), 'sticker'),
               item(Icons.flight_takeoff, "Bajando pa' RD", const Color(0xFF002D62), 'trip'),
@@ -417,8 +496,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 final targets = await pickForwardTargets(
                     context, _app.visibleChats.where((c) => c.id != widget.chatId).toList());
                 if (targets != null && targets.isNotEmpty) {
-                  await _app.forward(m, targets);
-                  _snack('Reenviado a ${targets.length} ${targets.length == 1 ? 'chat' : 'chats'}');
+                  try {
+                    await _app.forward(m, targets);
+                    _snack('Reenviado a ${targets.length} ${targets.length == 1 ? 'chat' : 'chats'}');
+                  } catch (_) {
+                    _snack('No se pudo reenviar. Revisa tu conexión.');
+                  }
                 }
               },
             ),
@@ -430,6 +513,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 Clipboard.setData(ClipboardData(text: m.body));
                 Navigator.pop(ctx);
                 _snack('Copiado');
+              },
+            ),
+          if (!m.deleted)
+            ListTile(
+              leading: const Icon(Icons.push_pin_outlined),
+              title: Text(_app.chatById(widget.chatId)?.pinnedId == m.id ? 'Desfijar' : 'Fijar arriba'),
+              onTap: () {
+                Navigator.pop(ctx);
+                final pinned = _app.chatById(widget.chatId)?.pinnedId == m.id;
+                _app.pinMessage(widget.chatId, pinned ? null : m);
+              },
+            ),
+          if (!m.deleted && m.media?.type == MediaType.audio && m.media?.transcript == null)
+            ListTile(
+              leading: const Icon(Icons.subtitles_outlined),
+              title: const Text('Pasar a texto'),
+              subtitle: const Text('Se hace en tu móvil, sin enviar el audio a nadie'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _transcribe(m);
               },
             ),
           if (canTranslate)
@@ -490,7 +593,92 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
       case 'group':
         await showGroupInfo(context, chat);
+      case 'search':
+        setState(() {
+          _searching = true;
+          _search.clear();
+        });
+      case 'wallpaper':
+        await _pickWallpaper();
+      case 'block':
+        {
+          if (!chat.blocked) {
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Text('¿Bloquear a ${chat.title}?'),
+                content: const Text('No recibirás sus mensajes, llamadas ni estados, y no verá tu foto, tu nombre ni tus estados.'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFFCE1126)),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Bloquear'),
+                  ),
+                ],
+              ),
+            );
+            if (ok != true) return;
+          }
+          await _app.setBlocked(widget.chatId, !chat.blocked);
+        }
+      case 'report':
+        {
+          final r = await pickReport(context, chat.title);
+          if (r == null) return;
+          try {
+            await _app.report(widget.chatId, r.$1, includeMessages: r.$2, block: r.$3);
+            _snack('Denuncia enviada. Gracias por ayudar a que KLK sea un sitio seguro.');
+          } catch (e) {
+            _snack('No se pudo enviar la denuncia: $e');
+          }
+        }
     }
+  }
+
+  Future<void> _pickWallpaper() async {
+    final current = ref.read(wallpaperProvider);
+    final id = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: 230,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            children: [
+              for (final w in wallpapers)
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx, w.id),
+                  child: Container(
+                    width: 110,
+                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Column(children: [
+                      Container(
+                        height: 170,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: w.id == current ? Theme.of(ctx).colorScheme.secondary : Colors.transparent,
+                            width: 3,
+                          ),
+                          color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                        ),
+                        child: ChatWallpaper(id: w.id, dim: false),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(w.name, maxLines: 2, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+                    ]),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (id != null) await ref.read(wallpaperProvider.notifier).set(id);
   }
 
   void _scrollToEndIfNew(int count) {
@@ -513,10 +701,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final translator = ref.watch(translatorProvider);
     final cs = Theme.of(context).colorScheme;
     final chat = app.chats.where((c) => c.id == widget.chatId).firstOrNull;
-    final messages = app.messagesFor(widget.chatId);
+    final allMessages = app.messagesFor(widget.chatId);
+    final query = foldForSearch(_search.text.trim());
+    final messages = _searching && query.isNotEmpty
+        ? allMessages
+            .where((m) =>
+                !m.deleted &&
+                m.kind != MessageKind.system &&
+                (foldForSearch(m.body).contains(query) ||
+                    foldForSearch(m.media?.pollQuestion ?? '').contains(query) ||
+                    foldForSearch(m.media?.transcript ?? '').contains(query)))
+            .toList()
+        : allMessages;
+    final pinned = app.pinnedMessage(widget.chatId);
+    final wallpaper = ref.watch(wallpaperProvider);
+    final blocked = chat?.blocked ?? false;
     final typing = app.isTyping(widget.chatId);
     final recording = app.isRecording(widget.chatId);
-    _scrollToEndIfNew(messages.length);
+    if (!_searching) _scrollToEndIfNew(messages.length);
 
     final title = chat?.title ?? '';
     final zone = chat == null ? null : zoneForPhone(chat.phone);
@@ -530,30 +732,63 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final live = typing || recording;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: _searching
+          ? AppBar(
+              leading: IconButton(
+                tooltip: 'Cerrar búsqueda',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => setState(() {
+                  _searching = false;
+                  _search.clear();
+                  _lastCount = -1; // al cerrar, vuelve al final
+                }),
+              ),
+              title: TextField(
+                controller: _search,
+                autofocus: true,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(hintText: 'Buscar en este chat', border: InputBorder.none),
+              ),
+              actions: [
+                if (query.isNotEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: Text('${messages.length}', style: TextStyle(color: cs.secondary, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+              ],
+            )
+          : AppBar(
         titleSpacing: 0,
         actions: [
-          if (!(chat?.isGroup ?? false)) ...[
+          if (!(chat?.isGroup ?? false) && !blocked) ...[
             IconButton(
               tooltip: 'Videollamada',
               icon: const Icon(Icons.videocam_outlined),
-              onPressed: () => ref.read(callProvider).startCall(widget.chatId, video: true),
+              onPressed: () => _call(chat, video: true),
             ),
             IconButton(
               tooltip: 'Llamada de voz',
               icon: const Icon(Icons.call_outlined),
-              onPressed: () => ref.read(callProvider).startCall(widget.chatId, video: false),
+              onPressed: () => _call(chat, video: false),
             ),
           ],
           PopupMenuButton<String>(
             onSelected: (a) => _chatMenu(a, chat),
             itemBuilder: (_) => [
+              const PopupMenuItem(value: 'search', child: Text('Buscar')),
               if (chat?.isGroup ?? false) const PopupMenuItem(value: 'group', child: Text('Info del grupo')),
               PopupMenuItem(
                 value: 'timer',
                 child: Text('Mensajes temporales · ${disappearLabel(chat?.disappearSec)}'),
               ),
+              const PopupMenuItem(value: 'wallpaper', child: Text('Fondo de pantalla')),
               PopupMenuItem(value: 'hide', child: Text((chat?.hidden ?? false) ? 'Mostrar en la lista' : 'Ocultar chat')),
+              if (!(chat?.isGroup ?? true)) ...[
+                PopupMenuItem(value: 'block', child: Text(blocked ? 'Desbloquear' : 'Bloquear')),
+                const PopupMenuItem(value: 'report', child: Text('Denunciar')),
+              ],
             ],
           ),
         ],
@@ -579,13 +814,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ]),
       ),
       body: Column(children: [
+        if (pinned != null && !_searching) _pinnedBar(pinned, cs),
         Expanded(
-          child: ListView(
+          child: Stack(fit: StackFit.expand, children: [
+            Positioned.fill(child: ChatWallpaper(id: wallpaper)),
+            ListView(
             controller: _scroll,
             padding: const EdgeInsets.only(top: 8, bottom: 12),
             children: [
-              if (zone != null)
+              if (_searching && query.isNotEmpty && messages.isEmpty)
+                const _Chip(icon: Icons.search_off, text: 'No hay mensajes con esas palabras'),
+              if (zone != null && !_searching)
                 _Chip(icon: Icons.schedule, text: 'En ${zone.place} son las ${DateFormat.jm('es').format(nowIn(zone.zone))}'),
+              if (!_searching)
               const _Chip(
                 icon: Icons.lock_outline,
                 text: 'Mensajes y archivos cifrados de punta a punta. Nadie fuera de este chat puede verlos.',
@@ -603,24 +844,70 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     onOpenViewOnce: () => _openViewOnce(m),
                     translation: translator.results[m.id],
                     translating: translator.working.contains(m.id),
+                    onVote: (i) => _app.vote(m, i),
+                    onStopLive: () => _app.stopLiveLocation(m.id),
+                    onTranscribe: () => _transcribe(m),
+                    transcribing: _transcribing.contains(m.id),
+                    highlight: _searching ? _search.text : null,
                   ),
                 ),
             ],
           ),
+          ]),
         ),
         SafeArea(
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(4, 4, 8, 8),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              if (_replyTo != null && !_recording) _replyBar(cs),
-              _recording ? _recordingBar(cs) : _composer(),
-            ]),
+            child: blocked
+                ? _blockedBar(cs)
+                : Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (_replyTo != null && !_recording) _replyBar(cs),
+                    _recording ? _recordingBar(cs) : _composer(),
+                  ]),
           ),
         ),
       ]),
     );
   }
+
+  Widget _pinnedBar(Message m, ColorScheme cs) => Material(
+        color: cs.surfaceContainerHighest,
+        child: InkWell(
+          onTap: () => _messageActions(m),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+            child: Row(children: [
+              Icon(Icons.push_pin, size: 18, color: cs.secondary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Mensaje fijado', style: TextStyle(fontSize: 12, color: cs.secondary, fontWeight: FontWeight.w700)),
+                  Text(m.summary, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ]),
+              ),
+              IconButton(
+                tooltip: 'Desfijar',
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () => _app.pinMessage(widget.chatId, null),
+              ),
+            ]),
+          ),
+        ),
+      );
+
+  Widget _blockedBar(ColorScheme cs) => Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(children: [
+          const Icon(Icons.block, color: Color(0xFFFF6B7A)),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Bloqueaste a este contacto. No puedes escribirle ni llamarle.')),
+          TextButton(
+            onPressed: () => _app.setBlocked(widget.chatId, false),
+            child: const Text('Desbloquear'),
+          ),
+        ]),
+      );
 
   Widget _replyBar(ColorScheme cs) {
     final m = _replyTo!;

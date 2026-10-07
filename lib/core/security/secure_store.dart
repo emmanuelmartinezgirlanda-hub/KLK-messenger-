@@ -52,6 +52,9 @@ class SecureStore {
     return key;
   }
 
+  /// Al restaurar una copia: la base de datos restaurada usa su propia clave.
+  Future<void> setDatabaseKey(String key) => _storage.write(key: _dbKeyName, value: key);
+
   Future<Session?> loadSession() async {
     final s = await _storage.read(key: _sessionKey);
     return s == null ? null : Session.fromJson(jsonDecode(s) as Map<String, dynamic>);

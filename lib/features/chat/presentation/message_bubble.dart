@@ -22,6 +22,15 @@ class MessageBubble extends StatelessWidget {
   final String? translation;
   final bool translating;
 
+  /// Encuestas, ubicación en vivo y notas de voz a texto.
+  final void Function(int option)? onVote;
+  final VoidCallback? onStopLive;
+  final VoidCallback? onTranscribe;
+  final bool transcribing;
+
+  /// Texto buscado (se resalta).
+  final String? highlight;
+
   const MessageBubble({
     super.key,
     required this.message,
@@ -31,6 +40,11 @@ class MessageBubble extends StatelessWidget {
     this.onOpenViewOnce,
     this.translation,
     this.translating = false,
+    this.onVote,
+    this.onStopLive,
+    this.onTranscribe,
+    this.transcribing = false,
+    this.highlight,
   });
 
   @override
@@ -106,7 +120,16 @@ class MessageBubble extends StatelessWidget {
             ),
           if (message.replyPreview != null) _ReplyQuote(text: message.replyPreview!, fg: fg, accent: cs.secondary),
           if (media != null)
-            MediaContent(message: message, fg: fg, onRetry: onRetryMedia, onOpenViewOnce: onOpenViewOnce),
+            MediaContent(
+              message: message,
+              fg: fg,
+              onRetry: onRetryMedia,
+              onOpenViewOnce: onOpenViewOnce,
+              onVote: onVote,
+              onStopLive: onStopLive,
+              onTranscribe: onTranscribe,
+              transcribing: transcribing,
+            ),
           Wrap(
             alignment: WrapAlignment.end,
             crossAxisAlignment: WrapCrossAlignment.end,
@@ -115,7 +138,7 @@ class MessageBubble extends StatelessWidget {
               if (message.body.isNotEmpty)
                 Padding(
                   padding: EdgeInsets.only(left: media == null ? 0 : 6, top: media == null ? 0 : 4),
-                  child: Text(message.body, style: TextStyle(color: fg, fontSize: 15.5, height: 1.35)),
+                  child: _highlighted(message.body, TextStyle(color: fg, fontSize: 15.5, height: 1.35), cs.secondary),
                 ),
               meta,
             ],
@@ -178,6 +201,30 @@ class MessageBubble extends StatelessWidget {
               ]),
       ),
     );
+  }
+
+  /// Resalta [highlight] dentro del texto (sin importar tildes ni mayúsculas).
+  Widget _highlighted(String text, TextStyle style, Color accent) {
+    final q = highlight == null ? '' : foldForSearch(highlight!.trim());
+    if (q.isEmpty) return Text(text, style: style);
+    final folded = foldForSearch(text);
+    if (folded.length != text.length) return Text(text, style: style);
+    final spans = <TextSpan>[];
+    var i = 0;
+    while (true) {
+      final j = folded.indexOf(q, i);
+      if (j < 0) {
+        spans.add(TextSpan(text: text.substring(i)));
+        break;
+      }
+      if (j > i) spans.add(TextSpan(text: text.substring(i, j)));
+      spans.add(TextSpan(
+        text: text.substring(j, j + q.length),
+        style: TextStyle(backgroundColor: accent.withValues(alpha: 0.45), fontWeight: FontWeight.w700),
+      ));
+      i = j + q.length;
+    }
+    return Text.rich(TextSpan(style: style, children: spans));
   }
 }
 

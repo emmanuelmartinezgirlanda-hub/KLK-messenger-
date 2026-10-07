@@ -5,6 +5,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../features/messaging/models.dart' show resolveMediaPath;
+
 /// Archivo cifrado listo para subir, con lo necesario para descifrarlo.
 class SealedFile {
   final List<int> bytes; // texto cifrado (lo que se sube al servidor)
@@ -27,6 +29,28 @@ class MediaStore {
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
   }
+
+  static String? _dirPath;
+
+  /// Se llama al arrancar: recuerda la carpeta actual y enseña a los modelos a
+  /// traducir rutas guardadas con una carpeta antigua (iOS cambia la ruta de la
+  /// app al actualizarla, y al restaurar una copia en otro iPhone).
+  static Future<void> init() async {
+    _dirPath = (await _dir()).path;
+    resolveMediaPath = rebase;
+  }
+
+  /// ".../<otra carpeta>/media/abc.jpg" -> "<carpeta actual>/media/abc.jpg".
+  static String? rebase(String? path) {
+    final dir = _dirPath;
+    if (path == null || dir == null) return path;
+    final i = path.lastIndexOf('/media/');
+    if (i < 0) return path;
+    return p.join(dir, path.substring(i + '/media/'.length));
+  }
+
+  /// Carpeta de adjuntos (para la copia de seguridad).
+  static Future<Directory> directory() => _dir();
 
   /// Ruta nueva dentro de la carpeta de KLK con la extensión dada (".jpg", ".m4a"…).
   static Future<String> newPath(String extension) async =>

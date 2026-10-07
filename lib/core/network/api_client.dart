@@ -134,4 +134,9 @@ class ApiClient {
     final j = await _send('POST', '/v1/accounts/lookup-batch', {'phones': phones}) as Map<String, dynamic>;
     return (j['found'] as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as String));
   }
+
+  /// Denuncia a una cuenta. [messages] son los que el usuario decide adjuntar
+  /// (el servidor no puede leer los mensajes por sí mismo).
+  Future<void> report(String accountId, String reason, {List<String> messages = const []}) =>
+      _send('POST', '/v1/reports', {'accountId': accountId, 'reason': reason, 'messages': messages});
 }

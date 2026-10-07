@@ -49,6 +49,16 @@ dependencies:
   # Llamadas de voz y vídeo (WebRTC: cifrado DTLS-SRTP de móvil a móvil)
   flutter_webrtc: ">=0.12.0 <2.0.0"
 
+  # Bloqueo con Face ID / Touch ID / código del móvil
+  local_auth: ">=2.3.0 <3.0.0"
+
+  # Guardar la copia de seguridad cifrada en Archivos / iCloud Drive
+  share_plus: ">=10.0.0 <11.0.0"
+
+  # Funciones nativas propias: notas de voz a texto en el móvil y aviso de capturas
+  klk_native:
+    path: packages/klk_native
+
   # Utilidades
   google_fonts: ^6.2.1
   intl: any   # la versión la fija flutter_localizations

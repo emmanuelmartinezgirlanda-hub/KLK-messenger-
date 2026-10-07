@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/brand/klk_logo.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../hidden/hidden_chats_screen.dart';
 import '../messaging/app_controller.dart';
+import '../messaging/models.dart';
 import '../privacy/presentation/privacy_screen.dart';
 import '../theming/presentation/theme_picker_screen.dart';
 import '../theming/presentation/theme_provider.dart';
+import 'backup_screen.dart';
 
 class SettingsView extends ConsumerWidget {
   const SettingsView({super.key});
@@ -45,6 +48,13 @@ class SettingsView extends ConsumerWidget {
           subtitle: Text(app.hiddenChats.isEmpty ? 'Protegidos con tu PIN' : '${app.hiddenChats.length} ocultos · protegidos con tu PIN'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HiddenChatsScreen())),
+        ),
+        ListTile(
+          leading: const Icon(Icons.cloud_upload_outlined),
+          title: const Text('Copia de seguridad'),
+          subtitle: const Text('Cifrada con tu contraseña · Archivos o iCloud'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupScreen())),
         ),
         if (s != null && !s.isDemo)
           ListTile(
@@ -133,6 +143,18 @@ class _ProfileHeader extends ConsumerWidget {
             Text(s == null ? '' : prettyPhone(s.phone), style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65))),
             Text(app.isDemo ? 'Modo demo · sin servidor' : (app.online ? 'Conectado' : 'Sin conexión'),
                 style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
+            InkWell(
+              onTap: () => _editBirthday(context, ref),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  !isValidBirthday(app.profile.birthday)
+                      ? '🎂 Añade tu cumpleaños'
+                      : '🎂 ${_birthdayLabel(app.profile.birthday!)}',
+                  style: TextStyle(fontSize: 13, color: cs.secondary, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
           ]),
         ),
         IconButton(
@@ -190,6 +212,46 @@ class _ProfileHeader extends ConsumerWidget {
             content: Text('KLK no tiene permiso para tus fotos o la cámara. Actívalo en Ajustes del iPhone → KLK.')));
       }
     }
+  }
+
+  static String _birthdayLabel(String mmdd) {
+    final parts = mmdd.split('-');
+    return DateFormat.MMMMd('es').format(DateTime(2000, int.parse(parts[0]), int.parse(parts[1])));
+  }
+
+  /// Solo día y mes: tus contactos te felicitan sin saber tu edad.
+  Future<void> _editBirthday(BuildContext context, WidgetRef ref) async {
+    final app = ref.read(appProvider);
+    final current = app.profile.birthday;
+    final initial = !isValidBirthday(current)
+        ? DateTime(2000, DateTime.now().month, DateTime.now().day)
+        : DateTime(2000, int.parse(current!.split('-')[0]), int.parse(current.split('-')[1]));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000, 1, 1),
+      lastDate: DateTime(2000, 12, 31),
+      helpText: 'Tu cumpleaños (el año no se comparte)',
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
+    );
+    if (picked == null) {
+      if (current != null && context.mounted) {
+        final remove = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('¿Quitar tu cumpleaños?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Quitar')),
+            ],
+          ),
+        );
+        if (remove == true) await app.updateProfile(removeBirthday: true);
+      }
+      return;
+    }
+    final mmdd = '${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    await app.updateProfile(birthday: mmdd);
   }
 
   Future<void> _editName(BuildContext context, WidgetRef ref, String current) async {

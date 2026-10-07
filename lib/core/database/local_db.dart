@@ -37,17 +37,32 @@ class LocalDb {
        )''',
   ];
 
+  /// Versión 5: cumpleaños, mensajes fijados y contactos bloqueados.
+  static const _v5 = [
+    'ALTER TABLE chats ADD COLUMN birthday TEXT',
+    'ALTER TABLE chats ADD COLUMN pinned_id TEXT',
+    'ALTER TABLE chats ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0',
+  ];
+
+  /// Ruta del archivo (para la copia de seguridad).
+  static Future<String> filePath() async => p.join(await getDatabasesPath(), _file);
+
   static Future<LocalDb> open(String key) async {
     final dir = await getDatabasesPath();
     final db = await openDatabase(
       p.join(dir, _file),
       password: key,
-      version: 4,
+      version: 5,
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await db.execute('ALTER TABLE messages ADD COLUMN media_json TEXT');
         if (oldVersion < 3) await db.execute('ALTER TABLE chats ADD COLUMN avatar_path TEXT');
         if (oldVersion < 4) {
           for (final sql in _v4) {
+            await db.execute(sql);
+          }
+        }
+        if (oldVersion < 5) {
+          for (final sql in _v5) {
             await db.execute(sql);
           }
         }
@@ -78,7 +93,7 @@ class LocalDb {
             media_json TEXT
           )''');
         await db.execute('CREATE INDEX messages_chat_idx ON messages(chat_id, created_at)');
-        for (final sql in _v4) {
+        for (final sql in [..._v4, ..._v5]) {
           await db.execute(sql);
         }
       },
@@ -226,6 +241,24 @@ class LocalDb {
 
   Future<void> setDisappear(String chatId, int? seconds) =>
       _db.update('chats', {'disappear_sec': seconds}, where: 'id = ?', whereArgs: [chatId]);
+
+  // ---------- v5 ----------
+
+  Future<void> setBirthday(String chatId, String? birthday) =>
+      _db.update('chats', {'birthday': birthday}, where: 'id = ?', whereArgs: [chatId]);
+
+  Future<void> setPinned(String chatId, String? messageId) =>
+      _db.update('chats', {'pinned_id': messageId}, where: 'id = ?', whereArgs: [chatId]);
+
+  Future<void> setBlocked(String chatId, bool blocked) =>
+      _db.update('chats', {'blocked': blocked ? 1 : 0}, where: 'id = ?', whereArgs: [chatId]);
+
+  /// Mis ubicaciones en tiempo real que quedaron activas (p. ej. al cerrar la app).
+  Future<List<Message>> myLiveLocations() async {
+    final rows = await _db.query('messages',
+        where: "kind = ? AND media_json LIKE '%\"t\":\"live\"%'", whereArgs: [MessageKind.outgoing.index]);
+    return rows.map(Message.fromRow).toList();
+  }
 
   Future<void> deleteChat(String chatId) => _db.delete('chats', where: 'id = ?', whereArgs: [chatId]);
 

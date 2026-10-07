@@ -49,17 +49,69 @@ class ChatListView extends ConsumerWidget {
       );
     }
 
+    final birthdays = app.birthdaysToday;
+    final header = birthdays.isEmpty ? 0 : 1;
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 88),
-      itemCount: chats.length,
-      itemBuilder: (context, i) => _ChatTile(
-        chat: chats[i],
-        activity: app.isRecording(chats[i].id)
-            ? 'grabando audio…'
-            : app.isTyping(chats[i].id)
-                ? 'escribiendo…'
-                : null,
+      itemCount: chats.length + header,
+      itemBuilder: (context, i) {
+        if (i < header) return _BirthdayCard(people: birthdays);
+        final c = chats[i - header];
+        return _ChatTile(
+          chat: c,
+          activity: app.isRecording(c.id)
+              ? 'grabando audio…'
+              : app.isTyping(c.id)
+                  ? 'escribiendo…'
+                  : null,
+        );
+      },
+    );
+  }
+}
+
+/// "Hoy cumple Yaniris 🎂" con un botón para felicitar.
+class _BirthdayCard extends StatelessWidget {
+  final List<Chat> people;
+  const _BirthdayCard({required this.people});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final names = people.map((c) => c.title.split(' ').first).toList();
+    final who = names.length == 1
+        ? names.first
+        : '${names.sublist(0, names.length - 1).join(', ')} y ${names.last}';
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(colors: [cs.secondary.withValues(alpha: 0.22), cs.primary.withValues(alpha: 0.18)]),
       ),
+      child: Row(children: [
+        const Text('🎂', style: TextStyle(fontSize: 30)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Hoy cumple $who', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            Text('Mándale un sticker o un audio, que le va a gustar',
+                style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.7))),
+          ]),
+        ),
+        FilledButton(
+          onPressed: () {
+            final c = people.first;
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ChatScreen(
+                chatId: c.id,
+                initialText: '¡Feliz cumpleaños, ${c.title.split(' ').first}! 🎂🇩🇴 Que Dios te bendiga',
+              ),
+            ));
+          },
+          child: const Text('Felicitar'),
+        ),
+      ]),
     );
   }
 }
@@ -84,6 +136,7 @@ class _ChatTile extends ConsumerWidget {
           child: Text(chat.title,
               maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
         ),
+        if (chat.blocked) const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.block, size: 15, color: Color(0xFFFF6B7A))),
         Text(chatTime(chat.updatedAt),
             style: TextStyle(
                 fontSize: 12, color: unread ? cs.secondary : muted, fontWeight: unread ? FontWeight.w700 : null)),

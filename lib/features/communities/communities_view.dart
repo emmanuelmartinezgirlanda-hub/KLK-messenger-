@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Comunidades por ciudad. En esta versión los datos son de ejemplo;
 /// el servidor de comunidades (grupos públicos verificados) es la siguiente fase.
@@ -43,6 +44,12 @@ class _CommunitiesViewState extends State<CommunitiesView> {
               style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6))),
         ),
         const SizedBox(height: 8),
+        const _NewsSection(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+          child: Text('COMUNIDADES',
+              style: TextStyle(fontSize: 12, letterSpacing: 1.2, fontWeight: FontWeight.w700, color: cs.secondary)),
+        ),
         for (final c in _items)
           ListTile(
             leading: Container(
@@ -59,6 +66,42 @@ class _CommunitiesViewState extends State<CommunitiesView> {
                 : OutlinedButton(onPressed: () => setState(() => c.joined = true), child: const Text('Unirme')),
           ),
       ],
+    );
+  }
+}
+
+
+/// Pelota y noticias de RD: accesos directos a las webs oficiales.
+/// (Los resultados en vivo dentro de KLK necesitan un proveedor de datos deportivos.)
+class _NewsSection extends StatelessWidget {
+  const _NewsSection();
+
+  static const _links = [
+    ('⚾', 'Pelota invernal (LIDOM)', 'Calendario, resultados y posiciones', 'https://www.lidom.com'),
+    ('⚾', 'Dominicanos en Grandes Ligas', 'MLB en español', 'https://www.mlb.com/es'),
+    ('📰', 'Diario Libre', 'Noticias de RD', 'https://www.diariolibre.com'),
+    ('📰', 'Listín Diario', 'Noticias de RD', 'https://listindiario.com'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Column(children: [
+        const ListTile(
+          title: Text('Pelota y noticias de RD', style: TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text('Se abren en tu navegador. Los resultados en vivo dentro de KLK llegarán más adelante.'),
+        ),
+        for (final (icon, title, sub, url) in _links)
+          ListTile(
+            leading: CircleAvatar(backgroundColor: cs.surfaceContainerHighest, child: Text(icon)),
+            title: Text(title),
+            subtitle: Text(sub),
+            trailing: const Icon(Icons.open_in_new, size: 18),
+            onTap: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          ),
+      ]),
     );
   }
 }

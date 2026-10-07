@@ -32,7 +32,9 @@ if command -v plutil >/dev/null; then
   addkey NSPhotoLibraryUsageDescription "KLK accede a tus fotos para que puedas enviarlas en calidad original."
   addkey NSPhotoLibraryAddUsageDescription "KLK guarda en tu galería las fotos que decidas descargar."
   addkey NSContactsUsageDescription "KLK mira tu agenda para mostrarte qué contactos ya usan KLK. Tu agenda no se guarda en nuestros servidores."
-  addkey NSLocationWhenInUseUsageDescription "KLK usa tu ubicación solo cuando decides enviarla en un chat."
+  addkey NSLocationWhenInUseUsageDescription "KLK usa tu ubicación solo cuando decides enviarla o compartirla en tiempo real en un chat."
+  addkey NSFaceIDUsageDescription "KLK usa Face ID para que solo tú puedas abrir tus chats."
+  addkey NSSpeechRecognitionUsageDescription "KLK pasa a texto las notas de voz dentro de tu iPhone, sin enviarlas a ningún servidor."
   # Que la llamada siga sonando si sales un momento de KLK
   plutil -replace UIBackgroundModes -json '["audio"]' "$PLIST"
 fi
@@ -50,7 +52,7 @@ if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
   perl -0pi -e 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
 fi
 
-for perm in RECORD_AUDIO ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT READ_CONTACTS; do
+for perm in RECORD_AUDIO ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT READ_CONTACTS USE_BIOMETRIC; do
   if ! grep -q "android.permission.$perm" "$MANIFEST"; then
     perl -0pi -e "s#<application#<uses-permission android:name=\"android.permission.$perm\"/>\n    <application#" "$MANIFEST"
   fi
@@ -61,6 +63,11 @@ for g in android/app/build.gradle android/app/build.gradle.kts; do
   if [ -f "$g" ]; then
     sed -i.bak -E 's/minSdk(Version)? *=? *flutter\.minSdkVersion/minSdk = 23/' "$g"
   fi
+done
+
+# Android: Face ID/huella (local_auth) necesita FlutterFragmentActivity
+for act in $(find android/app/src/main -name "MainActivity.kt" -o -name "MainActivity.java"); do
+  sed -i.bak 's/io\.flutter\.embedding\.android\.FlutterActivity/io.flutter.embedding.android.FlutterFragmentActivity/; s/: FlutterActivity()/: FlutterFragmentActivity()/; s/extends FlutterActivity/extends FlutterFragmentActivity/' "$act"
 done
 
 find ios android -name "*.bak" -delete

@@ -1,5 +1,10 @@
 import 'dart:convert';
 
+/// Las rutas guardadas son absolutas, pero en iOS la carpeta de la app puede
+/// cambiar (actualizaciones, restaurar una copia en otro iPhone). MediaStore
+/// instala aquí un traductor que las lleva a la carpeta actual.
+String? Function(String?) resolveMediaPath = (p) => p;
+
 enum MessageKind { outgoing, incoming, system }
 
 /// El orden importa: un estado solo puede avanzar hacia la derecha.
@@ -44,6 +49,9 @@ class Chat {
   final int? disappearSec; // mensajes temporales (null = desactivado)
   final bool hidden; // chat oculto tras el PIN
   final List<GroupMember> members; // solo grupos (sin incluirme a mí)
+  final String? birthday; // "MM-DD" que compartió el contacto
+  final String? pinnedId; // mensaje fijado arriba del chat
+  final bool blocked; // contacto bloqueado: no recibo nada suyo
 
   const Chat({
     required this.id,
@@ -58,7 +66,15 @@ class Chat {
     this.disappearSec,
     this.hidden = false,
     this.members = const [],
+    this.birthday,
+    this.pinnedId,
+    this.blocked = false,
   });
+
+  /// ¿Cumple años hoy?
+  bool birthdayOn(DateTime day) =>
+      birthday != null &&
+      birthday == '${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
 
   Chat copyWith({
     String? title,
@@ -70,6 +86,7 @@ class Chat {
     bool clearDisappear = false,
     bool? hidden,
     List<GroupMember>? members,
+    bool? blocked,
   }) =>
       Chat(
         id: id,
@@ -84,6 +101,9 @@ class Chat {
         disappearSec: clearDisappear ? null : (disappearSec ?? this.disappearSec),
         hidden: hidden ?? this.hidden,
         members: members ?? this.members,
+        birthday: birthday,
+        pinnedId: pinnedId,
+        blocked: blocked ?? this.blocked,
       );
 
   Map<String, Object?> toRow() => {
@@ -99,6 +119,9 @@ class Chat {
         'disappear_sec': disappearSec,
         'hidden': hidden ? 1 : 0,
         'members_json': members.isEmpty ? null : jsonEncode(members.map((m) => m.toJson()).toList()),
+        'birthday': birthday,
+        'pinned_id': pinnedId,
+        'blocked': blocked ? 1 : 0,
       };
 
   factory Chat.fromRow(Map<String, Object?> r) => Chat(
@@ -110,7 +133,7 @@ class Chat {
         unread: r['unread'] as int? ?? 0,
         lastText: r['last_text'] as String? ?? '',
         updatedAt: DateTime.fromMillisecondsSinceEpoch(r['updated_at'] as int),
-        avatarPath: r['avatar_path'] as String?,
+        avatarPath: resolveMediaPath(r['avatar_path'] as String?),
         disappearSec: r['disappear_sec'] as int?,
         hidden: (r['hidden'] as int? ?? 0) == 1,
         members: r['members_json'] == null
@@ -118,6 +141,9 @@ class Chat {
             : (jsonDecode(r['members_json'] as String) as List)
                 .map((e) => GroupMember.fromJson((e as Map).cast<String, dynamic>()))
                 .toList(),
+        birthday: r['birthday'] as String?,
+        pinnedId: r['pinned_id'] as String?,
+        blocked: (r['blocked'] as int? ?? 0) == 1,
       );
 }
 
@@ -238,10 +264,10 @@ class Message {
       );
 }
 
-enum MediaType { image, video, audio, file, location, sticker, trip }
+enum MediaType { image, video, audio, file, location, sticker, trip, poll, live }
 
 /// Adjunto de un mensaje: foto, vídeo, nota de voz, documento, ubicación,
-/// sticker o aviso de viaje ("Bajando pa' RD").
+/// sticker, aviso de viaje ("Bajando pa' RD"), encuesta o ubicación en tiempo real.
 class MessageMedia {
   final MediaType type;
 
@@ -263,6 +289,20 @@ class MessageMedia {
   final DateTime? tripDate;
   final String? tripFrom, tripTo;
 
+  // Encuesta
+  final String? pollQuestion;
+  final List<String> pollOptions;
+  final bool pollMulti; // se puede elegir más de una
+  final Map<String, List<int>> votes; // quién -> opciones ("me" = yo). Solo local.
+
+  // Ubicación en tiempo real
+  final DateTime? liveUntil;
+  final bool liveEnded; // se dejó de compartir antes de tiempo
+  final DateTime? liveUpdatedAt; // última posición recibida. Solo local.
+
+  // Nota de voz pasada a texto (en el propio móvil). Solo local.
+  final String? transcript;
+
   const MessageMedia({
     required this.type,
     this.localPath,
@@ -281,9 +321,31 @@ class MessageMedia {
     this.tripDate,
     this.tripFrom,
     this.tripTo,
+    this.pollQuestion,
+    this.pollOptions = const [],
+    this.pollMulti = false,
+    this.votes = const {},
+    this.liveUntil,
+    this.liveEnded = false,
+    this.liveUpdatedAt,
+    this.transcript,
   });
 
-  bool get hasFile => type != MediaType.location && type != MediaType.sticker && type != MediaType.trip;
+  bool get hasFile => const [MediaType.image, MediaType.video, MediaType.audio, MediaType.file].contains(type);
+
+  /// ¿Sigue compartiéndose la ubicación en tiempo real?
+  bool liveActive(DateTime now) => type == MediaType.live && !liveEnded && (liveUntil?.isAfter(now) ?? false);
+
+  /// Votos por opción.
+  List<int> get pollCounts {
+    final c = List<int>.filled(pollOptions.length, 0);
+    for (final v in votes.values) {
+      for (final i in v) {
+        if (i >= 0 && i < c.length) c[i]++;
+      }
+    }
+    return c;
+  }
 
   bool get needsDownload => hasFile && !opened && localPath == null && attachmentId != null;
 
@@ -297,6 +359,8 @@ class MessageMedia {
       MediaType.location => '📍 Ubicación',
       MediaType.sticker => '🎨 Sticker',
       MediaType.trip => '✈️ Viaje a ${tripTo ?? 'RD'}',
+      MediaType.poll => '📊 ${pollQuestion ?? 'Encuesta'}',
+      MediaType.live => '📍 Ubicación en tiempo real',
     };
   }
 
@@ -308,6 +372,12 @@ class MessageMedia {
     String? nonce,
     String? mac,
     bool? opened,
+    double? lat,
+    double? lng,
+    Map<String, List<int>>? votes,
+    bool? liveEnded,
+    DateTime? liveUpdatedAt,
+    String? transcript,
   }) =>
       MessageMedia(
         type: type,
@@ -316,8 +386,8 @@ class MessageMedia {
         name: name,
         size: size,
         durationMs: durationMs,
-        lat: lat,
-        lng: lng,
+        lat: lat ?? this.lat,
+        lng: lng ?? this.lng,
         attachmentId: attachmentId ?? this.attachmentId,
         key: key ?? this.key,
         nonce: nonce ?? this.nonce,
@@ -327,6 +397,14 @@ class MessageMedia {
         tripDate: tripDate,
         tripFrom: tripFrom,
         tripTo: tripTo,
+        pollQuestion: pollQuestion,
+        pollOptions: pollOptions,
+        pollMulti: pollMulti,
+        votes: votes ?? this.votes,
+        liveUntil: liveUntil,
+        liveEnded: liveEnded ?? this.liveEnded,
+        liveUpdatedAt: liveUpdatedAt ?? this.liveUpdatedAt,
+        transcript: transcript ?? this.transcript,
       );
 
   /// Versión que viaja al destinatario: sin la ruta local de este móvil.
@@ -346,6 +424,11 @@ class MessageMedia {
         tripDate: tripDate,
         tripFrom: tripFrom,
         tripTo: tripTo,
+        pollQuestion: pollQuestion,
+        pollOptions: pollOptions,
+        pollMulti: pollMulti,
+        liveUntil: liveUntil,
+        liveEnded: liveEnded,
       );
 
   Map<String, dynamic> toJson() => {
@@ -366,11 +449,19 @@ class MessageMedia {
         if (tripDate != null) 'td': tripDate!.toIso8601String(),
         if (tripFrom != null) 'tf': tripFrom,
         if (tripTo != null) 'tt': tripTo,
+        if (pollQuestion != null) 'pq': pollQuestion,
+        if (pollOptions.isNotEmpty) 'po': pollOptions,
+        if (pollMulti) 'pm': true,
+        if (votes.isNotEmpty) 'pv': votes,
+        if (liveUntil != null) 'lu': liveUntil!.toUtc().toIso8601String(),
+        if (liveEnded) 'le': true,
+        if (liveUpdatedAt != null) 'lup': liveUpdatedAt!.toUtc().toIso8601String(),
+        if (transcript != null) 'tr': transcript,
       };
 
   factory MessageMedia.fromJson(Map<String, dynamic> j) => MessageMedia(
         type: MediaType.values.byName(j['t'] as String),
-        localPath: j['path'] as String?,
+        localPath: resolveMediaPath(j['path'] as String?),
         mime: j['mime'] as String?,
         name: j['name'] as String?,
         size: (j['size'] as num?)?.toInt(),
@@ -386,6 +477,18 @@ class MessageMedia {
         tripDate: j['td'] == null ? null : DateTime.tryParse(j['td'] as String),
         tripFrom: j['tf'] as String?,
         tripTo: j['tt'] as String?,
+        pollQuestion: j['pq'] as String?,
+        pollOptions: (j['po'] as List?)?.map((e) => e.toString()).take(12).toList() ?? const [],
+        pollMulti: j['pm'] == true,
+        votes: (j['pv'] as Map?)?.map((k, v) => MapEntry(
+                  k as String,
+                  [for (final i in (v as List)) (i as num).toInt()],
+                )) ??
+            const {},
+        liveUntil: j['lu'] == null ? null : DateTime.tryParse(j['lu'] as String)?.toLocal(),
+        liveEnded: j['le'] == true,
+        liveUpdatedAt: j['lup'] == null ? null : DateTime.tryParse(j['lup'] as String)?.toLocal(),
+        transcript: j['tr'] as String?,
       );
 }
 
@@ -438,7 +541,7 @@ class StatusPost {
         ownerName: r['owner_name'] as String? ?? '',
         text: r['text'] as String? ?? '',
         color: r['color'] as int? ?? 0xFF002D62,
-        mediaPath: r['media_path'] as String?,
+        mediaPath: resolveMediaPath(r['media_path'] as String?),
         createdAt: DateTime.fromMillisecondsSinceEpoch(r['created_at'] as int),
         allowSave: (r['allow_save'] as int? ?? 0) == 1,
         viewed: (r['viewed'] as int? ?? 0) == 1,
@@ -473,6 +576,7 @@ String disappearLabel(int? sec) => switch (sec) {
 class Payload {
   /// text | typing | recording | read | delivered | profile | call
   /// | reaction | delete | timer | group | status
+  /// | vote | pin | loc | shot
   final String kind;
   final String? id; // id del mensaje
   final String? text;
@@ -487,6 +591,9 @@ class Payload {
   final String? emoji; // reacción ('' = quitar)
   final String? target; // mensaje al que se reacciona o que se borra
   final Map<String, dynamic>? status; // estado de 24 h
+  final List<int>? options; // vote: opciones elegidas
+  final Map<String, dynamic>? loc; // loc: {lat, lng} o {end: true}
+  final String? birthday; // profile: "MM-DD"
 
   const Payload({
     required this.kind,
@@ -503,6 +610,9 @@ class Payload {
     this.emoji,
     this.target,
     this.status,
+    this.options,
+    this.loc,
+    this.birthday,
   });
 
   List<int> encode() => utf8.encode(jsonEncode({
@@ -520,6 +630,9 @@ class Payload {
         if (emoji != null) 'e': emoji,
         if (target != null) 'tg': target,
         if (status != null) 's': status,
+        if (options != null) 'o': options,
+        if (loc != null) 'l': loc,
+        if (birthday != null) 'bd': birthday,
       }));
 
   factory Payload.decode(List<int> bytes) {
@@ -540,6 +653,9 @@ class Payload {
       emoji: j['e'] as String?,
       target: j['tg'] as String?,
       status: map('s'),
+      options: (j['o'] as List?)?.map((e) => (e as num).toInt()).toList(),
+      loc: map('l'),
+      birthday: j['bd'] as String?,
     );
   }
 }
@@ -548,12 +664,44 @@ class Payload {
 class Profile {
   final String name;
   final String? photoPath;
-  const Profile({this.name = '', this.photoPath});
+  final String? birthday; // "MM-DD" (sin año: nadie necesita saber tu edad)
+  const Profile({this.name = '', this.photoPath, this.birthday});
 
-  Profile copyWith({String? name, String? photoPath, bool clearPhoto = false}) =>
-      Profile(name: name ?? this.name, photoPath: clearPhoto ? null : (photoPath ?? this.photoPath));
+  Profile copyWith({String? name, String? photoPath, bool clearPhoto = false, String? birthday, bool clearBirthday = false}) =>
+      Profile(
+        name: name ?? this.name,
+        photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
+        birthday: clearBirthday ? null : (birthday ?? this.birthday),
+      );
 
-  Map<String, dynamic> toJson() => {'name': name, if (photoPath != null) 'photo': photoPath};
-  factory Profile.fromJson(Map<String, dynamic> j) =>
-      Profile(name: j['name'] as String? ?? '', photoPath: j['photo'] as String?);
+  Map<String, dynamic> toJson() =>
+      {'name': name, if (photoPath != null) 'photo': photoPath, if (birthday != null) 'bd': birthday};
+  factory Profile.fromJson(Map<String, dynamic> j) => Profile(
+        name: j['name'] as String? ?? '',
+        photoPath: resolveMediaPath(j['photo'] as String?),
+        birthday: j['bd'] as String?,
+      );
+}
+
+/// "MM-DD" válido (p. ej. "02-29" sí, "13-01" no).
+bool isValidBirthday(String? s) {
+  if (s == null) return false;
+  final m = RegExp(r'^(\d{2})-(\d{2})$').firstMatch(s);
+  if (m == null) return false;
+  final month = int.parse(m.group(1)!), day = int.parse(m.group(2)!);
+  if (month < 1 || month > 12 || day < 1) return false;
+  const days = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= days[month - 1];
+}
+
+/// Quita tildes y pasa a minúsculas para buscar ("Jonrón" == "jonron").
+String foldForSearch(String s) {
+  const from = 'áàäâãéèëêíìïîóòöôõúùüûñçÁÀÄÂÃÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇ';
+  const to = 'aaaaaeeeeiiiiooooouuuuncaaaaaeeeeiiiiooooouuuunc';
+  final b = StringBuffer();
+  for (final ch in s.split('')) {
+    final i = from.indexOf(ch);
+    b.write(i < 0 ? ch : to[i]);
+  }
+  return b.toString().toLowerCase();
 }

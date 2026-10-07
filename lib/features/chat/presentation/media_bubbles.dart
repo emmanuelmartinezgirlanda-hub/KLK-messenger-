@@ -17,7 +17,21 @@ class MediaContent extends StatelessWidget {
   final Color fg;
   final VoidCallback? onRetry;
   final VoidCallback? onOpenViewOnce;
-  const MediaContent({super.key, required this.message, required this.fg, this.onRetry, this.onOpenViewOnce});
+  final void Function(int option)? onVote; // encuestas
+  final VoidCallback? onStopLive; // dejar de compartir mi ubicación
+  final VoidCallback? onTranscribe; // nota de voz a texto
+  final bool transcribing;
+  const MediaContent({
+    super.key,
+    required this.message,
+    required this.fg,
+    this.onRetry,
+    this.onOpenViewOnce,
+    this.onVote,
+    this.onStopLive,
+    this.onTranscribe,
+    this.transcribing = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -40,11 +54,16 @@ class MediaContent extends StatelessWidget {
     return switch (media.type) {
       MediaType.image => _ImageThumb(path: path!),
       MediaType.video => _VideoThumb(path: path!, durationMs: media.durationMs),
-      MediaType.audio => VoiceNotePlayer(path: path!, fg: fg, durationMs: media.durationMs),
+      MediaType.audio => Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          VoiceNotePlayer(path: path!, fg: fg, durationMs: media.durationMs),
+          _Transcript(media: media, fg: fg, onTranscribe: onTranscribe, working: transcribing),
+        ]),
       MediaType.file => _FileTile(media: media, fg: fg),
       MediaType.location => _LocationCard(lat: media.lat ?? 0, lng: media.lng ?? 0, fg: fg),
       MediaType.sticker => Image.asset(stickerAsset(media.name), width: 150, height: 150),
       MediaType.trip => _TripCard(media: media, fg: fg),
+      MediaType.poll => PollCard(media: media, fg: fg, onVote: onVote),
+      MediaType.live => _LiveCard(media: media, fg: fg, mine: message.isMine, onStop: onStopLive),
     };
   }
 }
@@ -166,6 +185,199 @@ class _TripCard extends StatelessWidget {
           ]),
         ),
       ]),
+    );
+  }
+}
+
+// ---------- Nota de voz a texto ----------
+
+class _Transcript extends StatelessWidget {
+  final MessageMedia media;
+  final Color fg;
+  final VoidCallback? onTranscribe;
+  final bool working;
+  const _Transcript({required this.media, required this.fg, this.onTranscribe, this.working = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = media.transcript;
+    if (text != null) {
+      return Container(
+        width: 230,
+        margin: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+        child: Text(text, style: TextStyle(color: fg.withValues(alpha: 0.85), fontSize: 14, fontStyle: FontStyle.italic)),
+      );
+    }
+    if (onTranscribe == null) return const SizedBox.shrink();
+    return TextButton.icon(
+      style: TextButton.styleFrom(foregroundColor: fg.withValues(alpha: 0.8), visualDensity: VisualDensity.compact),
+      onPressed: working ? null : onTranscribe,
+      icon: working
+          ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: fg))
+          : const Icon(Icons.subtitles_outlined, size: 16),
+      label: Text(working ? 'Pasando a texto…' : 'Pasar a texto', style: const TextStyle(fontSize: 12.5)),
+    );
+  }
+}
+
+// ---------- Encuesta ----------
+
+class PollCard extends StatelessWidget {
+  final MessageMedia media;
+  final Color fg;
+  final void Function(int option)? onVote;
+  const PollCard({super.key, required this.media, required this.fg, this.onVote});
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.secondary;
+    final counts = media.pollCounts;
+    final voters = media.votes.length;
+    final total = counts.fold<int>(0, (a, b) => a + b);
+    final mine = media.votes['me'] ?? const <int>[];
+    return Container(
+      width: 250,
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Icon(Icons.poll_outlined, size: 18, color: fg.withValues(alpha: 0.7)),
+          const SizedBox(width: 6),
+          Text(media.pollMulti ? 'Encuesta · varias respuestas' : 'Encuesta',
+              style: TextStyle(color: fg.withValues(alpha: 0.7), fontSize: 12)),
+        ]),
+        const SizedBox(height: 4),
+        Text(media.pollQuestion ?? '', style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 15.5)),
+        const SizedBox(height: 6),
+        for (var i = 0; i < media.pollOptions.length; i++)
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onVote == null ? null : () => onVote!(i),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(
+                    mine.contains(i)
+                        ? (media.pollMulti ? Icons.check_box : Icons.radio_button_checked)
+                        : (media.pollMulti ? Icons.check_box_outline_blank : Icons.radio_button_off),
+                    size: 20,
+                    color: mine.contains(i) ? accent : fg.withValues(alpha: 0.6),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(media.pollOptions[i], style: TextStyle(color: fg, fontSize: 14.5))),
+                  Text('${counts[i]}', style: TextStyle(color: fg.withValues(alpha: 0.75), fontWeight: FontWeight.w700)),
+                ]),
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: total == 0 ? 0 : counts[i] / total,
+                    minHeight: 5,
+                    backgroundColor: fg.withValues(alpha: 0.12),
+                    valueColor: AlwaysStoppedAnimation(accent),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(voters == 0 ? 'Nadie ha votado todavía' : '$voters ${voters == 1 ? 'persona ha votado' : 'personas han votado'}',
+              style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 12)),
+        ),
+      ]),
+    );
+  }
+}
+
+// ---------- Ubicación en tiempo real ----------
+
+class _LiveCard extends StatelessWidget {
+  final MessageMedia media;
+  final Color fg;
+  final bool mine;
+  final VoidCallback? onStop;
+  const _LiveCard({required this.media, required this.fg, required this.mine, this.onStop});
+
+  Future<void> _open() async {
+    final lat = media.lat, lng = media.lng;
+    if (lat == null || lng == null) return;
+    final url = Platform.isIOS
+        ? Uri.parse('https://maps.apple.com/?q=$lat,$lng')
+        : Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    await launchUrl(url, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final active = media.liveActive(now);
+    final until = media.liveUntil;
+    final updated = media.liveUpdatedAt;
+    final status = active
+        ? 'En vivo hasta las ${DateFormat.jm('es').format(until!)}'
+        : 'Ya no se comparte';
+    return GestureDetector(
+      onTap: _open,
+      child: Container(
+        width: 250,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: fg.withValues(alpha: 0.08)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Container(
+            height: 110,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: active
+                    ? const [Color(0xFF7FC8A9), Color(0xFF9BD3E6)]
+                    : [Colors.grey.shade500, Colors.grey.shade400],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Center(
+              child: Stack(alignment: Alignment.center, children: [
+                if (active)
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF00A6B4).withValues(alpha: 0.3)),
+                  ),
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person_pin_circle, color: active ? const Color(0xFFCE1126) : Colors.grey),
+                ),
+              ]),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                if (active) ...[
+                  const Icon(Icons.circle, size: 9, color: Color(0xFF1F7A4D)),
+                  const SizedBox(width: 5),
+                ],
+                Text('Ubicación en tiempo real', style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
+              ]),
+              Text(status, style: TextStyle(color: fg.withValues(alpha: 0.7), fontSize: 12.5)),
+              if (active && updated != null)
+                Text('Actualizada a las ${DateFormat.jm('es').format(updated)} · toca para ver el mapa',
+                    style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 11.5)),
+              if (mine && active && onStop != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF6B7A), padding: EdgeInsets.zero),
+                    onPressed: onStop,
+                    child: const Text('Dejar de compartir'),
+                  ),
+                ),
+            ]),
+          ),
+        ]),
+      ),
     );
   }
 }

@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:klk/core/backup/backup_codec.dart';
 import 'package:klk/core/crypto/crypto_engine.dart';
 import 'package:klk/core/util/phone.dart';
 import 'package:klk/features/messaging/models.dart';
+import 'package:klk/features/messaging/stickers.dart';
 import 'package:klk/features/privacy/domain/privacy_settings.dart';
 import 'package:klk/features/theming/domain/klk_theme.dart';
 
@@ -177,5 +182,120 @@ void main() {
     expect(post('/m/a.mp4').isVideo, isTrue);
     expect(post('/m/a.jpg').isVideo, isFalse);
     expect(post(null).isVideo, isFalse);
+  });
+
+  // ---------- Encuestas, fijados, en vivo, cumpleaños, búsqueda, copias ----------
+
+  test('encuesta: votos por opción y JSON sin perder nada', () {
+    const poll = MessageMedia(
+      type: MediaType.poll,
+      pollQuestion: '¿Qué llevamos?',
+      pollOptions: ['Tostones', 'Arroz', 'Aguacate'],
+      pollMulti: true,
+      votes: {
+        'me': [0, 2],
+        'ana': [0],
+      },
+    );
+    expect(poll.pollCounts, [2, 0, 1]);
+    expect(poll.hasFile, isFalse);
+    final back = MessageMedia.fromJson(jsonDecode(jsonEncode(poll.toJson())) as Map<String, dynamic>);
+    expect(back.pollQuestion, '¿Qué llevamos?');
+    expect(back.pollOptions, ['Tostones', 'Arroz', 'Aguacate']);
+    expect(back.pollMulti, isTrue);
+    expect(back.votes['me'], [0, 2]);
+    // Los votos son locales: no viajan con la encuesta
+    expect(poll.forWire().toJson().containsKey('pv'), isFalse);
+    expect(poll.label, '📊 ¿Qué llevamos?');
+  });
+
+  test('ubicación en tiempo real: activa hasta la hora fijada o hasta pararla', () {
+    final now = DateTime(2026, 10, 7, 20);
+    final live = MessageMedia(type: MediaType.live, lat: 18.47, lng: -69.9, liveUntil: now.add(const Duration(hours: 1)));
+    expect(live.liveActive(now), isTrue);
+    expect(live.liveActive(now.add(const Duration(hours: 2))), isFalse);
+    expect(live.copyWith(liveEnded: true).liveActive(now), isFalse);
+    final moved = live.copyWith(lat: 18.5, lng: -69.8);
+    expect(moved.lat, 18.5);
+    final back = MessageMedia.fromJson(jsonDecode(jsonEncode(live.toJson())) as Map<String, dynamic>);
+    expect(back.liveUntil!.isAtSameMomentAs(live.liveUntil!), isTrue);
+  });
+
+  test('payload: votos, ubicación y cumpleaños viajan con claves cortas', () {
+    final p = Payload.decode(const Payload(
+      kind: 'vote',
+      target: 'm1',
+      options: [1, 3],
+      loc: {'lat': 1.5, 'lng': 2.5},
+      birthday: '03-14',
+    ).encode());
+    expect(p.kind, 'vote');
+    expect(p.options, [1, 3]);
+    expect(p.loc?['lat'], 1.5);
+    expect(p.birthday, '03-14');
+  });
+
+  test('chat: cumpleaños, fijado y bloqueado se guardan', () {
+    final c = Chat(
+      id: 'c', title: 'Yaniris', updatedAt: DateTime(2026), birthday: '10-07', pinnedId: 'm9', blocked: true);
+    final back = Chat.fromRow(c.toRow());
+    expect(back.birthday, '10-07');
+    expect(back.pinnedId, 'm9');
+    expect(back.blocked, isTrue);
+    expect(back.birthdayOn(DateTime(2026, 10, 7)), isTrue);
+    expect(back.birthdayOn(DateTime(2026, 10, 8)), isFalse);
+    // copyWith no los pierde
+    expect(back.copyWith(unread: 2).birthday, '10-07');
+  });
+
+  test('cumpleaños válidos', () {
+    expect(isValidBirthday('02-29'), isTrue);
+    expect(isValidBirthday('12-31'), isTrue);
+    expect(isValidBirthday('13-01'), isFalse);
+    expect(isValidBirthday('04-31'), isFalse);
+    expect(isValidBirthday('4-1'), isFalse);
+    expect(isValidBirthday(null), isFalse);
+  });
+
+  test('perfil con cumpleaños', () {
+    const p = Profile(name: 'Emma', birthday: '05-20');
+    expect(Profile.fromJson(p.toJson()).birthday, '05-20');
+    expect(p.copyWith(clearBirthday: true).birthday, isNull);
+  });
+
+  test('buscar sin tildes ni mayúsculas', () {
+    expect(foldForSearch('¡JONRÓN en Santiago!'), '¡jonron en santiago!');
+    expect(foldForSearch('Ñapa').length, 'Ñapa'.length);
+  });
+
+  test('stickers: ids únicos y todos tienen imagen', () {
+    final ids = klkStickers.map((s) => s.id).toList();
+    expect(ids.toSet().length, ids.length);
+    expect(stickerPacks.length, greaterThanOrEqualTo(6));
+    for (final s in klkStickers) {
+      expect(File(s.asset).existsSync(), isTrue, reason: s.asset);
+    }
+    expect(stickerAsset('no-existe'), 'assets/stickers/klk.png');
+  });
+
+  test('copia de seguridad: ida y vuelta, contraseña incorrecta y archivo ajeno', () async {
+    final entries = {
+      'meta.json': utf8.encode('{"v":1}'),
+      'klk.db': List<int>.generate(5000, (i) => i % 251),
+      'media/foto.jpg': <int>[],
+    };
+    final sealed = await BackupCodec.seal(entries, 'contraseña-larga', iterations: 10000);
+    final back = await BackupCodec.open(sealed, 'contraseña-larga');
+    expect(back.keys, entries.keys);
+    expect(back['klk.db'], entries['klk.db']);
+    expect(back['media/foto.jpg'], isEmpty);
+    await expectLater(BackupCodec.open(sealed, 'otra-contraseña'), throwsA(isA<BackupException>()));
+    await expectLater(BackupCodec.open(utf8.encode('hola, no soy una copia'), 'x'), throwsA(isA<BackupException>()));
+    await expectLater(BackupCodec.seal(entries, 'corta'), throwsA(isA<BackupException>()));
+  });
+
+  test('rutas de adjuntos: sin traductor se quedan igual', () {
+    expect(resolveMediaPath('/a/media/x.jpg'), '/a/media/x.jpg');
+    expect(resolveMediaPath(null), isNull);
   });
 }

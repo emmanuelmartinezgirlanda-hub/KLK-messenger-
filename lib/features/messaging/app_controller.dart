@@ -6,9 +6,15 @@ import 'dart:math';
 import 'package:cryptography/cryptography.dart' show Sha256;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
+import 'package:klk_native/klk_native.dart';
+import 'package:path/path.dart' as pth;
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/io.dart';
 
+import '../../core/backup/backup_codec.dart';
 import '../../core/config.dart';
 import '../../core/crypto/crypto_engine.dart';
 import '../../core/database/local_db.dart';
@@ -70,6 +76,15 @@ class AppController extends ChangeNotifier {
   final Set<String> _downloading = {};
   DateTime _lastTypingSent = DateTime.fromMillisecondsSinceEpoch(0);
 
+  // Ubicación en tiempo real que estoy compartiendo (id del mensaje -> GPS)
+  final Map<String, StreamSubscription<Position>> _live = {};
+  final Map<String, Timer> _liveEnd = {};
+  final Map<String, DateTime> _livePushed = {};
+  StreamSubscription<void>? _shots;
+
+  /// La copia de seguridad incluye como mucho estos bytes de fotos y vídeos.
+  static const maxBackupMediaBytes = 50 * 1024 * 1024;
+
   // Datos del registro en curso
   String? pendingPhone;
   String pendingServer = '';
@@ -88,7 +103,22 @@ class AppController extends ChangeNotifier {
   List<Chat> get hiddenChats => chats.where((c) => c.hidden).toList();
 
   /// Mis contactos individuales (para crear grupos y enviar estados).
-  List<Chat> get contactChats => chats.where((c) => !c.isGroup).toList();
+  List<Chat> get contactChats => chats.where((c) => !c.isGroup && !c.blocked).toList();
+
+  List<Chat> get blockedChats => chats.where((c) => c.blocked).toList();
+
+  /// Contactos que cumplen años hoy.
+  List<Chat> get birthdaysToday {
+    final today = DateTime.now();
+    return chats.where((c) => !c.isGroup && !c.blocked && !c.hidden && c.birthdayOn(today)).toList();
+  }
+
+  /// Mensaje fijado del chat (si sigue existiendo).
+  Message? pinnedMessage(String chatId) {
+    final id = chatById(chatId)?.pinnedId;
+    if (id == null) return null;
+    return messagesFor(chatId).where((m) => m.id == id && !m.deleted).firstOrNull;
+  }
 
   Chat? chatById(String id) => chats.where((c) => c.id == id).firstOrNull;
 
@@ -122,6 +152,8 @@ class AppController extends ChangeNotifier {
       unawaited(_connect());
     }
     await _db!.settleScheduled(DateTime.now());
+    await _endStaleLiveLocations();
+    _shots ??= KlkNative.screenshots.listen((_) => unawaited(_onScreenshot()), onError: (Object _) {});
     _tick?.cancel();
     _tick = Timer.periodic(const Duration(seconds: 10), (_) => _onTick());
     await _onTick();
@@ -139,7 +171,7 @@ class AppController extends ChangeNotifier {
   /// Cada 10 s: programados que vencen, mensajes temporales y estados caducados.
   Future<void> _onTick() async {
     final db = _db;
-    if (db == null) return;
+    if (db == null || _exclusiveRunning) return;
     final now = DateTime.now();
     await db.settleScheduled(now);
     for (final path in [...await db.purgeExpired(now), ...await db.purgeStatuses(now)]) {
@@ -304,6 +336,9 @@ class AppController extends ChangeNotifier {
         await _system(from, 'La clave de seguridad de este contacto cambió. Puede que haya reinstalado KLK.');
       }
 
+      // De un contacto bloqueado no se acepta nada (ni mensajes, ni llamadas, ni estados).
+      if (g == null && (direct?.blocked ?? false)) return;
+
       // Chat de destino: el grupo o el chat individual
       final chatId = g == null ? from : await _ensureGroup(g, from, identity);
       final senderName = g == null ? '' : _nameOf(from, g);
@@ -353,6 +388,59 @@ class AppController extends ChangeNotifier {
           }
         case 'group':
           await _system(chatId, '👥 ${senderName.isEmpty ? 'Alguien' : senderName} te añadió al grupo «${g?['n'] ?? ''}»');
+        case 'vote':
+          {
+            final m = await db.message(p.target ?? '');
+            final media = m?.media;
+            if (m != null && media != null && media.type == MediaType.poll && m.chatId == chatId) {
+              final valid = (p.options ?? const <int>[])
+                  .where((i) => i >= 0 && i < media.pollOptions.length)
+                  .toSet()
+                  .toList();
+              final votes = Map<String, List<int>>.from(media.votes);
+              if (valid.isEmpty) {
+                votes.remove(from);
+              } else {
+                votes[from] = media.pollMulti ? valid : [valid.first];
+              }
+              await db.updateMessage(m.copyWith(media: media.copyWith(votes: votes)));
+            }
+          }
+        case 'pin':
+          {
+            final target = p.target ?? '';
+            final m = target.isEmpty ? null : await db.message(target);
+            if (target.isEmpty || (m != null && m.chatId == chatId)) {
+              await db.setPinned(chatId, target.isEmpty ? null : target);
+              final who = g == null ? (direct?.title ?? 'Tu contacto') : senderName;
+              await _system(chatId, target.isEmpty ? '📌 $who quitó el mensaje fijado' : '📌 $who fijó un mensaje');
+            }
+          }
+        case 'loc':
+          {
+            final m = await db.message(p.target ?? '');
+            final media = m?.media;
+            final l = p.loc;
+            // Solo quien comparte la ubicación puede moverla o pararla.
+            final author = m != null && m.kind == MessageKind.incoming && m.chatId == chatId && (g == null || m.sender == senderName);
+            if (author && media != null && media.type == MediaType.live && l != null) {
+              if (l['end'] == true) {
+                await db.updateMessage(m.copyWith(media: media.copyWith(liveEnded: true)));
+              } else {
+                final lat = (l['lat'] as num?)?.toDouble();
+                final lng = (l['lng'] as num?)?.toDouble();
+                if (lat != null && lng != null && lat.abs() <= 90 && lng.abs() <= 180) {
+                  await db.updateMessage(
+                      m.copyWith(media: media.copyWith(lat: lat, lng: lng, liveUpdatedAt: DateTime.now())));
+                }
+              }
+            }
+          }
+        case 'shot':
+          {
+            final who = g == null ? (direct?.title ?? 'Tu contacto') : senderName;
+            await _system(chatId, '📸 $who hizo una captura de pantalla del chat');
+          }
         case 'status':
           await _receiveStatus(p, from: from, name: direct?.title ?? prettyPhone(p.senderPhone ?? ''));
         case 'profile':
@@ -412,6 +500,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> _receiveProfile(Payload p, {required String from}) async {
     final db = _db!;
+    await db.setBirthday(from, isValidBirthday(p.birthday) ? p.birthday : null);
     final name = (p.text ?? '').trim();
     final current = await db.chat(from);
     // Si el chat aún muestra solo el número, usa el nombre que el contacto eligió.
@@ -549,6 +638,8 @@ class AppController extends ChangeNotifier {
       exp: p.exp,
       emoji: p.emoji,
       target: p.target,
+      options: p.options,
+      loc: p.loc,
       group: _groupMeta(chat, members),
     );
     for (final m in members) {
@@ -648,7 +739,7 @@ class AppController extends ChangeNotifier {
   ///
   /// El archivo se cifra en el móvil con una clave propia, se sube cifrado y la
   /// clave viaja dentro del mensaje (cifrado de punta a punta).
-  Future<void> sendMedia(String chatId, MessageMedia media, {String caption = '', Message? replyTo}) async {
+  Future<String> sendMedia(String chatId, MessageMedia media, {String caption = '', Message? replyTo}) async {
     final timer = _timerOf(chatId);
     final now = DateTime.now();
     final m = Message(
@@ -667,8 +758,9 @@ class AppController extends ChangeNotifier {
     await _refresh();
 
     if (isDemo) {
-      _simulateReply(chatId, m.id);
-      return;
+      if (media.type == MediaType.poll) _simulateVotes(m.id);
+      if (media.type != MediaType.live) _simulateReply(chatId, m.id);
+      return m.id;
     }
     try {
       var wire = media;
@@ -686,12 +778,327 @@ class AppController extends ChangeNotifier {
         ),
         ref: m.id,
       );
+      return m.id;
     } catch (e) {
       debugPrint('Adjunto: $e');
       await _db!.setStatus(m.id, MessageStatus.failed);
       await _refresh();
       rethrow;
     }
+  }
+
+  // ---------- Encuestas ----------
+
+  Future<void> sendPoll(String chatId, String question, List<String> options, {bool multi = false}) async {
+    final opts = options.map((o) => o.trim()).where((o) => o.isNotEmpty).toList();
+    if (question.trim().isEmpty || opts.length < 2) return;
+    await sendMedia(chatId,
+        MessageMedia(type: MediaType.poll, pollQuestion: question.trim(), pollOptions: opts, pollMulti: multi));
+  }
+
+  /// Voto (o quito mi voto) en una encuesta.
+  Future<void> vote(Message msg, int option) async {
+    final m = await _db!.message(msg.id) ?? msg; // la versión más nueva, con los votos de los demás
+    final media = m.media;
+    if (media == null || media.type != MediaType.poll || option < 0 || option >= media.pollOptions.length) return;
+    final mine = List<int>.from(media.votes['me'] ?? const <int>[]);
+    if (media.pollMulti) {
+      if (mine.contains(option)) {
+        mine.remove(option);
+      } else {
+        mine.add(option);
+      }
+    } else if (mine.length == 1 && mine.first == option) {
+      mine.clear();
+    } else {
+      mine
+        ..clear()
+        ..add(option);
+    }
+    final votes = Map<String, List<int>>.from(media.votes);
+    if (mine.isEmpty) {
+      votes.remove('me');
+    } else {
+      votes['me'] = mine;
+    }
+    await _db!.updateMessage(m.copyWith(media: media.copyWith(votes: votes)));
+    await _refresh();
+    if (isDemo) return;
+    try {
+      await _sendToChat(m.chatId, Payload(kind: 'vote', target: m.id, options: mine), ref: 'x-${_uuid.v4()}');
+    } catch (_) {}
+  }
+
+  // ---------- Mensajes fijados ----------
+
+  /// Fija un mensaje arriba del chat para todos ([m] null = quitarlo).
+  Future<void> pinMessage(String chatId, Message? m) async {
+    await _db!.setPinned(chatId, m?.id);
+    await _system(chatId, m == null ? '📌 Quitaste el mensaje fijado' : '📌 Fijaste un mensaje');
+    await _refresh();
+    if (isDemo) return;
+    try {
+      await _sendToChat(chatId, Payload(kind: 'pin', target: m?.id ?? ''), ref: 'x-${_uuid.v4()}');
+    } catch (_) {}
+  }
+
+  // ---------- Ubicación en tiempo real ----------
+
+  /// Empieza a compartir mi ubicación durante [duration]. Se actualiza mientras
+  /// KLK esté abierta (o recién cerrada); al acabar el tiempo se para sola.
+  Future<void> startLiveLocation(String chatId, Duration duration, Position first) async {
+    final id = await sendMedia(
+      chatId,
+      MessageMedia(
+        type: MediaType.live,
+        lat: first.latitude,
+        lng: first.longitude,
+        liveUntil: DateTime.now().add(duration),
+        liveUpdatedAt: DateTime.now(),
+      ),
+    );
+    _live[id]?.cancel();
+    _live[id] = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 20),
+    ).listen((pos) => unawaited(_pushLive(chatId, id, pos)), onError: (Object _) {});
+    _liveEnd[id]?.cancel();
+    _liveEnd[id] = Timer(duration, () => unawaited(stopLiveLocation(id, expired: true)));
+  }
+
+  bool isSharingLive(String messageId) => _live.containsKey(messageId);
+
+  Future<void> _pushLive(String chatId, String msgId, Position pos) async {
+    final last = _livePushed[msgId];
+    if (last != null && DateTime.now().difference(last).inSeconds < 10) return;
+    _livePushed[msgId] = DateTime.now();
+    final m = await _db?.message(msgId);
+    final media = m?.media;
+    if (m == null || media == null || !media.liveActive(DateTime.now())) {
+      await stopLiveLocation(msgId, expired: true);
+      return;
+    }
+    await _db!.updateMessage(
+        m.copyWith(media: media.copyWith(lat: pos.latitude, lng: pos.longitude, liveUpdatedAt: DateTime.now())));
+    await _refresh();
+    if (isDemo) return;
+    try {
+      await _sendToChat(chatId, Payload(kind: 'loc', target: msgId, loc: {'lat': pos.latitude, 'lng': pos.longitude}),
+          ref: 'x-loc', ephemeral: true);
+    } catch (_) {}
+  }
+
+  /// Deja de compartir. [expired]: se acabó el tiempo (no hace falta avisar).
+  Future<void> stopLiveLocation(String msgId, {bool expired = false}) async {
+    await _live.remove(msgId)?.cancel();
+    _liveEnd.remove(msgId)?.cancel();
+    _livePushed.remove(msgId);
+    final m = await _db?.message(msgId);
+    final media = m?.media;
+    if (m == null || media == null || media.type != MediaType.live) return;
+    if (!expired) {
+      await _db!.updateMessage(m.copyWith(media: media.copyWith(liveEnded: true)));
+      if (!isDemo) {
+        try {
+          await _sendToChat(m.chatId, Payload(kind: 'loc', target: msgId, loc: const {'end': true}),
+              ref: 'x-${_uuid.v4()}');
+        } catch (_) {}
+      }
+    }
+    await _refresh();
+  }
+
+  /// Al abrir la app, las ubicaciones en vivo que quedaron a medias se dan por terminadas.
+  Future<void> _endStaleLiveLocations() async {
+    final now = DateTime.now();
+    for (final m in await _db!.myLiveLocations()) {
+      if ((m.media?.liveActive(now) ?? false) && !_live.containsKey(m.id)) {
+        await stopLiveLocation(m.id);
+      }
+    }
+  }
+
+  // ---------- Notas de voz a texto ----------
+
+  /// Pasa una nota de voz a texto en el propio móvil y lo guarda en el mensaje.
+  Future<String> transcribe(Message msg) async {
+    final m = await _db!.message(msg.id) ?? msg;
+    final media = m.media;
+    final path = media?.localPath;
+    if (media == null || media.type != MediaType.audio) return '';
+    String text;
+    if (isDemo && (path == null || !File(path).existsSync())) {
+      await Future.delayed(const Duration(milliseconds: 900));
+      text = demoTranscript;
+    } else {
+      if (path == null) throw const KlkNativeException('missing', 'Esta nota de voz aún no se ha descargado');
+      text = await KlkNative.transcribe(path);
+    }
+    await _db!.updateMessage(m.copyWith(media: media.copyWith(transcript: text.isEmpty ? '(no se entendieron palabras)' : text)));
+    await _refresh();
+    return text;
+  }
+
+  // ---------- Capturas de pantalla ----------
+
+  /// Si hago una captura dentro de un chat, se avisa a la otra parte.
+  Future<void> _onScreenshot() async {
+    final chatId = openChatId;
+    if (chatId == null || _db == null) return;
+    await _system(chatId, '📸 Hiciste una captura de pantalla. Se lo hemos dicho al chat.');
+    await _refresh();
+    if (isDemo) return;
+    try {
+      await _sendToChat(chatId, const Payload(kind: 'shot'), ref: 'x-${_uuid.v4()}');
+    } catch (_) {}
+  }
+
+  // ---------- Bloquear y denunciar ----------
+
+  Future<void> setBlocked(String chatId, bool blocked) async {
+    await _db!.setBlocked(chatId, blocked);
+    await _system(chatId, blocked ? '🚫 Bloqueaste a este contacto' : '✅ Desbloqueaste a este contacto');
+    await _refresh();
+  }
+
+  /// Denuncia al contacto. Con [includeMessages] se envían los últimos 5
+  /// mensajes que me mandó (solo esos: el resto sigue cifrado).
+  Future<void> report(String chatId, String reason, {bool includeMessages = false, bool block = false}) async {
+    var last = <String>[];
+    if (includeMessages) {
+      final received = (await _db!.messages(chatId))
+          .where((m) => m.kind == MessageKind.incoming && !m.deleted && m.body.isNotEmpty)
+          .map((m) => m.body)
+          .toList();
+      last = received.length > 5 ? received.sublist(received.length - 5) : received;
+    }
+    if (!isDemo) await _api!.report(chatId, reason, messages: last);
+    if (block) await setBlocked(chatId, true);
+  }
+
+  // ---------- Copia de seguridad cifrada ----------
+
+  /// Ejecuta [f] sin que lleguen mensajes a la vez (usa la misma cola que la red).
+  bool _exclusiveRunning = false;
+
+  Future<T> _exclusive<T>(Future<T> Function() f) {
+    final c = Completer<T>();
+    _queue = _queue.then((_) async {
+      _exclusiveRunning = true;
+      try {
+        c.complete(await f());
+      } catch (e, st) {
+        c.completeError(e, st);
+      } finally {
+        _exclusiveRunning = false;
+      }
+    });
+    return c.future;
+  }
+
+  /// Crea una copia cifrada con [password]: chats, mensajes y (hasta 50 MB de)
+  /// fotos, vídeos y audios. Devuelve el archivo y cuántos adjuntos no cupieron.
+  Future<({File file, int media, int skipped})> exportBackup(String password) async {
+    if (_db == null) throw const BackupException('KLK todavía se está abriendo');
+    final dbKey = await _store.databaseKey();
+    final dbBytes = await _exclusive(() async {
+      await _db!.close();
+      _db = null;
+      try {
+        return await File(await LocalDb.filePath()).readAsBytes();
+      } finally {
+        _db = await LocalDb.open(dbKey);
+      }
+    });
+    final entries = <String, List<int>>{
+      'meta.json': utf8.encode(jsonEncode({
+        'v': 1,
+        'created': DateTime.now().toUtc().toIso8601String(),
+        'phone': session?.phone,
+        'dbKey': dbKey,
+        'profile': profile.toJson(),
+        'pin': await _store.read(_pinKey),
+      })),
+      'klk.db': dbBytes,
+    };
+    var total = 0, included = 0, skipped = 0;
+    final dir = await MediaStore.directory();
+    final files = dir.listSync().whereType<File>().toList()
+      ..sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync())); // primero lo más reciente
+    for (final f in files) {
+      final len = f.lengthSync();
+      if (total + len > maxBackupMediaBytes) {
+        skipped++;
+        continue;
+      }
+      entries['media/${pth.basename(f.path)}'] = await f.readAsBytes();
+      total += len;
+      included++;
+    }
+    final sealed = await BackupCodec.seal(entries, password);
+    final name = 'KLK-copia-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.klk';
+    final out = File(pth.join((await getTemporaryDirectory()).path, name));
+    await out.writeAsBytes(sealed, flush: true);
+    return (file: out, media: included, skipped: skipped);
+  }
+
+  /// Restaura una copia: sustituye los chats de este móvil por los de la copia.
+  Future<void> importBackup(String path, String password) async {
+    final entries = await BackupCodec.open(await File(path).readAsBytes(), password);
+    final metaBytes = entries['meta.json'];
+    final dbBytes = entries['klk.db'];
+    if (metaBytes == null || dbBytes == null) throw const BackupException('La copia está incompleta');
+    final meta = jsonDecode(utf8.decode(metaBytes)) as Map<String, dynamic>;
+    final dbKey = meta['dbKey'] as String?;
+    if (dbKey == null || dbKey.isEmpty) throw const BackupException('La copia está dañada');
+
+    await _exclusive(() async {
+      final currentKey = await _store.databaseKey();
+      await _db?.close();
+      _db = null;
+      final dbPath = await LocalDb.filePath();
+      final backupOfCurrent = '$dbPath.antes';
+      try {
+        // Por si algo falla a mitad, guardo la base actual hasta terminar.
+        if (await File(dbPath).exists()) await File(dbPath).copy(backupOfCurrent);
+        for (final extra in ['-wal', '-shm', '-journal']) {
+          final f = File('$dbPath$extra');
+          if (await f.exists()) await f.delete();
+        }
+        await File(dbPath).writeAsBytes(dbBytes, flush: true);
+        _db = await LocalDb.open(dbKey); // falla aquí si la copia no se puede abrir
+        await _store.setDatabaseKey(dbKey);
+      } catch (_) {
+        await _db?.close();
+        _db = null;
+        try {
+          if (await File(backupOfCurrent).exists()) await File(backupOfCurrent).copy(dbPath);
+          _db = await LocalDb.open(currentKey);
+        } catch (_) {
+          // Muy raro: ni la copia ni la base anterior se abren. Se reintenta al reiniciar KLK.
+        }
+        throw const BackupException('No se pudo abrir la copia. Tus chats actuales siguen intactos.');
+      } finally {
+        final f = File(backupOfCurrent);
+        if (await f.exists()) await f.delete();
+      }
+      final dir = await MediaStore.directory();
+      for (final e in entries.entries) {
+        if (!e.key.startsWith('media/')) continue;
+        final name = pth.basename(e.key);
+        if (name.isEmpty || name.startsWith('.')) continue;
+        await File(pth.join(dir.path, name)).writeAsBytes(e.value, flush: true);
+      }
+      final prof = meta['profile'];
+      if (prof is Map) {
+        profile = Profile.fromJson(prof.cast<String, dynamic>());
+        await _store.write(_profileKey, jsonEncode(profile.toJson()));
+      }
+      final pin = meta['pin'];
+      if (pin is String && pin.isNotEmpty) await _store.write(_pinKey, pin);
+    });
+    _messages.clear();
+    await _reloadChats();
+    if (!isDemo) unawaited(_broadcastProfile());
   }
 
   /// Pongo o quito mi reacción (tocar el mismo emoji la quita).
@@ -895,7 +1302,7 @@ class AppController extends ChangeNotifier {
         senderPhone: session!.phone,
         status: {'c': color, 'at': post.createdAt.toUtc().toIso8601String(), 'save': allowSave},
       );
-      for (final c in chats.where((c) => !c.isGroup && c.identityKey != null)) {
+      for (final c in chats.where((c) => !c.isGroup && !c.blocked && c.identityKey != null)) {
         await _sendTo(c.id, c.identityKey!, payload, ref: 'x-${_uuid.v4()}');
         // Pequeña pausa para no superar el límite de envíos por segundo
         await Future.delayed(const Duration(milliseconds: 60));
@@ -965,10 +1372,22 @@ class AppController extends ChangeNotifier {
   // ---------- Perfil ----------
 
   /// Cambia mi nombre y/o foto y lo envía (cifrado) a mis contactos.
-  Future<void> updateProfile({String? name, String? photoSourcePath, bool removePhoto = false}) async {
+  Future<void> updateProfile({
+    String? name,
+    String? photoSourcePath,
+    bool removePhoto = false,
+    String? birthday,
+    bool removeBirthday = false,
+  }) async {
     String? newPhoto;
     if (photoSourcePath != null) newPhoto = await MediaStore.importFile(photoSourcePath);
-    profile = profile.copyWith(name: name?.trim(), photoPath: newPhoto, clearPhoto: removePhoto);
+    profile = profile.copyWith(
+      name: name?.trim(),
+      photoPath: newPhoto,
+      clearPhoto: removePhoto,
+      birthday: isValidBirthday(birthday) ? birthday : null,
+      clearBirthday: removeBirthday,
+    );
     await _store.write(_profileKey, jsonEncode(profile.toJson()));
     notifyListeners();
     if (!isDemo) unawaited(_broadcastProfile());
@@ -984,10 +1403,10 @@ class AppController extends ChangeNotifier {
             MessageMedia(type: MediaType.image, localPath: path, mime: MediaStore.mimeFor(path)));
         photo = up.forWire().toJson();
       }
-      final targets =
-          chats.where((c) => !c.isGroup && c.identityKey != null && (onlyChatId == null || c.id == onlyChatId));
+      final targets = chats.where(
+          (c) => !c.isGroup && !c.blocked && c.identityKey != null && (onlyChatId == null || c.id == onlyChatId));
       for (final c in targets) {
-        await _sendEncrypted(c.id, Payload(kind: 'profile', text: profile.name, media: photo),
+        await _sendEncrypted(c.id, Payload(kind: 'profile', text: profile.name, media: photo, birthday: profile.birthday),
             ref: 'x-${_uuid.v4()}');
       }
     } catch (e) {
@@ -1106,6 +1525,14 @@ class AppController extends ChangeNotifier {
   Future<void> panic() async {
     _retry?.cancel();
     _tick?.cancel();
+    for (final s in _live.values) {
+      await s.cancel();
+    }
+    for (final t in _liveEnd.values) {
+      t.cancel();
+    }
+    _live.clear();
+    _liveEnd.clear();
     await _ws?.sink.close();
     _ws = null;
     online = false;
@@ -1169,6 +1596,22 @@ class AppController extends ChangeNotifier {
     });
   }
 
+  /// Modo demo: algunos "votan" en la encuesta que acabo de mandar.
+  void _simulateVotes(String messageId) {
+    final rnd = Random();
+    for (var i = 0; i < 3; i++) {
+      Future.delayed(Duration(milliseconds: 1500 + i * 1100), () async {
+        final m = await _db?.message(messageId);
+        final media = m?.media;
+        if (m == null || media == null || media.pollOptions.isEmpty) return;
+        final votes = Map<String, List<int>>.from(media.votes);
+        votes[demoVoters[rnd.nextInt(demoVoters.length)]] = [rnd.nextInt(media.pollOptions.length)];
+        await _db?.updateMessage(m.copyWith(media: media.copyWith(votes: votes)));
+        await _refresh();
+      });
+    }
+  }
+
   // ---------- Recarga ----------
 
   Future<void> _reloadChats() async {
@@ -1187,6 +1630,13 @@ class AppController extends ChangeNotifier {
   void dispose() {
     _retry?.cancel();
     _tick?.cancel();
+    _shots?.cancel();
+    for (final s in _live.values) {
+      s.cancel();
+    }
+    for (final t in _liveEnd.values) {
+      t.cancel();
+    }
     _ws?.sink.close();
     _db?.close();
     super.dispose();
