@@ -19,13 +19,10 @@ workflows:
       vars:
         # "Apple ID" numérico de la app (App Store Connect → tu app → Información de la app).
         APP_STORE_APPLE_ID: "0000000000"
-        # Dirección de tu servidor (p. ej. https://klk-server.onrender.com).
-        # Vacío = la app arranca en modo demo.
-        KLK_SERVER: ""
+        # Dirección de tu servidor: añádela aquí cuando lo tengas, p. ej.
+        # KLK_SERVER: "https://klk-server.onrender.com"
+        # Sin ella, la app arranca en modo demo.
         # Opcional: servidor TURN para llamadas en redes móviles difíciles
-        KLK_TURN_URL: ""
-        KLK_TURN_USER: ""
-        KLK_TURN_PASS: ""
     scripts:
       - name: Preparar carpetas nativas
         script: bash tool/prepare_native.sh
@@ -58,8 +55,6 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      vars:
-        KLK_SERVER: ""
     scripts:
       - name: Preparar carpetas nativas
         script: bash tool/prepare_native.sh
@@ -82,8 +77,6 @@ workflows:
     max_build_duration: 45
     environment:
       flutter: stable
-      vars:
-        KLK_SERVER: ""
     scripts:
       - name: Preparar carpetas nativas
         script: bash tool/prepare_native.sh
