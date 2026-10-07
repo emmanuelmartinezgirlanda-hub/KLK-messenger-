@@ -1,0 +1,91 @@
+# Compilación en la nube con Codemagic (https://codemagic.io), sin necesidad de Mac.
+# Pasos de configuración: ver INSTALAR_EN_IPHONE.md
+
+workflows:
+  # ---------- iPhone: compila y sube a TestFlight ----------
+  ios-testflight:
+    name: KLK iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: KLK App Store Connect   # nombre de la clave API que creas en Codemagic
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.klkapp.klk
+      vars:
+        # "Apple ID" numérico de la app (App Store Connect → tu app → Información de la app).
+        APP_STORE_APPLE_ID: "0000000000"
+        # Dirección de tu servidor (p. ej. https://klk-server.onrender.com).
+        # Vacío = la app arranca en modo demo.
+        KLK_SERVER: ""
+    scripts:
+      - name: Preparar carpetas nativas
+        script: bash tool/prepare_native.sh
+      - name: Tests
+        script: flutter test
+      - name: Firma de código
+        script: xcode-project use-profiles
+      - name: Compilar IPA
+        script: |
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
+          flutter build ipa --release \
+            --build-number=$((LATEST + 1)) \
+            --dart-define=KLK_SERVER="$KLK_SERVER" \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+
+  # ---------- iPhone sin cuenta de pago: IPA sin firmar ----------
+  # Para instalar con Sideloadly o AltStore usando un Apple ID gratuito.
+  # No necesita cuenta de Apple Developer ni configurar firmas en Codemagic.
+  ios-ipa-sin-firmar:
+    name: KLK iOS (IPA sin firmar)
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        KLK_SERVER: ""
+    scripts:
+      - name: Preparar carpetas nativas
+        script: bash tool/prepare_native.sh
+      - name: Tests
+        script: flutter test
+      - name: Compilar sin firma
+        script: flutter build ios --release --no-codesign --dart-define=KLK_SERVER="$KLK_SERVER"
+      - name: Empaquetar IPA
+        script: |
+          mkdir -p build/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ipa/Payload/
+          cd build/ipa && zip -qr KLK.ipa Payload
+    artifacts:
+      - build/ipa/KLK.ipa
+
+  # ---------- Android: genera un APK instalable ----------
+  android-apk:
+    name: KLK Android (APK)
+    instance_type: linux_x2
+    max_build_duration: 45
+    environment:
+      flutter: stable
+      vars:
+        KLK_SERVER: ""
+    scripts:
+      - name: Preparar carpetas nativas
+        script: bash tool/prepare_native.sh
+      - name: Tests
+        script: flutter test
+      - name: Compilar APK
+        script: flutter build apk --release --dart-define=KLK_SERVER="$KLK_SERVER"
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
