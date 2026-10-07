@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/brand/klk_logo.dart';
+import 'features/calls/call_controller.dart';
 import 'features/home/home_screen.dart';
 import 'features/messaging/app_controller.dart';
 import 'features/onboarding/welcome_screen.dart';
@@ -27,6 +28,8 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Crea el controlador de llamadas desde el arranque para recibir llamadas entrantes.
+    ref.read(callProvider);
   }
 
   @override
@@ -46,6 +49,7 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
     final phase = ref.watch(appProvider.select((a) => a.phase));
 
     return MaterialApp(
+      navigatorKey: ref.watch(navigatorKeyProvider),
       title: 'KLK',
       debugShowCheckedModeBanner: false,
       theme: theme.toThemeData(),

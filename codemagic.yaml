@@ -22,6 +22,10 @@ workflows:
         # Dirección de tu servidor (p. ej. https://klk-server.onrender.com).
         # Vacío = la app arranca en modo demo.
         KLK_SERVER: ""
+        # Opcional: servidor TURN para llamadas en redes móviles difíciles
+        KLK_TURN_URL: ""
+        KLK_TURN_USER: ""
+        KLK_TURN_PASS: ""
     scripts:
       - name: Preparar carpetas nativas
         script: bash tool/prepare_native.sh
@@ -34,7 +38,7 @@ workflows:
           LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
           flutter build ipa --release \
             --build-number=$((LATEST + 1)) \
-            --dart-define=KLK_SERVER="$KLK_SERVER" \
+            --dart-define=KLK_SERVER="$KLK_SERVER" --dart-define=KLK_TURN_URL="$KLK_TURN_URL" --dart-define=KLK_TURN_USER="$KLK_TURN_USER" --dart-define=KLK_TURN_PASS="$KLK_TURN_PASS" \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
@@ -62,7 +66,7 @@ workflows:
       - name: Tests
         script: flutter test
       - name: Compilar sin firma
-        script: flutter build ios --release --no-codesign --dart-define=KLK_SERVER="$KLK_SERVER"
+        script: flutter build ios --release --no-codesign --dart-define=KLK_SERVER="$KLK_SERVER" --dart-define=KLK_TURN_URL="$KLK_TURN_URL" --dart-define=KLK_TURN_USER="$KLK_TURN_USER" --dart-define=KLK_TURN_PASS="$KLK_TURN_PASS"
       - name: Empaquetar IPA
         script: |
           mkdir -p build/ipa/Payload
@@ -86,6 +90,6 @@ workflows:
       - name: Tests
         script: flutter test
       - name: Compilar APK
-        script: flutter build apk --release --dart-define=KLK_SERVER="$KLK_SERVER"
+        script: flutter build apk --release --dart-define=KLK_SERVER="$KLK_SERVER" --dart-define=KLK_TURN_URL="$KLK_TURN_URL" --dart-define=KLK_TURN_USER="$KLK_TURN_USER" --dart-define=KLK_TURN_PASS="$KLK_TURN_PASS"
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk

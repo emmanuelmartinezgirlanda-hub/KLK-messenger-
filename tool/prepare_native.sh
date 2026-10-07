@@ -32,6 +32,8 @@ if command -v plutil >/dev/null; then
   addkey NSPhotoLibraryUsageDescription "KLK accede a tus fotos para que puedas enviarlas en calidad original."
   addkey NSPhotoLibraryAddUsageDescription "KLK guarda en tu galería las fotos que decidas descargar."
   addkey NSLocationWhenInUseUsageDescription "KLK usa tu ubicación solo cuando decides enviarla en un chat."
+  # Que la llamada siga sonando si sales un momento de KLK
+  plutil -replace UIBackgroundModes -json '["audio"]' "$PLIST"
 fi
 sed -i.bak "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g" ios/Runner.xcodeproj/project.pbxproj
 sed -i.bak "s/PRODUCT_BUNDLE_IDENTIFIER = [A-Za-z0-9.]*klk;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" ios/Runner.xcodeproj/project.pbxproj
@@ -46,7 +48,7 @@ if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
   perl -0pi -e 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
 fi
 
-for perm in RECORD_AUDIO ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION; do
+for perm in RECORD_AUDIO ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT; do
   if ! grep -q "android.permission.$perm" "$MANIFEST"; then
     perl -0pi -e "s#<application#<uses-permission android:name=\"android.permission.$perm\"/>\n    <application#" "$MANIFEST"
   fi

@@ -248,15 +248,17 @@ String formatBytes(int bytes) {
 /// Contenido que viaja CIFRADO dentro de cada sobre.
 /// El servidor no puede distinguir un texto de un "escribiendo..." o un "leído".
 class Payload {
-  final String kind; // text | typing | recording | read | delivered | profile
+  final String kind; // text | typing | recording | read | delivered | profile | call
   final String? id; // id del mensaje de texto
   final String? text;
   final bool? on; // typing
   final List<String>? ids; // read / delivered
   final String? senderPhone; // para que el destinatario sepa quién es
   final Map<String, dynamic>? media; // adjunto (MessageMedia.forWire().toJson())
+  final Map<String, dynamic>? call; // señal de llamada (oferta, respuesta, ICE, colgar…)
 
-  const Payload({required this.kind, this.id, this.text, this.on, this.ids, this.senderPhone, this.media});
+  const Payload(
+      {required this.kind, this.id, this.text, this.on, this.ids, this.senderPhone, this.media, this.call});
 
   List<int> encode() => utf8.encode(jsonEncode({
         'k': kind,
@@ -266,6 +268,7 @@ class Payload {
         if (ids != null) 'ids': ids,
         if (senderPhone != null) 'p': senderPhone,
         if (media != null) 'm': media,
+        if (call != null) 'c': call,
       }));
 
   factory Payload.decode(List<int> bytes) {
@@ -278,6 +281,7 @@ class Payload {
       ids: (j['ids'] as List?)?.cast<String>(),
       senderPhone: j['p'] as String?,
       media: (j['m'] as Map?)?.cast<String, dynamic>(),
+      call: (j['c'] as Map?)?.cast<String, dynamic>(),
     );
   }
 }

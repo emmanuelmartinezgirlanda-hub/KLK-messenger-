@@ -40,6 +40,9 @@ class AppController extends ChangeNotifier {
   List<Chat> chats = [];
   String? openChatId;
   Profile profile = const Profile();
+
+  /// Lo registra el controlador de llamadas para recibir sus señales.
+  void Function(String fromChatId, Map<String, dynamic> signal)? onCallSignal;
   static const _profileKey = 'klk.profile';
 
   LocalDb? _db;
@@ -327,6 +330,8 @@ class AppController extends ChangeNotifier {
               }());
             }
           }
+        case 'call':
+          if (p.call != null) onCallSignal?.call(from, p.call!);
         case 'delivered':
           await db.advanceStatus(p.ids ?? const [], MessageStatus.delivered);
         case 'read':
@@ -518,6 +523,30 @@ class AppController extends ChangeNotifier {
     await _db!.deleteMessage(id);
     await _refresh();
   }
+
+  // ---------- Llamadas ----------
+
+  /// Envía una señal de llamada cifrada. Es efímera: si el otro no está
+  /// conectado no se guarda (una llamada no debe sonar horas después).
+  Future<void> sendCallSignal(String chatId, Map<String, dynamic> signal) =>
+      _sendEncrypted(chatId, Payload(kind: 'call', call: signal), ref: 'x-call', ephemeral: true);
+
+  /// Anota la llamada en el chat ("Llamada de voz · 2:31", "Llamada perdida"…).
+  Future<void> logCall(String chatId, String text, {bool incoming = false}) async {
+    final db = _db;
+    if (db == null || await db.chat(chatId) == null) return;
+    await db.addMessage(Message(
+      id: _uuid.v4(),
+      chatId: chatId,
+      kind: MessageKind.system,
+      body: text,
+      status: MessageStatus.read,
+      createdAt: DateTime.now(),
+    ));
+    await _refresh();
+  }
+
+  Chat? chatById(String id) => chats.where((c) => c.id == id).firstOrNull;
 
   /// Avisa de que estoy grabando una nota de voz, si la privacidad lo permite.
   Future<void> setRecording(String chatId, bool on) async {

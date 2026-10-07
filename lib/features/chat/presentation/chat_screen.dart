@@ -13,6 +13,7 @@ import 'package:record/record.dart';
 
 import '../../../core/media/media_store.dart';
 import '../../../core/util/phone.dart';
+import '../../calls/call_controller.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import '../../privacy/presentation/privacy_provider.dart';
@@ -368,6 +369,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
+        actions: [
+          if (!(chat?.isGroup ?? false)) ...[
+            IconButton(
+              tooltip: 'Videollamada',
+              icon: const Icon(Icons.videocam_outlined),
+              onPressed: () => ref.read(callProvider).startCall(widget.chatId, video: true),
+            ),
+            IconButton(
+              tooltip: 'Llamada de voz',
+              icon: const Icon(Icons.call_outlined),
+              onPressed: () => ref.read(callProvider).startCall(widget.chatId, video: false),
+            ),
+          ],
+        ],
         title: Row(children: [
           ChatAvatar(id: widget.chatId, title: title, photoPath: chat?.avatarPath, radius: 19),
           const SizedBox(width: 10),
