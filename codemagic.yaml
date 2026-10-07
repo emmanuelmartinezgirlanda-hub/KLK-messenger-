@@ -2,51 +2,8 @@
 # Pasos de configuración: ver INSTALAR_EN_IPHONE.md
 
 workflows:
-  # ---------- iPhone: compila y sube a TestFlight ----------
-  ios-testflight:
-    name: KLK iOS → TestFlight
-    instance_type: mac_mini_m2
-    max_build_duration: 60
-    integrations:
-      app_store_connect: KLK App Store Connect   # nombre de la clave API que creas en Codemagic
-    environment:
-      flutter: stable
-      xcode: latest
-      cocoapods: default
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.klkapp.klk
-      vars:
-        # "Apple ID" numérico de la app (App Store Connect → tu app → Información de la app).
-        APP_STORE_APPLE_ID: "0000000000"
-        # Dirección de tu servidor: añádela aquí cuando lo tengas, p. ej.
-        # KLK_SERVER: "https://klk-server.onrender.com"
-        # Sin ella, la app arranca en modo demo.
-        # Opcional: servidor TURN para llamadas en redes móviles difíciles
-    scripts:
-      - name: Preparar carpetas nativas
-        script: bash tool/prepare_native.sh
-      - name: Tests
-        script: flutter test
-      - name: Firma de código
-        script: xcode-project use-profiles
-      - name: Compilar IPA
-        script: |
-          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" || echo 0)
-          flutter build ipa --release \
-            --build-number=$((LATEST + 1)) \
-            --dart-define=KLK_SERVER="$KLK_SERVER" --dart-define=KLK_TURN_URL="$KLK_TURN_URL" --dart-define=KLK_TURN_USER="$KLK_TURN_USER" --dart-define=KLK_TURN_PASS="$KLK_TURN_PASS" \
-            --export-options-plist=/Users/builder/export_options.plist
-    artifacts:
-      - build/ios/ipa/*.ipa
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
+  # (TestFlight: ver tool/codemagic_testflight.yaml; necesita la cuenta de Apple de pago)
 
-  # ---------- iPhone sin cuenta de pago: IPA sin firmar ----------
-  # Para instalar con Sideloadly o AltStore usando un Apple ID gratuito.
-  # No necesita cuenta de Apple Developer ni configurar firmas en Codemagic.
   ios-ipa-sin-firmar:
     name: KLK iOS (IPA sin firmar)
     instance_type: mac_mini_m2
