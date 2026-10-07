@@ -8,6 +8,14 @@ workflows:
     name: KLK iOS (IPA sin firmar)
     instance_type: mac_mini_m2
     max_build_duration: 45
+    # Se compila sola cada vez que se sube código a la rama main
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
     environment:
       flutter: stable
       xcode: latest
@@ -23,9 +31,9 @@ workflows:
         script: |
           mkdir -p build/ipa/Payload
           cp -R build/ios/iphoneos/Runner.app build/ipa/Payload/
-          cd build/ipa && zip -qr KLK.ipa Payload
+          cd build/ipa && zip -qr KLK-messenger.ipa Payload
     artifacts:
-      - build/ipa/KLK.ipa
+      - build/ipa/KLK-messenger.ipa
 
   # ---------- Android: genera un APK instalable ----------
   android-apk:
