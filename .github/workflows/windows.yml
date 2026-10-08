@@ -1,0 +1,86 @@
+# Compila KLK messenger para Windows y publica el instalador en "Releases".
+# Descarga directa: https://github.com/<usuario>/<repo>/releases/latest
+name: KLK messenger para Windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-build
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Preparar la versión de Windows
+        shell: bash
+        run: |
+          flutter --version
+          flutter create . --org com.klkapp --project-name klk --platforms windows
+          # Base de datos cifrada por FFI en lugar del plugin del móvil
+          cp tool/windows/db_platform.dart lib/core/database/db_platform.dart
+          flutter pub add sqflite_common_ffi sqlite3 just_audio_windows video_player_win
+          # SQLCipher para que la base de datos vaya cifrada también en Windows
+          printf '\nhooks:\n  user_defines:\n    sqlite3:\n      source: sqlcipher\n' >> pubspec.yaml
+          flutter pub get
+          dart run flutter_launcher_icons -f tool/windows/flutter_launcher_icons-windows.yaml
+          # Título de la ventana y datos del .exe
+          sed -i 's/L"klk"/L"KLK messenger"/' windows/runner/main.cpp
+          sed -i 's/"FileDescription", "klk"/"FileDescription", "KLK messenger"/; s/"ProductName", "klk"/"ProductName", "KLK messenger"/' windows/runner/Runner.rc
+
+      - name: Compilar
+        run: flutter build windows --release
+
+      - name: Añadir las librerías de Visual C++
+        shell: pwsh
+        run: |
+          $dest = "build\windows\x64\runner\Release"
+          foreach ($dll in "msvcp140.dll","vcruntime140.dll","vcruntime140_1.dll") {
+            Copy-Item "C:\Windows\System32\$dll" $dest -ErrorAction SilentlyContinue
+          }
+          Get-ChildItem $dest
+
+      - name: Crear el instalador
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+            if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          }
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc tool\windows\klk_setup.iss
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath build\installer\KLK-messenger-portable.zip
+          Get-ChildItem build\installer
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KLK-messenger-Windows
+          path: build/installer/*
+
+      - name: Publicar en Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-${{ github.run_number }}
+          name: KLK messenger para Windows (${{ github.run_number }})
+          body: |
+            Descarga **KLK-messenger-Setup.exe** y ábrelo para instalar KLK messenger en tu PC.
+            Si Windows dice "Windows protegió tu PC", pulsa **Más información → Ejecutar de todas formas**.
+          files: |
+            build/installer/KLK-messenger-Setup.exe
+            build/installer/KLK-messenger-portable.zip
+          make_latest: true

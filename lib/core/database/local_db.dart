@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../../features/messaging/models.dart';
+import 'db_platform.dart';
 
 /// Base de datos local cifrada con SQLCipher (AES-256).
 /// La clave la proporciona SecureStore (Keychain/Keystore).
@@ -45,13 +46,13 @@ class LocalDb {
   ];
 
   /// Ruta del archivo (para la copia de seguridad).
-  static Future<String> filePath() async => p.join(await getDatabasesPath(), _file);
+  static Future<String> filePath() async => p.join(await klkDatabasesPath(), _file);
 
   static Future<LocalDb> open(String key) async {
-    final dir = await getDatabasesPath();
-    final db = await openDatabase(
+    final dir = await klkDatabasesPath();
+    final db = await openKlkDatabase(
       p.join(dir, _file),
-      password: key,
+      key: key,
       version: 5,
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await db.execute('ALTER TABLE messages ADD COLUMN media_json TEXT');
@@ -104,8 +105,8 @@ class LocalDb {
 
   /// Borra el archivo de la base de datos (botón de pánico).
   static Future<void> destroy() async {
-    final path = p.join(await getDatabasesPath(), _file);
-    await deleteDatabase(path);
+    final path = p.join(await klkDatabasesPath(), _file);
+    await deleteKlkDatabase(path);
     final f = File(path);
     if (await f.exists()) await f.delete();
   }
