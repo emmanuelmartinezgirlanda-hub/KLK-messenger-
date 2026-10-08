@@ -41,14 +41,12 @@ jobs:
           # Título de la ventana y datos del .exe
           sed -i 's/L"klk"/L"KLK messenger"/' windows/runner/main.cpp
           # Visual Studio 2026 rechaza <experimental/coroutine>, que aún usan algunos plugins
-          sed -i '0,/^project(/s//add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)\nproject(/' windows/CMakeLists.txt
+          sed -i '0,/^project(.*)$/s//&\nadd_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)/' windows/CMakeLists.txt
           grep -n "SILENCE\|^project" windows/CMakeLists.txt
           sed -i 's/"FileDescription", "klk"/"FileDescription", "KLK messenger"/; s/"ProductName", "klk"/"ProductName", "KLK messenger"/' windows/runner/Runner.rc
 
       - name: Compilar
         shell: bash
-        env:
-          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
         run: |
           set -o pipefail
           flutter build windows --release 2>&1 | tee build.log
