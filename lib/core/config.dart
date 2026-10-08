@@ -6,7 +6,12 @@
 /// contactos y respuestas de ejemplo). El usuario también puede escribirla
 /// en "Opciones avanzadas" de la pantalla de bienvenida.
 abstract final class KlkConfig {
-  static const String defaultServer = String.fromEnvironment('KLK_SERVER');
+  static const String _serverFromBuild = String.fromEnvironment('KLK_SERVER');
+
+  /// Servidor oficial de KLK messenger. Si se vacía el campo en
+  /// "Opciones avanzadas", la app entra en modo demo.
+  static const String officialServer = 'https://klk-server.onrender.com';
+  static const String defaultServer = _serverFromBuild == '' ? officialServer : _serverFromBuild;
 
   /// Servidor TURN para llamadas cuando los dos móviles no pueden conectarse
   /// directamente (pasa en algunas redes móviles). Opcional:

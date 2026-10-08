@@ -19,7 +19,7 @@ class ApiClient {
 
   final Uri base;
   final String? token;
-  static const _timeout = Duration(seconds: 15);
+  static const _timeout = Duration(seconds: 75); // el servidor gratuito tarda en "despertar"
 
   Uri _u(String path) => base.replace(path: '${base.path}$path');
 
