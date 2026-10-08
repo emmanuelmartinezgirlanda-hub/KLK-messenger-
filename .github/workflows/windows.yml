@@ -43,7 +43,25 @@ jobs:
           sed -i 's/"FileDescription", "klk"/"FileDescription", "KLK messenger"/; s/"ProductName", "klk"/"ProductName", "KLK messenger"/' windows/runner/Runner.rc
 
       - name: Compilar
-        run: flutter build windows --release
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build windows --release 2>&1 | tee build.log
+
+      - name: Resumen del error (si falla)
+        if: failure()
+        shell: bash
+        run: |
+          # Los errores salen como "anotaciones" para poder leerlos sin descargar el registro
+          for f in build.log; do
+            [ -f "$f" ] || continue
+            grep -n -i -E "error|exception|failed|not found|undefined" "$f" | head -60 > errs.txt || true
+            tail -40 "$f" > tail.txt
+            msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' errs.txt)
+            echo "::error title=Errores de compilación::${msg}"
+            msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' tail.txt)
+            echo "::error title=Final del registro::${msg}"
+          done
 
       - name: Añadir las librerías de Visual C++
         shell: pwsh
