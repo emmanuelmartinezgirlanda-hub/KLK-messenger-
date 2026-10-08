@@ -82,5 +82,5 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon/klk_icon.png"
   remove_alpha_ios: true
-  adaptive_icon_background: "#00718A"
+  adaptive_icon_background: "#002D62"
   adaptive_icon_foreground: "assets/icon/klk_icon_foreground.png"
