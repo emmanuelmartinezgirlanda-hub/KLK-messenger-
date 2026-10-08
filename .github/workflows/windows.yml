@@ -5,6 +5,9 @@ name: KLK messenger para Windows
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "server/**"
+      - "render.yaml"
   workflow_dispatch:
 
 permissions:

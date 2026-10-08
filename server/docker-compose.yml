@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: klk
+      POSTGRES_PASSWORD: klk_dev_cambiar
+      POSTGRES_DB: klk
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U klk"]
+      interval: 3s
+      retries: 10
+
+  server:
+    build: .
+    environment:
+      DATABASE_URL: postgres://klk:klk_dev_cambiar@db:5432/klk?sslmode=disable
+      KLK_ADDR: ":8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
