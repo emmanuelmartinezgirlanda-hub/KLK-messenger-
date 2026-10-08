@@ -6,8 +6,8 @@ services:
     name: klk-server
     runtime: docker
     rootDir: server
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
     plan: free
     healthCheckPath: /healthz
     envVars:
