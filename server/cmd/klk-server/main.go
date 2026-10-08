@@ -31,16 +31,26 @@ func main() {
 
 	var st store.Store
 	if url := os.Getenv("DATABASE_URL"); url != "" {
-		pg, err := store.NewPostgres(ctx, url)
+		// La base de datos puede tardar en estar lista al arrancar por primera vez:
+		// se reintenta durante unos 2 minutos antes de rendirse.
+		var pg *store.Postgres
+		var err error
+		for i := 0; i < 24; i++ {
+			pg, err = store.NewPostgres(ctx, url)
+			if err == nil {
+				if err = pg.Migrate(ctx); err == nil {
+					break
+				}
+				pg.Close()
+			}
+			slog.Warn("esperando a la base de datos", "intento", i+1, "err", err)
+			time.Sleep(5 * time.Second)
+		}
 		if err != nil {
 			slog.Error("base de datos", "err", err)
 			os.Exit(1)
 		}
 		defer pg.Close()
-		if err := pg.Migrate(ctx); err != nil {
-			slog.Error("migraciones", "err", err)
-			os.Exit(1)
-		}
 		st = pg
 		slog.Info("usando Postgres")
 	} else {

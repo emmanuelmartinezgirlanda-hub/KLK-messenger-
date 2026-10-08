@@ -5,7 +5,6 @@ services:
   - type: web
     name: klk-server
     runtime: docker
-    rootDir: server
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
     plan: free
