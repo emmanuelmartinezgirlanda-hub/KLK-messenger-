@@ -40,7 +40,7 @@ dependencies:
   geolocator: ">=13.0.0 <15.0.0"
   url_launcher: ^6.3.1
   open_filex: ^4.5.0
-  flutter_contacts: ^1.1.9
+  flutter_contacts: ^2.6.0  # 2.x ya usa UIScene (la 1.x se cerraba al abrir en iOS 27)
 
   # Traductor dentro del móvil (sin enviar los mensajes a ningún servidor)
   google_mlkit_translation: ">=0.11.0 <1.0.0"

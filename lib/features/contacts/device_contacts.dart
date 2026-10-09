@@ -19,16 +19,21 @@ class PhoneContact {
 /// Lee la agenda del teléfono. La agenda no sale del móvil: solo se
 /// envían los números al servidor para saber cuáles usan KLK.
 class DeviceContacts {
-  static Future<bool> requestPermission() => FlutterContacts.requestPermission(readonly: true);
+  static Future<bool> requestPermission() async {
+    final status = await FlutterContacts.permissions.request(PermissionType.read);
+    // iOS 18+: el usuario puede compartir solo algunos contactos ("limitado").
+    return status == PermissionStatus.granted || status == PermissionStatus.limited;
+  }
 
   static Future<List<PhoneContact>> load(String defaultDial) async {
-    final list = await FlutterContacts.getContacts(withProperties: true);
+    final list = await FlutterContacts.getAll(properties: {ContactProperty.name, ContactProperty.phone});
     final seen = <String>{};
     final out = <PhoneContact>[];
     for (final c in list) {
-      final name = c.displayName.trim();
+      final name = (c.displayName ?? '').trim();
       for (final ph in c.phones) {
-        final raw = ph.normalizedNumber.isNotEmpty ? ph.normalizedNumber : ph.number;
+        final normalized = ph.normalizedNumber ?? '';
+        final raw = normalized.isNotEmpty ? normalized : ph.number;
         final e164 = normalizePhone(raw, defaultDial);
         if (e164 != null && seen.add(e164)) {
           out.add(PhoneContact(name: name.isEmpty ? prettyPhone(e164) : name, phone: e164));

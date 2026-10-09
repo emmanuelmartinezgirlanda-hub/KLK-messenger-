@@ -1,0 +1,82 @@
+# Compila KLK messenger para iPhone (IPA sin firmar) y lo publica en "Releases".
+# Se instala con SideInstaller, Sideloadly, etc. (ellos lo firman con tu Apple ID).
+# Enlace directo: https://github.com/<usuario>/<repo>/releases/download/ios/KLK-messenger.ipa
+name: KLK messenger para iPhone
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "server/**"
+      - "render.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Preparar carpetas nativas
+        run: |
+          flutter --version
+          bash tool/prepare_native.sh
+
+      - name: Tests
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee test.log
+
+      - name: Compilar (sin firma)
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign 2>&1 | tee build.log
+
+      - name: Resumen del error (si falla)
+        if: failure()
+        shell: bash
+        run: |
+          for f in test.log build.log; do
+            [ -f "$f" ] || continue
+            grep -n -i -E "error|exception|failed|not found|undefined|Expected" "$f" | head -60 > errs.txt || true
+            tail -40 "$f" > tail.txt
+            msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' errs.txt)
+            echo "::error title=Errores en $f::${msg}"
+            msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' tail.txt)
+            echo "::error title=Final de $f::${msg}"
+          done
+
+      - name: Empaquetar IPA
+        run: |
+          mkdir -p build/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ipa/Payload/
+          cd build/ipa && zip -qr KLK-messenger.ipa Payload && ls -la
+
+      - name: Publicar en Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios
+          name: KLK messenger para iPhone
+          body: |
+            Descarga **KLK-messenger.ipa** e instálalo con SideInstaller (o Sideloadly).
+            Enlace directo para pegar en SideInstaller:
+            https://github.com/${{ github.repository }}/releases/download/ios/KLK-messenger.ipa
+            Versión compilada: ${{ github.sha }}
+          files: build/ipa/KLK-messenger.ipa
+          make_latest: false
+          overwrite_files: true
