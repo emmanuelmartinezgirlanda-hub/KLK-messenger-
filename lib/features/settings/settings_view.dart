@@ -12,6 +12,8 @@ import '../messaging/models.dart';
 import '../privacy/presentation/privacy_screen.dart';
 import '../theming/presentation/theme_picker_screen.dart';
 import '../theming/presentation/theme_provider.dart';
+import '../theming/wallpapers.dart';
+import '../../core/security/secure_store.dart';
 import 'backup_screen.dart';
 
 class SettingsView extends ConsumerWidget {
@@ -54,6 +56,13 @@ class SettingsView extends ConsumerWidget {
           subtitle: Text('${theme.name} · colores, burbujas y fuente'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ThemePickerScreen())),
+        ),
+        ListTile(
+          leading: const Icon(Icons.wallpaper_outlined),
+          title: const Text('Fondo de los chats'),
+          subtitle: Text('${wallpaperName(ref.watch(wallpaperProvider))} · ilustraciones, colores o tu foto'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showWallpaperPicker(context),
         ),
         ListTile(
           leading: const Icon(Icons.lock_outline),
@@ -247,20 +256,36 @@ class _ProfileHeader extends ConsumerWidget {
     return DateFormat.MMMMd('es').format(DateTime(2000, int.parse(parts[0]), int.parse(parts[1])));
   }
 
-  /// Solo día y mes: tus contactos te felicitan sin saber tu edad.
+  static const _birthYearKey = 'klk.birthYear';
+
+  /// Eliges la fecha completa (desde 1900), pero a tus contactos solo les llega el día y el mes.
   Future<void> _editBirthday(BuildContext context, WidgetRef ref) async {
     final app = ref.read(appProvider);
+    final store = ref.read(secureStoreProvider);
     final current = app.profile.birthday;
-    final initial = !isValidBirthday(current)
-        ? DateTime(2000, DateTime.now().month, DateTime.now().day)
-        : DateTime(2000, int.parse(current!.split('-')[0]), int.parse(current.split('-')[1]));
+    final now = DateTime.now();
+    int? savedYear;
+    try {
+      savedYear = int.tryParse(await store.read(_birthYearKey) ?? '');
+    } catch (_) {}
+    var initial = DateTime(2000, now.month, now.day);
+    if (isValidBirthday(current)) {
+      final m = int.parse(current!.split('-')[0]), d = int.parse(current.split('-')[1]);
+      final y = (savedYear != null && savedYear >= 1900 && savedYear <= now.year) ? savedYear : 2000;
+      final candidate = DateTime(y, m, d);
+      // 29 de febrero en un año no bisiesto: usa el 2000
+      initial = candidate.month == m ? candidate : DateTime(2000, m, d);
+    }
+    if (initial.isAfter(now)) initial = DateTime(2000, initial.month, initial.day);
+    if (!context.mounted) return;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
-      firstDate: DateTime(2000, 1, 1),
-      lastDate: DateTime(2000, 12, 31),
-      helpText: 'Tu cumpleaños (el año no se comparte)',
-      initialEntryMode: DatePickerEntryMode.calendarOnly,
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: now,
+      helpText: 'Tu fecha de nacimiento (tu edad no se comparte)',
+      initialEntryMode: DatePickerEntryMode.calendar,
+      initialDatePickerMode: DatePickerMode.year,
     );
     if (picked == null) {
       if (current != null && context.mounted) {
@@ -274,12 +299,20 @@ class _ProfileHeader extends ConsumerWidget {
             ],
           ),
         );
-        if (remove == true) await app.updateProfile(removeBirthday: true);
+        if (remove == true) {
+          await app.updateProfile(removeBirthday: true);
+          try {
+            await store.write(_birthYearKey, '');
+          } catch (_) {}
+        }
       }
       return;
     }
     final mmdd = '${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
     await app.updateProfile(birthday: mmdd);
+    try {
+      await store.write(_birthYearKey, picked.year.toString());
+    } catch (_) {}
   }
 
   Future<void> _editName(BuildContext context, WidgetRef ref, String current) async {

@@ -637,50 +637,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  Future<void> _pickWallpaper() async {
-    final current = ref.read(wallpaperProvider);
-    final id = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: SizedBox(
-          height: 230,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: [
-              for (final w in wallpapers)
-                GestureDetector(
-                  onTap: () => Navigator.pop(ctx, w.id),
-                  child: Container(
-                    width: 110,
-                    margin: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Column(children: [
-                      Container(
-                        height: 170,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: w.id == current ? Theme.of(ctx).colorScheme.secondary : Colors.transparent,
-                            width: 3,
-                          ),
-                          color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
-                        ),
-                        child: ChatWallpaper(id: w.id, dim: false),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(w.name, maxLines: 2, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
-                    ]),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (id != null) await ref.read(wallpaperProvider.notifier).set(id);
-  }
+  Future<void> _pickWallpaper() => showWallpaperPicker(context);
 
   void _scrollToEndIfNew(int count) {
     if (count == _lastCount) return;
