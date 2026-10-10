@@ -56,6 +56,8 @@ type OTP struct {
 	mu     sync.Mutex
 	codes  map[string]*pendingCode
 	sender SMSSender
+	remote RemoteVerifier // si no es nil, Twilio Verify genera y comprueba el código
+	sent   map[string]time.Time
 	now    func() time.Time
 }
 
@@ -63,9 +65,37 @@ func NewOTP(sender SMSSender) *OTP {
 	return &OTP{codes: map[string]*pendingCode{}, sender: sender, now: time.Now}
 }
 
+// NewRemoteOTP delega el código en un servicio externo (Twilio Verify).
+// Se mantiene el límite local de 1 SMS por minuto y número.
+func NewRemoteOTP(v RemoteVerifier) *OTP {
+	return &OTP{remote: v, sent: map[string]time.Time{}, now: time.Now}
+}
+
 func (o *OTP) Request(phone string) error {
 	if !ValidPhone(phone) {
 		return ErrInvalidPhone
+	}
+	if o.remote != nil {
+		o.mu.Lock()
+		now := o.now()
+		if t, ok := o.sent[phone]; ok && now.Sub(t) < resendAfter {
+			o.mu.Unlock()
+			return ErrTooSoon
+		}
+		for p, t := range o.sent { // purga entradas viejas
+			if now.Sub(t) >= resendAfter {
+				delete(o.sent, p)
+			}
+		}
+		o.sent[phone] = now
+		o.mu.Unlock()
+		if err := o.remote.Start(phone); err != nil {
+			o.mu.Lock()
+			delete(o.sent, phone) // permite reintentar si falló el envío
+			o.mu.Unlock()
+			return err
+		}
+		return nil
 	}
 	o.mu.Lock()
 	if pc, ok := o.codes[phone]; ok && o.now().Sub(pc.sentAt) < resendAfter {
@@ -86,6 +116,21 @@ func (o *OTP) Request(phone string) error {
 
 // Verify comprueba el código. Cada código admite como máximo 5 intentos.
 func (o *OTP) Verify(phone, code string) error {
+	if o.remote != nil {
+		// Twilio Verify ya limita a 5 intentos por código y lo caduca a los 10 min.
+		if !ValidPhone(phone) || len(code) < 4 || len(code) > 10 {
+			return ErrBadCode
+		}
+		ok, err := o.remote.Check(phone, code)
+		if err != nil {
+			slog.Error("comprobando código", "err", err)
+			return ErrBadCode
+		}
+		if !ok {
+			return ErrBadCode
+		}
+		return nil
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	pc, ok := o.codes[phone]

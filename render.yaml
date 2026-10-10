@@ -16,8 +16,15 @@ services:
           property: connectionString
       - key: KLK_TRUST_PROXY
         value: "1"
-      # Para SMS reales, añade en el panel de Render:
-      #   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM
+      # Twilio Verify: los valores se escriben en el panel de Render (nunca en el código).
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_VERIFY_SERVICE_SID
+        sync: false
+      - key: TWILIO_VERIFY_LOCALE
+        value: es
 
 databases:
   - name: klk-db

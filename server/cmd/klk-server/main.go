@@ -62,15 +62,26 @@ func main() {
 	go hub.RunScheduler(ctx, 2*time.Second)
 	go purgeAttachments(ctx, st)
 
-	var sms auth.SMSSender = auth.LogSender{}
-	if sid := os.Getenv("TWILIO_ACCOUNT_SID"); sid != "" {
-		sms = auth.TwilioSender{AccountSID: sid, AuthToken: os.Getenv("TWILIO_AUTH_TOKEN"), From: os.Getenv("TWILIO_FROM")}
+	var otp *auth.OTP
+	sid := os.Getenv("TWILIO_ACCOUNT_SID")
+	switch {
+	case sid != "" && os.Getenv("TWILIO_VERIFY_SERVICE_SID") != "":
+		otp = auth.NewRemoteOTP(auth.TwilioVerify{
+			AccountSID: sid,
+			AuthToken:  os.Getenv("TWILIO_AUTH_TOKEN"),
+			ServiceSID: os.Getenv("TWILIO_VERIFY_SERVICE_SID"),
+			Locale:     os.Getenv("TWILIO_VERIFY_LOCALE"),
+		})
+		slog.Info("códigos por Twilio Verify")
+	case sid != "":
+		otp = auth.NewOTP(auth.TwilioSender{AccountSID: sid, AuthToken: os.Getenv("TWILIO_AUTH_TOKEN"), From: os.Getenv("TWILIO_FROM")})
 		slog.Info("SMS por Twilio")
-	} else {
+	default:
+		otp = auth.NewOTP(auth.LogSender{})
 		slog.Warn("sin TWILIO_ACCOUNT_SID: los códigos SMS se escriben en el log (solo pruebas)")
 	}
 
-	apiServer := api.New(st, auth.NewOTP(sms), hub)
+	apiServer := api.New(st, otp, hub)
 	apiServer.TrustProxy = os.Getenv("KLK_TRUST_PROXY") == "1"
 
 	// Render, Railway, Fly… indican el puerto en $PORT.

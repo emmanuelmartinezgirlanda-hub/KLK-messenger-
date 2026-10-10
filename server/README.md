@@ -32,7 +32,9 @@ Variables de entorno:
 |---|---|
 | `DATABASE_URL` | Postgres. Si está vacía se usa memoria (solo desarrollo) |
 | `PORT` / `KLK_ADDR` | Puerto de escucha (por defecto 8080) |
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | SMS reales. Sin ellas, los códigos aparecen en el log |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` | **Recomendado.** Códigos por Twilio Verify (`VA…`): sin comprar número, válido en casi todos los países y con antifraude |
+| `TWILIO_VERIFY_LOCALE` | Opcional. Idioma del SMS de Verify, p. ej. `es`. Vacío = según el país |
+| `TWILIO_FROM` | Alternativa sin Verify: número o Messaging Service (`MG…`) para SMS normales. Sin variables de Twilio, los códigos aparecen en el log |
 | `KLK_TRUST_PROXY=1` | Detrás de Render, Cloudflare, etc.: limita por la IP real del usuario |
 
 **Despliegue gratis para pruebas:** sube este repositorio a GitHub y en render.com usa *New → Blueprint*. El archivo `render.yaml` crea el servidor y la base de datos.
@@ -113,7 +115,7 @@ Conviene decidirlo **antes** de escribir el cliente cripto. Si hay dudas, consul
 
 ## Pendiente antes de producción
 
-- [ ] **Protección antifraude de SMS** (Twilio Verify o límites por país). El envío por Twilio ya está integrado.
+- [x] **Protección antifraude de SMS**: integrado Twilio Verify (Fraud Guard). Revisa los países permitidos en Verify → Settings → Geo permissions.
 - [ ] **Push** con APNs/FCM (`relay.Pusher`). La notificación no debe llevar contenido.
 - [ ] **OTP y límites en Redis** para poder correr varias instancias. Hoy están en memoria y el mapa de límites por IP no se purga.
 - [ ] **Hub distribuido** (Redis pub/sub o NATS) para entregar entre instancias.
