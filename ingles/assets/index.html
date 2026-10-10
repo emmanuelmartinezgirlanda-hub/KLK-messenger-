@@ -1,0 +1,278 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Inglés Diario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: a single-column pocket app — sticky tab bar, one "index card" stage per mode, dictionary-style entries with IPA */
+:root{
+  --bg:#EDF0F6; --surface:#FFFFFF; --ink:#18203A; --muted:#5B6582; --line:#D5DBE8;
+  --accent:#2C47D9; --accent-ink:#FFFFFF; --mark:#F2C230; --ok:#1E8A55; --ok-bg:#E2F4EA; --bad:#C2372F; --bad-bg:#FBE6E4;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"Source Sans 3", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10142A; --surface:#1A2040; --ink:#E9ECF7; --muted:#9AA3C2; --line:#2C3458;
+  --accent:#7D92FF; --accent-ink:#0E1330; --mark:#F2C230; --ok:#5BD18F; --ok-bg:#16352A; --bad:#FF8A80; --bad-bg:#3D1C1F; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10142A; --surface:#1A2040; --ink:#E9ECF7; --muted:#9AA3C2; --line:#2C3458;
+  --accent:#7D92FF; --accent-ink:#0E1330; --mark:#F2C230; --ok:#5BD18F; --ok-bg:#16352A; --bad:#FF8A80; --bad-bg:#3D1C1F; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.5}
+.wrap{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:2rem;line-height:1;margin:0;letter-spacing:-.02em}
+h1 span{background:linear-gradient(transparent 62%,var(--mark) 62%);padding-inline:2px}
+.sub{color:var(--muted);margin:6px 0 0;font-size:.95rem}
+.streak{font-family:var(--display);font-weight:700;font-size:.9rem;border:1.5px solid var(--ink);border-radius:999px;padding:4px 12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:6px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+nav button{font:600 .9rem var(--body);background:transparent;color:var(--muted);border:0;border-bottom:3px solid var(--line);padding:10px 4px;cursor:pointer}
+nav button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--mark);outline-offset:2px}
+.cats{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.cats button{flex:none;font:600 .85rem var(--body);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.cats button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.card{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:24px 20px;display:flex;flex-direction:column;gap:12px;min-height:260px}
+.meta{display:flex;justify-content:space-between;color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
+.pos{font-style:italic}
+.word{font-family:var(--display);font-weight:800;font-size:clamp(2rem,9vw,2.8rem);line-height:1.05;margin:0;text-wrap:balance;overflow-wrap:anywhere}
+.ipa{color:var(--muted);font-size:1.05rem}
+.ex{border-top:1px dashed var(--line);padding-top:12px;margin:0}
+.ex i{color:var(--muted);display:block;font-size:.95rem}
+.hidden-ans{color:var(--muted);font-style:italic}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.btn{font:700 1rem var(--body);border-radius:10px;padding:12px 16px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);cursor:pointer;flex:1;min-width:120px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ok{border-color:var(--ok);color:var(--ok)}
+.btn.bad{border-color:var(--bad);color:var(--bad)}
+.speak{align-self:flex-start;font:600 .9rem var(--body);background:none;border:1.5px solid var(--line);color:var(--accent);border-radius:999px;padding:6px 14px;cursor:pointer}
+.opts{display:grid;gap:10px}
+.opt{font:600 1.05rem var(--body);text-align:left;padding:14px 16px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.opt.right{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.opt.wrong{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+.q{font-family:var(--display);font-weight:700;font-size:1.6rem;margin:0;line-height:1.15}
+.label{text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;font-weight:700;color:var(--muted)}
+input[type=text]{font:600 1.2rem var(--body);width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+.fb{min-height:1.5em;font-weight:600;margin:0}
+.fb.good{color:var(--ok)} .fb.no{color:var(--bad)}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .4s}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:14px 12px}
+.stat b{display:block;font-family:var(--display);font-size:1.8rem;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{font-size:.8rem;color:var(--muted)}
+.list{display:grid;gap:8px}
+.li{display:flex;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.li .es{color:var(--muted)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--line);flex:none;align-self:center}
+.dot.known{background:var(--ok)}
+.note{font-size:.85rem;color:var(--muted);margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Inglés <span>Diario</span></h1>
+      <p class="sub">Vocabulario, pronunciación y frases útiles, cinco minutos al día.</p>
+    </div>
+    <div class="streak" id="streak">0 aprendidas</div>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" data-tab="cards" aria-selected="true">Tarjetas</button>
+    <button role="tab" data-tab="quiz" aria-selected="false">Quiz</button>
+    <button role="tab" data-tab="dict" aria-selected="false">Dictado</button>
+    <button role="tab" data-tab="prog" aria-selected="false">Progreso</button>
+  </nav>
+
+  <div class="cats" id="cats"></div>
+  <main id="stage"></main>
+  <p class="note" id="ttsnote" hidden>Tu navegador no permite reproducir audio aquí; la transcripción fonética te guía con la pronunciación.</p>
+</div>
+
+<script>
+const W=[
+ // Básico
+ ["Básico","hello","hola","/həˈloʊ/","interj.","Hello, nice to meet you.","Hola, encantado de conocerte."],
+ ["Básico","please","por favor","/pliːz/","adv.","Can you help me, please?","¿Me ayudas, por favor?"],
+ ["Básico","thank you","gracias","/ˈθæŋk juː/","phr.","Thank you for your time.","Gracias por tu tiempo."],
+ ["Básico","sorry","perdón / lo siento","/ˈsɑːri/","adj.","Sorry, I'm late.","Perdón, llego tarde."],
+ ["Básico","tomorrow","mañana","/təˈmɑːroʊ/","adv.","See you tomorrow.","Nos vemos mañana."],
+ ["Básico","always","siempre","/ˈɔːlweɪz/","adv.","She always drinks tea.","Ella siempre bebe té."],
+ ["Básico","friend","amigo/a","/frend/","n.","He is my best friend.","Es mi mejor amigo."],
+ ["Básico","enough","suficiente","/ɪˈnʌf/","adj.","That's enough for today.","Es suficiente por hoy."],
+ // Comida
+ ["Comida","bread","pan","/bred/","n.","I buy bread every morning.","Compro pan cada mañana."],
+ ["Comida","chicken","pollo","/ˈtʃɪkɪn/","n.","Chicken with rice, please.","Pollo con arroz, por favor."],
+ ["Comida","water","agua","/ˈwɔːtər/","n.","A glass of water, please.","Un vaso de agua, por favor."],
+ ["Comida","bill","la cuenta","/bɪl/","n.","Can we have the bill?","¿Nos trae la cuenta?"],
+ ["Comida","hungry","hambriento","/ˈhʌŋɡri/","adj.","I'm really hungry.","Tengo mucha hambre."],
+ ["Comida","breakfast","desayuno","/ˈbrekfəst/","n.","Breakfast is at eight.","El desayuno es a las ocho."],
+ ["Comida","spoon","cuchara","/spuːn/","n.","I need a spoon.","Necesito una cuchara."],
+ ["Comida","sweet","dulce","/swiːt/","adj.","This cake is too sweet.","Este pastel es demasiado dulce."],
+ // Viajes
+ ["Viajes","luggage","equipaje","/ˈlʌɡɪdʒ/","n.","My luggage is lost.","Mi equipaje se ha perdido."],
+ ["Viajes","ticket","billete","/ˈtɪkɪt/","n.","One ticket to Dublin.","Un billete a Dublín."],
+ ["Viajes","platform","andén","/ˈplætfɔːrm/","n.","The train leaves from platform two.","El tren sale del andén dos."],
+ ["Viajes","booking","reserva","/ˈbʊkɪŋ/","n.","I have a booking for two nights.","Tengo una reserva para dos noches."],
+ ["Viajes","straight on","todo recto","/streɪt ɒn/","phr.","Go straight on, then turn left.","Sigue todo recto y luego gira a la izquierda."],
+ ["Viajes","delayed","retrasado","/dɪˈleɪd/","adj.","Our flight is delayed.","Nuestro vuelo está retrasado."],
+ ["Viajes","journey","viaje, trayecto","/ˈdʒɜːrni/","n.","Have a safe journey.","Buen viaje."],
+ ["Viajes","nearby","cerca","/ˌnɪərˈbaɪ/","adv.","Is there a pharmacy nearby?","¿Hay una farmacia cerca?"],
+ // Trabajo
+ ["Trabajo","meeting","reunión","/ˈmiːtɪŋ/","n.","The meeting starts at ten.","La reunión empieza a las diez."],
+ ["Trabajo","deadline","fecha límite","/ˈdedlaɪn/","n.","The deadline is Friday.","La fecha límite es el viernes."],
+ ["Trabajo","salary","sueldo","/ˈsæləri/","n.","The salary is paid monthly.","El sueldo se paga mensualmente."],
+ ["Trabajo","skills","habilidades","/skɪlz/","n.","She has great people skills.","Tiene muy buen trato con la gente."],
+ ["Trabajo","boss","jefe/a","/bɔːs/","n.","My boss is on holiday.","Mi jefa está de vacaciones."],
+ ["Trabajo","schedule","horario","/ˈskedʒuːl/","n.","Let me check my schedule.","Déjame mirar mi horario."],
+ ["Trabajo","apply","solicitar","/əˈplaɪ/","v.","I want to apply for the job.","Quiero solicitar el puesto."],
+ ["Trabajo","resign","dimitir","/rɪˈzaɪn/","v.","He decided to resign.","Decidió dimitir."],
+ // Falsos amigos
+ ["Falsos amigos","actually","en realidad","/ˈæktʃuəli/","adv.","Actually, I'm from Mexico.","En realidad, soy de México."],
+ ["Falsos amigos","embarrassed","avergonzado","/ɪmˈbærəst/","adj.","I felt so embarrassed.","Me sentí muy avergonzado."],
+ ["Falsos amigos","library","biblioteca","/ˈlaɪbreri/","n.","I study at the library.","Estudio en la biblioteca."],
+ ["Falsos amigos","carpet","alfombra","/ˈkɑːrpɪt/","n.","The carpet is new.","La alfombra es nueva."],
+ ["Falsos amigos","sensible","sensato","/ˈsensəbl/","adj.","That's a sensible idea.","Es una idea sensata."],
+ ["Falsos amigos","exit","salida","/ˈeksɪt/","n.","Where is the exit?","¿Dónde está la salida?"],
+ ["Falsos amigos","assist","ayudar","/əˈsɪst/","v.","Can I assist you?","¿Puedo ayudarle?"],
+ ["Falsos amigos","realize","darse cuenta","/ˈriːəlaɪz/","v.","I didn't realize it was late.","No me di cuenta de que era tarde."]
+].map((r,i)=>({id:i,cat:r[0],en:r[1],es:r[2],ipa:r[3],pos:r[4],ex:r[5],exEs:r[6]}));
+const CATS=["Todas",...new Set(W.map(w=>w.cat))];
+
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let known=new Set(store.get("ie_known",[]));
+let stats=store.get("ie_stats",{quiz:0,ok:0});
+let tab="cards",cat=store.get("ie_cat","Todas"),deck=[],idx=0,revealed=false,cur=null,answered=false;
+
+const $=s=>document.querySelector(s), stage=$("#stage");
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const pool=()=>cat==="Todas"?W:W.filter(w=>w.cat===cat);
+const save=()=>{store.set("ie_known",[...known]);store.set("ie_stats",stats);updateStreak()};
+function updateStreak(){$("#streak").textContent=`${known.size}/${W.length} aprendidas`}
+
+let ttsOK="speechSynthesis" in window;
+function say(t){
+  if(!ttsOK){$("#ttsnote").hidden=false;return}
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang="en-US";u.rate=.9;
+    const v=speechSynthesis.getVoices().find(v=>/^en(-|_)US/i.test(v.lang))||speechSynthesis.getVoices().find(v=>/^en/i.test(v.lang));if(v)u.voice=v;
+    u.onerror=()=>{$("#ttsnote").hidden=false};speechSynthesis.speak(u)}catch(e){ttsOK=false;$("#ttsnote").hidden=false}
+}
+
+function renderCats(){
+  const c=$("#cats");c.hidden=tab==="prog";
+  c.innerHTML=CATS.map(k=>`<button aria-pressed="${k===cat}" data-cat="${k}">${k}</button>`).join("");
+}
+function newDeck(){
+  const p=pool();const unknown=p.filter(w=>!known.has(w.id));
+  deck=shuffle(unknown.length?unknown:p);idx=0;revealed=false;
+}
+
+function renderCards(){
+  if(idx>=deck.length) newDeck();
+  const w=deck[idx];
+  stage.innerHTML=`<div class="card">
+    <div class="meta"><span>${esc(w.cat)}</span><span>${idx+1} / ${deck.length}</span></div>
+    <h2 class="word">${esc(w.en)}</h2>
+    <div class="ipa">${esc(w.ipa)} · <span class="pos">${esc(w.pos)}</span></div>
+    <button class="speak" id="spk">▶ Escuchar</button>
+    ${revealed?`<div><span class="label">Significa</span><div style="font-size:1.3rem;font-weight:700">${esc(w.es)}</div></div>
+      <p class="ex">${esc(w.ex)}<i>${esc(w.exEs)}</i></p>`:`<p class="hidden-ans">¿Sabes qué significa? Piénsalo y gira la tarjeta.</p>`}
+  </div>
+  <div class="row" style="margin-top:12px">
+    ${revealed?`<button class="btn bad" id="again">Repasar</button><button class="btn ok" id="got">¡La sé!</button>`
+             :`<button class="btn primary" id="flip">Ver significado</button>`}
+  </div>`;
+  $("#spk").onclick=()=>say(w.en);
+  if(revealed){
+    $("#again").onclick=()=>{known.delete(w.id);deck.push(w);idx++;revealed=false;save();renderCards()};
+    $("#got").onclick=()=>{known.add(w.id);idx++;revealed=false;save();renderCards()};
+  } else $("#flip").onclick=()=>{revealed=true;renderCards()};
+}
+
+function nextQ(){
+  const p=pool();cur=p[Math.random()*p.length|0];answered=false;
+  const others=shuffle(W.filter(w=>w.id!==cur.id&&w.cat===cur.cat)).slice(0,3);
+  if(others.length<3)others.push(...shuffle(W.filter(w=>w.id!==cur.id&&!others.includes(w))).slice(0,3-others.length));
+  cur.opts=shuffle([cur,...others]);cur.dir=Math.random()<.5?"es2en":"en2es";
+}
+function renderQuiz(){
+  if(!cur)nextQ();
+  const q=cur.dir==="es2en"?cur.es:cur.en, lab=cur.dir==="es2en"?"¿Cómo se dice en inglés?":"¿Qué significa?";
+  const acc=stats.quiz?Math.round(stats.ok/stats.quiz*100):0;
+  stage.innerHTML=`<div class="card">
+    <div class="meta"><span class="label">${lab}</span><span>${stats.ok}/${stats.quiz} · ${acc}%</span></div>
+    <p class="q">${esc(q)}</p>
+    <div class="opts">${cur.opts.map((o,i)=>`<button class="opt" data-i="${i}">${esc(cur.dir==="es2en"?o.en:o.es)}</button>`).join("")}</div>
+    <p class="fb" id="fb"></p>
+  </div>
+  <div class="row" style="margin-top:12px"><button class="btn primary" id="nq">Siguiente pregunta</button></div>`;
+  stage.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{
+    if(answered)return;answered=true;const pick=cur.opts[+b.dataset.i];const ok=pick.id===cur.id;
+    stats.quiz++;if(ok){stats.ok++;known.add(cur.id)}save();
+    stage.querySelectorAll(".opt").forEach((x,i)=>{if(cur.opts[i].id===cur.id)x.classList.add("right");else if(x===b)x.classList.add("wrong")});
+    const fb=$("#fb");fb.className="fb "+(ok?"good":"no");
+    fb.textContent=ok?`¡Correcto! “${cur.ex}”`:`Era “${cur.en}” = ${cur.es}.`;
+    say(cur.en);
+  });
+  $("#nq").onclick=()=>{nextQ();renderQuiz()};
+}
+
+let dw=null;
+function renderDict(){
+  if(!dw){const p=pool();dw=p[Math.random()*p.length|0]}
+  stage.innerHTML=`<div class="card">
+    <div class="meta"><span class="label">Escucha y escribe</span><span>Pista: ${esc(dw.es)}</span></div>
+    <button class="btn primary" id="play" style="flex:none">▶ Reproducir palabra</button>
+    <label class="label" for="dictIn">Tu respuesta en inglés</label>
+    <input type="text" id="dictIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Escribe lo que oyes…">
+    <p class="fb" id="dfb"></p>
+  </div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="dskip">Otra palabra</button><button class="btn primary" id="dcheck">Comprobar</button></div>`;
+  $("#play").onclick=()=>say(dw.en);
+  const check=()=>{const v=$("#dictIn").value.trim().toLowerCase().replace(/[’']/g,"'");const fb=$("#dfb");
+    if(!v){fb.className="fb no";fb.textContent="Escribe una palabra antes de comprobar.";return}
+    if(v===dw.en.toLowerCase()){fb.className="fb good";fb.textContent=`¡Perfecto! ${dw.en} ${dw.ipa}`;known.add(dw.id);save()}
+    else{fb.className="fb no";fb.textContent=`Casi. Se escribe “${dw.en}” ${dw.ipa}.`}};
+  $("#dcheck").onclick=check;
+  $("#dictIn").onkeydown=e=>{if(e.key==="Enter")check()};
+  $("#dskip").onclick=()=>{dw=null;renderDict()};
+}
+
+function renderProg(){
+  const pct=Math.round(known.size/W.length*100);
+  const acc=stats.quiz?Math.round(stats.ok/stats.quiz*100):0;
+  const groups=CATS.slice(1).map(c=>{const ws=W.filter(w=>w.cat===c);const k=ws.filter(w=>known.has(w.id)).length;
+    return `<div><div class="meta" style="color:var(--ink);font-weight:600"><span>${c}</span><span>${k}/${ws.length}</span></div><div class="bar"><i style="width:${k/ws.length*100}%"></i></div></div>`}).join("");
+  stage.innerHTML=`<div style="display:grid;gap:16px">
+    <div class="stats">
+      <div class="stat"><b>${known.size}</b><span>palabras sabidas</span></div>
+      <div class="stat"><b>${pct}%</b><span>del vocabulario</span></div>
+      <div class="stat"><b>${acc}%</b><span>aciertos en quiz</span></div>
+    </div>
+    <div class="card" style="min-height:0">${groups}</div>
+    <span class="label">Glosario</span>
+    <div class="list">${W.map(w=>`<div class="li"><span class="dot ${known.has(w.id)?"known":""}"></span><span style="flex:1;min-width:0"><b>${esc(w.en)}</b> <span class="es">— ${esc(w.es)}</span></span><button class="speak" data-say="${esc(w.en)}" aria-label="Escuchar ${esc(w.en)}">▶</button></div>`).join("")}</div>
+    <div class="row"><button class="btn bad" id="reset">Reiniciar progreso</button></div>
+    <p class="fb" id="rfb"></p>
+  </div>`;
+  stage.querySelectorAll("[data-say]").forEach(b=>b.onclick=()=>say(b.dataset.say));
+  let armed=false;$("#reset").onclick=e=>{
+    if(!armed){armed=true;e.target.textContent="Toca otra vez para confirmar";return}
+    known=new Set();stats={quiz:0,ok:0};save();renderProg();$("#rfb").textContent="Progreso reiniciado.";};
+}
+
+function render(){
+  document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
+  renderCats();
+  ({cards:renderCards,quiz:renderQuiz,dict:renderDict,prog:renderProg})[tab]();
+}
+document.querySelector("nav").onclick=e=>{const t=e.target.dataset.tab;if(t){tab=t;render()}};
+$("#cats").onclick=e=>{const c=e.target.dataset.cat;if(c){cat=c;store.set("ie_cat",c);newDeck();cur=null;dw=null;render()}};
+if(ttsOK)try{speechSynthesis.getVoices();speechSynthesis.onvoiceschanged=()=>{}}catch(e){}
+if(!CATS.includes(cat))cat="Todas";
+newDeck();updateStreak();render();
+</script>
+
+</body></html>

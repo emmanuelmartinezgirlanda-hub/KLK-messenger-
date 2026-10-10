@@ -9,6 +9,8 @@ on:
     paths-ignore:
       - "server/**"
       - "render.yaml"
+      - "ingles/**"
+      - ".github/workflows/ingles.yml"
   workflow_dispatch:
 
 permissions:

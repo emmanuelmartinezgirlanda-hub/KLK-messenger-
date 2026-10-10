@@ -1,0 +1,73 @@
+# Compila "Inglés Diario" para iPhone (IPA sin firmar) y lo publica en Releases con la etiqueta "ingles".
+# Enlace directo: https://github.com/<usuario>/<repo>/releases/download/ingles/Ingles-Diario.ipa
+name: Inglés Diario para iPhone
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ingles/**"
+      - ".github/workflows/ingles.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ingles-build
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: ingles
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Preparar
+        run: |
+          set -o pipefail
+          bash prepare_ios.sh 2>&1 | tee build.log
+
+      - name: Compilar (sin firma)
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign 2>&1 | tee -a build.log
+
+      - name: Resumen del error (si falla)
+        if: failure()
+        run: |
+          [ -f build.log ] || exit 0
+          grep -n -i -E "error|exception|failed|not found" build.log | head -60 > errs.txt || true
+          tail -40 build.log > tail.txt
+          msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' errs.txt)
+          echo "::error title=Errores::${msg}"
+          msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' tail.txt)
+          echo "::error title=Final::${msg}"
+
+      - name: Empaquetar IPA
+        run: |
+          mkdir -p build/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ipa/Payload/
+          cd build/ipa && zip -qr Ingles-Diario.ipa Payload && ls -la
+
+      - name: Publicar en Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ingles
+          name: Inglés Diario para iPhone
+          body: |
+            Instálalo con SideInstaller pegando este enlace:
+            https://github.com/${{ github.repository }}/releases/download/ingles/Ingles-Diario.ipa
+          files: ingles/build/ipa/Ingles-Diario.ipa
+          make_latest: false
+          overwrite_files: true
