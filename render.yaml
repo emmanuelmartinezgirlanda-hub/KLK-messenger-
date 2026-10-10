@@ -25,6 +25,15 @@ services:
         sync: false
       - key: TWILIO_VERIFY_LOCALE
         value: es
+      # Clave del panel del dueño (https://klk-server.onrender.com/admin).
+      # Render la inventa sola; la ves en klk-server → Environment.
+      - key: KLK_ADMIN_TOKEN
+        generateValue: true
+      # Precio de cada SMS y coste mensual del servidor (euros), para el panel.
+      - key: KLK_SMS_PRICE
+        value: "0.08"
+      - key: KLK_SERVER_COST
+        value: "0"
 
 databases:
   - name: klk-db

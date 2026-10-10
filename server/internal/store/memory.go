@@ -21,6 +21,7 @@ type Memory struct {
 	envelopes map[string]Envelope
 	attach    map[string]memAttachment
 	reports   []Report
+	admin     *memAdmin
 }
 
 type memAttachment struct {
@@ -159,7 +160,9 @@ func (m *Memory) DeviceByTokenHash(_ context.Context, h []byte) (Device, error) 
 	if !ok {
 		return Device{}, ErrNotFound
 	}
-	return m.devices[k], nil
+	d := m.devices[k]
+	_, d.Banned = m.adm().banned[k.acc]
+	return d, nil
 }
 
 func (m *Memory) AccountIDByPhone(_ context.Context, phone string) (string, error) {

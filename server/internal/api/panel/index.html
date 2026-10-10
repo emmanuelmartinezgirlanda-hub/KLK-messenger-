@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Panel KLK</title>
+<style>
+:root{
+  --navy:#002D62; --red:#CE1126; --bg:#F2F4F8; --card:#FFFFFF; --ink:#111827; --muted:#6B7280;
+  --line:#E5E7EB; --ok:#059669; --okbg:#ECFDF5; --warn:#B45309; --warnbg:#FFFBEB; --badbg:#FEF2F2;
+  --chip:#EEF2FF;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0B1220; --card:#131C2E; --ink:#E5E7EB; --muted:#9CA3AF; --line:#243049; --okbg:#0F2A22; --warnbg:#2A2110; --badbg:#2A1215; --chip:#1C2742;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
+  padding-bottom:env(safe-area-inset-bottom)}
+header{background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top) + 14px) 16px 14px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
+header .logo{width:36px;height:36px;border-radius:10px;background:#fff;color:var(--navy);display:grid;place-items:center;font-weight:900;font-size:13px;letter-spacing:.5px;position:relative;overflow:hidden}
+header .logo::after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;background:var(--red)}
+header h1{font-size:18px;margin:0;font-weight:800;flex:1}
+header h1 small{display:block;font-size:12px;font-weight:500;opacity:.75}
+header button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:999px;padding:8px 12px;font:600 13px inherit;cursor:pointer}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+nav button{flex:none;border:0;background:transparent;color:var(--muted);font:700 14px inherit;padding:8px 14px;border-radius:999px;cursor:pointer;position:relative}
+nav button[aria-selected=true]{background:var(--navy);color:#fff}
+nav .badge{background:var(--red);color:#fff;border-radius:999px;font-size:11px;padding:1px 6px;margin-left:4px}
+main{max-width:860px;margin:0 auto;padding:16px 12px 40px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.stat b{display:block;font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15}
+.stat span{color:var(--muted);font-size:13px}
+.stat.hl{border-color:var(--navy);box-shadow:inset 4px 0 0 var(--navy)}
+h2{font-size:16px;margin:22px 4px 10px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.chart{display:flex;align-items:flex-end;gap:3px;height:120px;padding-top:8px}
+.chart i{flex:1;background:var(--navy);border-radius:4px 4px 0 0;min-height:2px;position:relative}
+.chart i.today{background:var(--red)}
+.chart-x{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:4px}
+.bars .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+.bars .row span{width:70px;font-size:13px}
+.bars .row div{flex:1;height:10px;background:var(--line);border-radius:99px;overflow:hidden}
+.bars .row div i{display:block;height:100%;background:var(--navy)}
+.bars .row b{width:40px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
+.rep{margin-bottom:10px}
+.rep .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--chip)}
+.tag.spam{background:var(--warnbg);color:var(--warn)} .tag.acoso,.tag.estafa{background:var(--badbg);color:var(--red)}
+.tag.done{background:var(--okbg);color:var(--ok)}
+.msgs{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+.msgs li{background:var(--bg);border-radius:10px;padding:8px 10px;font-size:14px;white-space:pre-wrap;word-break:break-word}
+.actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.btn{border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 14px;font:700 14px inherit;cursor:pointer}
+.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.danger{background:var(--red);border-color:var(--red);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+input,textarea{width:100%;font:15px inherit;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:11px 12px}
+textarea{min-height:110px;resize:vertical}
+label{display:block;font-weight:700;font-size:13px;margin:12px 0 6px}
+.note{background:var(--chip);border-radius:12px;padding:10px 12px;font-size:13.5px}
+.empty{text-align:center;padding:30px 10px;color:var(--muted)}
+.list .item{display:flex;gap:10px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding:10px 0}
+.list .item:first-child{border-top:0}
+.money td{padding:8px 4px;border-bottom:1px solid var(--line)} .money td:last-child{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse}
+#login{max-width:400px;margin:12vh auto 0;padding:0 16px}
+#login .card{padding:22px}
+#login h1{margin:0 0 4px;font-size:22px}
+.err{color:var(--red);font-weight:600;min-height:1.4em;margin:8px 0 0}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:12px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+#toast.show{opacity:1}
+[hidden]{display:none!important}
+.check{display:flex;gap:8px;align-items:center;font-weight:500;margin-top:12px}
+.check input{width:auto}
+</style>
+</head>
+<body>
+
+<section id="login">
+  <div class="card">
+    <h1>Panel de KLK messenger</h1>
+    <p class="muted small">Solo para el dueño. Escribe tu clave (en Render: klk-server → Environment → <b>KLK_ADMIN_TOKEN</b>).</p>
+    <label for="tok">Clave</label>
+    <input id="tok" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false">
+    <label class="check"><input type="checkbox" id="remember" checked> Recordarme en este dispositivo</label>
+    <div class="actions"><button class="btn primary" id="enter" style="flex:1">Entrar</button></div>
+    <p class="err" id="loginErr"></p>
+  </div>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <div class="logo">KLK</div>
+    <h1>Panel del dueño<small id="updated">—</small></h1>
+    <button id="refresh">Actualizar</button>
+    <button id="logout">Salir</button>
+  </header>
+  <nav role="tablist">
+    <button data-tab="home" aria-selected="true">Resumen</button>
+    <button data-tab="reports">Denuncias<span class="badge" id="repBadge" hidden></span></button>
+    <button data-tab="news">Avisos</button>
+    <button data-tab="banned">Bloqueados</button>
+    <button data-tab="money">Dinero</button>
+  </nav>
+  <main id="main"></main>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nf=new Intl.NumberFormat("es");
+const eur=new Intl.NumberFormat("es",{style:"currency",currency:"EUR"});
+const dt=v=>v?new Date(v).toLocaleString("es",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"—";
+const ago=v=>{if(!v)return"nunca";const m=(Date.now()-new Date(v))/60000;if(m<2)return"ahora";if(m<60)return`hace ${Math.round(m)} min`;const h=m/60;if(h<24)return`hace ${Math.round(h)} h`;return`hace ${Math.round(h/24)} días`};
+const reasons={spam:"Spam",acoso:"Acoso",estafa:"Estafa",otro:"Otro"};
+const countries={"+1809":"🇩🇴 RD","+1829":"🇩🇴 RD","+1849":"🇩🇴 RD","+1":"🇺🇸 EE. UU.","+34":"🇪🇸 España","+353":"🇮🇪 Irlanda","+44":"🇬🇧 R. Unido","+39":"🇮🇹 Italia","+33":"🇫🇷 Francia","+49":"🇩🇪 Alemania","+41":"🇨🇭 Suiza","+31":"🇳🇱 P. Bajos","+32":"🇧🇪 Bélgica","+351":"🇵🇹 Portugal","+52":"🇲🇽 México","+57":"🇨🇴 Colombia","+58":"🇻🇪 Venezuela","+507":"🇵🇦 Panamá","+506":"🇨🇷 Costa Rica","+509":"🇭🇹 Haití"};
+
+let token="", tab="home", data={stats:null,reports:null,news:null,banned:null}, showAll=false;
+try{token=localStorage.getItem("klk_admin")||sessionStorage.getItem("klk_admin")||""}catch(e){}
+
+function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("show"),2600)}
+
+async function api(path,opts={}){
+  const r=await fetch("/admin/api/"+path,{...opts,headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json",...(opts.headers||{})}});
+  if(r.status===401){logout("La clave no es correcta.");throw new Error("401")}
+  if(r.status===204)return null;
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.message||("Error "+r.status));
+  return j;
+}
+
+function logout(msg){
+  token="";try{localStorage.removeItem("klk_admin");sessionStorage.removeItem("klk_admin")}catch(e){}
+  $("#app").hidden=true;$("#login").hidden=false;$("#loginErr").textContent=msg||"";
+}
+
+async function login(){
+  token=$("#tok").value.trim();
+  if(!token){$("#loginErr").textContent="Escribe la clave.";return}
+  $("#enter").disabled=true;
+  try{
+    data.stats=await api("stats");
+    try{($("#remember").checked?localStorage:sessionStorage).setItem("klk_admin",token)}catch(e){}
+    $("#login").hidden=true;$("#app").hidden=false;$("#tok").value="";
+    await loadAll();
+  }catch(e){if(e.message!=="401")$("#loginErr").textContent=e.message}
+  finally{$("#enter").disabled=false}
+}
+
+async function loadAll(){
+  try{
+    const [s,r,n,b]=await Promise.all([api("stats"),api("reports"+(showAll?"?all=1":"")),api("announcements"),api("banned")]);
+    data.stats=s;data.reports=r.reports;data.news=n.announcements;data.banned=b.accounts;
+    $("#updated").textContent="Actualizado "+new Date().toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"});
+    const open=s.stats.openReports;$("#repBadge").hidden=!open;$("#repBadge").textContent=open;
+    render();
+  }catch(e){if(e.message!=="401")toast(e.message)}
+}
+
+function chart(days){
+  const max=Math.max(1,...days.map(d=>d.count));
+  const bars=days.map((d,i)=>`<i class="${i===days.length-1?"today":""}" style="height:${Math.max(2,d.count/max*100)}%" title="${esc(d.day)}: ${d.count}"></i>`).join("");
+  const f=s=>new Date(s+"T12:00:00Z").toLocaleDateString("es",{day:"numeric",month:"short"});
+  return `<div class="chart" role="img" aria-label="Gráfica de 30 días">${bars}</div><div class="chart-x"><span>${f(days[0].day)}</span><span>hoy</span></div>`;
+}
+
+function renderHome(){
+  const {stats:s,online}=data.stats;
+  const cs=Object.entries(s.countries||{}).sort((a,b)=>b[1]-a[1]);
+  const merged={};cs.forEach(([k,v])=>{const n=countries[k]||k;merged[n]=(merged[n]||0)+v});
+  const rows=Object.entries(merged).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const cmax=Math.max(1,...rows.map(r=>r[1]));
+  return `
+  <div class="grid">
+    <div class="card stat hl"><b>${nf.format(s.users)}</b><span>usuarios en total</span></div>
+    <div class="card stat"><b>${nf.format(online)}</b><span>conectados ahora</span></div>
+    <div class="card stat"><b>${nf.format(s.newToday)}</b><span>nuevos hoy</span></div>
+    <div class="card stat"><b>${nf.format(s.new7d)}</b><span>nuevos esta semana</span></div>
+    <div class="card stat"><b>${nf.format(s.active24h)}</b><span>usaron la app hoy</span></div>
+    <div class="card stat"><b>${nf.format(s.active30d)}</b><span>activos este mes</span></div>
+  </div>
+  <h2>Usuarios nuevos (30 días)</h2>
+  <div class="card">${chart(s.signups)}</div>
+  <h2>De dónde son</h2>
+  <div class="card bars">${rows.length?rows.map(([k,v])=>`<div class="row"><span>${esc(k)}</span><div><i style="width:${v/cmax*100}%"></i></div><b>${v}</b></div>`).join(""):`<div class="empty">Todavía no hay usuarios.</div>`}</div>
+  <h2>Seguridad</h2>
+  <div class="grid">
+    <div class="card stat"><b>${s.openReports}</b><span>denuncias sin revisar</span></div>
+    <div class="card stat"><b>${s.banned}</b><span>cuentas bloqueadas</span></div>
+    <div class="card stat"><b>${nf.format(s.attachments)}</b><span>fotos y archivos guardados (${(s.attachBytes/1048576).toFixed(1)} MB)</span></div>
+  </div>
+  <p class="muted small" style="margin:14px 4px">🔒 Los mensajes van cifrados: ni tú ni el servidor podéis leerlos. Solo ves lo que la gente adjunta al denunciar.</p>`;
+}
+
+function renderReports(){
+  const list=data.reports||[];
+  const head=`<div class="actions" style="margin:0 0 12px"><button class="btn" id="toggleAll">${showAll?"Ver solo pendientes":"Ver también las resueltas"}</button></div>`;
+  if(!list.length)return head+`<div class="card empty">✅ No hay denuncias ${showAll?"":"pendientes"}.</div>`;
+  return head+list.map(r=>{
+    const a=r.reported, banned=!!a.bannedAt;
+    return `<div class="card rep">
+      <div class="top"><span class="tag ${esc(r.reason)}">${esc(reasons[r.reason]||r.reason)}</span>
+        ${r.resolvedAt?`<span class="tag done">Resuelta</span>`:""}
+        ${banned?`<span class="tag acoso">Bloqueado</span>`:""}
+        <span class="muted small">${dt(r.createdAt)}</span></div>
+      <p style="margin:10px 0 0"><b>Denunciado:</b> ${esc(a.phone)} <span class="muted small">· ${a.reports} denuncia${a.reports===1?"":"s"} · última vez ${ago(a.lastSeen)}</span></p>
+      <p class="muted small" style="margin:2px 0 0">Lo denunció ${esc(r.reporterPhone)}</p>
+      ${r.messages&&r.messages.length?`<ul class="msgs">${r.messages.map(m=>`<li>${esc(m)}</li>`).join("")}</ul>`:`<p class="muted small">No adjuntó mensajes.</p>`}
+      <div class="actions">
+        ${banned?`<button class="btn" data-unban="${esc(a.id)}">Desbloquear</button>`:`<button class="btn danger" data-ban="${esc(a.id)}" data-reason="${esc(reasons[r.reason]||r.reason)}">Bloquear cuenta</button>`}
+        ${r.resolvedAt?"":`<button class="btn" data-resolve="${esc(r.id)}">Marcar como revisada</button>`}
+      </div></div>`}).join("");
+}
+
+function renderNews(){
+  const list=data.news||[];
+  return `<div class="card">
+    <p class="note">📣 El aviso llega a <b>todos</b> los usuarios de KLK. Les sale arriba de la lista de chats.</p>
+    <label for="nt">Título</label><input id="nt" maxlength="80" placeholder="Ej.: ¡Nueva versión de KLK!">
+    <label for="nb">Mensaje</label><textarea id="nb" maxlength="1000" placeholder="Escribe aquí lo que quieres contar…"></textarea>
+    <div class="actions"><button class="btn primary" id="send" style="flex:1">Enviar a todos</button></div>
+  </div>
+  <h2>Avisos enviados</h2>
+  <div class="card list">${list.length?list.map(n=>`<div class="item"><div><b>${esc(n.title)}</b><div class="small">${esc(n.body)}</div><div class="muted small">${dt(n.createdAt)}</div></div><button class="btn" data-delnews="${esc(n.id)}">Borrar</button></div>`).join(""):`<div class="empty">Todavía no has enviado ningún aviso.</div>`}</div>`;
+}
+
+function renderBanned(){
+  const list=data.banned||[];
+  return `<div class="card">
+    <label for="bp">Bloquear un número</label>
+    <input id="bp" inputmode="tel" placeholder="+18095551234">
+    <label for="br">Motivo (solo lo ves tú)</label>
+    <input id="br" maxlength="200" placeholder="Ej.: estafa">
+    <div class="actions"><button class="btn danger" id="banPhone" style="flex:1">Bloquear</button></div>
+    <p class="muted small">La persona bloqueada no puede entrar ni enviar mensajes, ni volver a registrarse con ese número.</p>
+  </div>
+  <h2>Cuentas bloqueadas (${list.length})</h2>
+  <div class="card list">${list.length?list.map(a=>`<div class="item"><div><b>${esc(a.phone)}</b><div class="muted small">${esc(a.bannedReason||"sin motivo")} · ${dt(a.bannedAt)} · ${a.reports} denuncia${a.reports===1?"":"s"}</div></div><button class="btn" data-unban="${esc(a.id)}">Desbloquear</button></div>`).join(""):`<div class="empty">No hay nadie bloqueado.</div>`}</div>`;
+}
+
+function renderMoney(){
+  const {stats:s,money:m}=data.stats;
+  return `<div class="grid">
+    <div class="card stat hl"><b>${eur.format(m.totalMonth)}</b><span>gastos este mes (aprox.)</span></div>
+    <div class="card stat"><b>${eur.format(m.incomeMonth)}</b><span>ingresos este mes</span></div>
+  </div>
+  <h2>Gastos</h2>
+  <div class="card"><table class="money">
+    <tr><td>SMS de hoy (${nf.format(s.smsToday)} × ${eur.format(m.smsPrice)})</td><td>${eur.format(m.smsCostToday)}</td></tr>
+    <tr><td>SMS de este mes (${nf.format(s.smsMonth)})</td><td>${eur.format(m.smsCostMonth)}</td></tr>
+    <tr><td>Servidor (Render) al mes</td><td>${eur.format(m.serverCost)}</td></tr>
+    <tr><td><b>Total del mes</b></td><td>${eur.format(m.totalMonth)}</td></tr>
+  </table>
+  <p class="muted small">Los precios se cambian en Render → klk-server → Environment: <b>KLK_SMS_PRICE</b> (cada SMS) y <b>KLK_SERVER_COST</b> (servidor al mes). La factura exacta la ves en Twilio y en Render.</p></div>
+  <h2>SMS enviados (30 días)</h2>
+  <div class="card">${chart(s.smsDaily)}</div>
+  <h2>Ingresos</h2>
+  <div class="card">
+    <table class="money">
+      <tr><td>KLK Plus</td><td>${m.plusActive?"":"próximamente"}</td></tr>
+      <tr><td>Recargas a RD</td><td>próximamente</td></tr>
+    </table>
+    <p class="muted small">Cuando actives KLK Plus o las recargas, aquí verás lo que ganas cada mes.</p>
+  </div>`;
+}
+
+function render(){
+  document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
+  if(!data.stats){$("#main").innerHTML=`<div class="empty">Cargando…</div>`;return}
+  $("#main").innerHTML=({home:renderHome,reports:renderReports,news:renderNews,banned:renderBanned,money:renderMoney})[tab]();
+}
+
+async function act(fn,ok){try{await fn();toast(ok);await loadAll()}catch(e){if(e.message!=="401")toast(e.message)}}
+
+document.addEventListener("click",e=>{
+  const t=e.target.closest("button");if(!t)return;
+  if(t.dataset.tab){tab=t.dataset.tab;render();window.scrollTo(0,0);return}
+  if(t.id==="toggleAll"){showAll=!showAll;loadAll();return}
+  if(t.dataset.ban){
+    if(!confirm("¿Bloquear esta cuenta? No podrá usar KLK."))return;
+    act(()=>api(`accounts/${t.dataset.ban}/ban`,{method:"POST",body:JSON.stringify({reason:t.dataset.reason||""})}),"Cuenta bloqueada");return}
+  if(t.dataset.unban){
+    if(!confirm("¿Desbloquear esta cuenta?"))return;
+    act(()=>api(`accounts/${t.dataset.unban}/unban`,{method:"POST"}),"Cuenta desbloqueada");return}
+  if(t.dataset.resolve){act(()=>api(`reports/${t.dataset.resolve}/resolve`,{method:"POST"}),"Marcada como revisada");return}
+  if(t.dataset.delnews){
+    if(!confirm("¿Borrar este aviso?"))return;
+    act(()=>api(`announcements/${t.dataset.delnews}`,{method:"DELETE"}),"Aviso borrado");return}
+  if(t.id==="send"){
+    const title=$("#nt").value.trim(),body=$("#nb").value.trim();
+    if(!title||!body){toast("Pon un título y un mensaje");return}
+    if(!confirm("¿Enviar este aviso a TODOS los usuarios?"))return;
+    act(()=>api("announcements",{method:"POST",body:JSON.stringify({title,body})}),"Aviso enviado a todos 📣");return}
+  if(t.id==="banPhone"){
+    const phone=$("#bp").value.replace(/\s/g,""),reason=$("#br").value.trim();
+    if(!phone){toast("Escribe el número");return}
+    if(!confirm(`¿Bloquear ${phone}?`))return;
+    act(()=>api("ban-phone",{method:"POST",body:JSON.stringify({phone,reason})}),"Número bloqueado");return}
+});
+$("#enter").onclick=login;
+$("#tok").onkeydown=e=>{if(e.key==="Enter")login()};
+$("#logout").onclick=()=>logout("");
+$("#refresh").onclick=()=>loadAll().then(()=>toast("Actualizado"));
+setInterval(()=>{if(token&&!$("#app").hidden&&document.visibilityState==="visible")loadAll()},60000);
+
+if(token){api("stats").then(s=>{data.stats=s;$("#login").hidden=true;$("#app").hidden=false;render();loadAll()}).catch(()=>{})}
+</script>
+</body>
+</html>

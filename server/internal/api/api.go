@@ -30,7 +30,15 @@ type Server struct {
 	otp   *auth.OTP
 	hub   *relay.Hub
 
-	ipLimits sync.Map // ip -> *rate.Limiter
+	ipLimits    sync.Map // ip -> *rate.Limiter
+	adminLimits sync.Map // ip -> *rate.Limiter (panel)
+	touched  sync.Map // accountID -> time.Time (última vez que se apuntó last_seen)
+
+	// AdminToken abre el panel del dueño (/admin). Vacío = panel desactivado.
+	AdminToken string
+	// Precios para calcular gastos en el panel (en euros).
+	SMSPrice   float64
+	ServerCost float64
 
 	// TrustProxy usa X-Forwarded-For para identificar la IP del cliente.
 	// Actívalo solo detrás de un proxy de confianza (Render, Cloudflare…).
@@ -58,6 +66,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/attachments/{id}", s.authed(s.downloadAttachment))
 
 	mux.HandleFunc("POST /v1/reports", s.authed(s.report))
+	mux.HandleFunc("GET /v1/announcements", s.authed(s.announcements))
+
+	s.adminRoutes(mux)
 
 	mux.HandleFunc("GET /v1/ws", s.authed(s.websocket))
 	return mux
@@ -82,12 +93,27 @@ func (s *Server) authed(next http.HandlerFunc) http.HandlerFunc {
 			writeErr(w, http.StatusUnauthorized, "unauthorized", "token inválido")
 			return
 		}
+		if dev.Banned {
+			writeErr(w, http.StatusForbidden, "banned", "esta cuenta está bloqueada por incumplir las normas de KLK")
+			return
+		}
+		s.touch(r.Context(), dev.AccountID)
 		next(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, dev)))
 	}
 }
 
 // limited aplica un límite por IP a rutas sensibles (SMS, búsqueda de números).
 func (s *Server) limited(next http.HandlerFunc) http.HandlerFunc {
+	return s.limitWith(&s.ipLimits, rate.Every(6*time.Second), 10, next)
+}
+
+// limitedN es un límite más amplio para el panel (varias peticiones por pantalla),
+// que sigue frenando a quien intente adivinar la clave.
+func (s *Server) limitedN(next http.HandlerFunc) http.HandlerFunc {
+	return s.limitWith(&s.adminLimits, rate.Every(time.Second), 30, next)
+}
+
+func (s *Server) limitWith(m *sync.Map, every rate.Limit, burst int, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
@@ -100,7 +126,7 @@ func (s *Server) limited(next http.HandlerFunc) http.HandlerFunc {
 				ip = strings.TrimSpace(parts[len(parts)-1])
 			}
 		}
-		l, _ := s.ipLimits.LoadOrStore(ip, rate.NewLimiter(rate.Every(6*time.Second), 10))
+		l, _ := m.LoadOrStore(ip, rate.NewLimiter(every, burst))
 		if !l.(*rate.Limiter).Allow() {
 			writeErr(w, http.StatusTooManyRequests, "rate_limited", "demasiadas peticiones, prueba en un momento")
 			return
@@ -118,6 +144,10 @@ func (s *Server) requestCode(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) {
 		return
 	}
+	if banned, err := s.store.PhoneBanned(r.Context(), req.Phone); err == nil && banned {
+		writeErr(w, http.StatusForbidden, "banned", "este número está bloqueado por incumplir las normas de KLK")
+		return
+	}
 	switch err := s.otp.Request(req.Phone); {
 	case errors.Is(err, auth.ErrInvalidPhone):
 		writeErr(w, http.StatusBadRequest, "invalid_phone", err.Error())
@@ -127,6 +157,9 @@ func (s *Server) requestCode(w http.ResponseWriter, r *http.Request) {
 		slog.Error("enviando SMS", "err", err)
 		writeErr(w, http.StatusBadGateway, "sms_failed", "no se pudo enviar el SMS")
 	default:
+		if err := s.store.LogSMS(r.Context(), store.CountryOf(req.Phone), time.Now()); err != nil {
+			slog.Warn("contando SMS", "err", err)
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -150,6 +183,10 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "bad_code", err.Error())
 		return
 	}
+	if banned, err := s.store.PhoneBanned(r.Context(), req.Phone); err == nil && banned {
+		writeErr(w, http.StatusForbidden, "banned", "este número está bloqueado por incumplir las normas de KLK")
+		return
+	}
 	token, hash, err := auth.NewToken()
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
@@ -164,6 +201,7 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return
 	}
+	s.touch(r.Context(), dev.AccountID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"accountId": dev.AccountID, "deviceId": dev.DeviceID, "token": token,
 	})

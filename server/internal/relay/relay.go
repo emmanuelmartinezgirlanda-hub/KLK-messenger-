@@ -360,3 +360,31 @@ func (h *Hub) Online(accountID string, deviceID int) bool {
 	_, ok := h.conns[devKey{accountID, deviceID}]
 	return ok
 }
+
+// OnlineCount dice cuántos dispositivos están conectados ahora mismo.
+func (h *Hub) OnlineCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.conns)
+}
+
+// Kick cierra las conexiones de una cuenta (p. ej. al bloquearla).
+func (h *Hub) Kick(accountID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for k, c := range h.conns {
+		if k.acc == accountID {
+			c.close()
+		}
+	}
+}
+
+// Broadcast manda un frame a todos los dispositivos conectados.
+func (h *Hub) Broadcast(v any) {
+	b := mustJSON(v)
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for _, c := range h.conns {
+		c.enqueue(b)
+	}
+}

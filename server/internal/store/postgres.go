@@ -37,7 +37,7 @@ func (p *Postgres) Close() { p.pool.Close() }
 
 // Reset vacía todas las tablas. Solo para tests.
 func (p *Postgres) Reset(ctx context.Context) error {
-	_, err := p.pool.Exec(ctx, `TRUNCATE accounts, devices, signed_prekeys, one_time_prekeys, envelopes, attachments, reports CASCADE`)
+	_, err := p.pool.Exec(ctx, `TRUNCATE accounts, devices, signed_prekeys, one_time_prekeys, envelopes, attachments, reports, announcements, sms_events CASCADE`)
 	return err
 }
 
@@ -92,9 +92,10 @@ func (p *Postgres) RegisterPrimary(ctx context.Context, r RegisterParams) (Devic
 func (p *Postgres) DeviceByTokenHash(ctx context.Context, h []byte) (Device, error) {
 	var d Device
 	err := p.pool.QueryRow(ctx, `
-		SELECT account_id::text, device_id, name, registration_id, identity_key
-		FROM devices WHERE token_hash = $1`, h).
-		Scan(&d.AccountID, &d.DeviceID, &d.Name, &d.RegistrationID, &d.IdentityKey)
+		SELECT d.account_id::text, d.device_id, d.name, d.registration_id, d.identity_key,
+		       a.banned_at IS NOT NULL
+		FROM devices d JOIN accounts a ON a.id = d.account_id WHERE d.token_hash = $1`, h).
+		Scan(&d.AccountID, &d.DeviceID, &d.Name, &d.RegistrationID, &d.IdentityKey, &d.Banned)
 	return d, notFound(err)
 }
 

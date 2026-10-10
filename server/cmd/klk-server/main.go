@@ -5,6 +5,9 @@
 //	KLK_ADDR       dirección de escucha (por defecto :8080)
 //	DATABASE_URL   Postgres, p. ej. postgres://klk:klk@localhost:5432/klk
 //	               Si está vacía se usa un almacén en memoria (solo desarrollo).
+//	KLK_ADMIN_TOKEN  clave del panel del dueño (/admin). Vacía = panel apagado.
+//	KLK_SMS_PRICE    precio de cada SMS en euros, para el panel (por defecto 0.08)
+//	KLK_SERVER_COST  coste mensual del servidor en euros, para el panel (por defecto 0)
 package main
 
 import (
@@ -14,6 +17,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -83,6 +88,14 @@ func main() {
 
 	apiServer := api.New(st, otp, hub)
 	apiServer.TrustProxy = os.Getenv("KLK_TRUST_PROXY") == "1"
+	apiServer.AdminToken = os.Getenv("KLK_ADMIN_TOKEN")
+	apiServer.SMSPrice = envFloat("KLK_SMS_PRICE", 0.08)
+	apiServer.ServerCost = envFloat("KLK_SERVER_COST", 0)
+	if apiServer.AdminToken == "" {
+		slog.Warn("sin KLK_ADMIN_TOKEN: el panel del dueño (/admin) está desactivado")
+	} else if len(apiServer.AdminToken) < 16 {
+		slog.Warn("KLK_ADMIN_TOKEN es demasiado corta (mínimo 16 caracteres): panel desactivado")
+	}
 
 	// Render, Railway, Fly… indican el puerto en $PORT.
 	addr := os.Getenv("KLK_ADDR")
@@ -127,6 +140,13 @@ func purgeAttachments(ctx context.Context, st store.Store) {
 		case <-t.C:
 		}
 	}
+}
+
+func envFloat(k string, def float64) float64 {
+	if v, err := strconv.ParseFloat(strings.ReplaceAll(os.Getenv(k), ",", "."), 64); err == nil && v >= 0 {
+		return v
+	}
+	return def
 }
 
 func envOr(k, def string) string {
