@@ -233,7 +233,8 @@ class ChatWallpaper extends ConsumerWidget {
       base = CustomPaint(painter: _WallpaperPainter(id));
     }
 
-    final amount = !dim ? 0.0 : (dimAmount ?? ref.watch(wallpaperDimProvider));
+    final double saved = ref.watch(wallpaperDimProvider);
+    final double amount = dim ? (dimAmount ?? saved) : 0.0;
     if (amount <= 0) return base;
     return Stack(fit: StackFit.expand, children: [
       base,
