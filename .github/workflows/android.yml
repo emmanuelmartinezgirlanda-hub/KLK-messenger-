@@ -1,0 +1,79 @@
+# Compila KLK messenger para Android (.apk) y lo publica en Releases con la etiqueta "android".
+# Enlace directo: https://github.com/<usuario>/<repo>/releases/download/android/KLK-messenger.apk
+name: KLK messenger para Android
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "server/**"
+      - "render.yaml"
+      - "ingles/**"
+      - ".github/workflows/ingles.yml"
+      - ".github/workflows/ios.yml"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-build
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Preparar carpetas nativas
+        shell: bash
+        run: |
+          flutter --version
+          bash tool/prepare_native.sh
+
+      - name: Compilar APK
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build apk --release --build-number=${{ github.run_number }} 2>&1 | tee build.log
+
+      - name: Resumen del error (si falla)
+        if: failure()
+        shell: bash
+        run: |
+          [ -f build.log ] || exit 0
+          grep -n -i -E "error|exception|failed|not found|What went wrong" build.log | head -60 > errs.txt || true
+          tail -50 build.log > tail.txt
+          msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' errs.txt)
+          echo "::error title=Errores::${msg}"
+          msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' tail.txt)
+          echo "::error title=Final::${msg}"
+
+      - name: Renombrar
+        run: cp build/app/outputs/flutter-apk/app-release.apk KLK-messenger.apk && ls -la KLK-messenger.apk
+
+      - name: Publicar en Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android
+          name: KLK messenger para Android
+          body: |
+            Descarga **KLK-messenger.apk** en el móvil Android, ábrelo y toca "Instalar".
+            Enlace directo:
+            https://github.com/${{ github.repository }}/releases/download/android/KLK-messenger.apk
+          files: KLK-messenger.apk
+          make_latest: false
+          overwrite_files: true
