@@ -22,6 +22,8 @@ type Memory struct {
 	attach    map[string]memAttachment
 	reports   []Report
 	admin     *memAdmin
+
+	communities map[string]map[string]bool // comunidad -> cuentas
 }
 
 type memAttachment struct {

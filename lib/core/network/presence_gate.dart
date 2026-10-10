@@ -16,6 +16,7 @@ class PresenceGate {
   bool canSendReadReceipt() => !s.hideReadReceipts;
   bool canSendTyping() => !s.hideTyping;
   bool canSendRecording() => !s.hideRecording;
+  bool canSendDelivered() => !s.hideDelivered;
 
   bool canShareLastSeenWith({required bool isContact}) => switch (s.lastSeen) {
         Audience.todos => true,

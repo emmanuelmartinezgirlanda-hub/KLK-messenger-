@@ -24,7 +24,9 @@ import '../../core/network/presence_gate.dart';
 import '../../core/notify/alerts.dart';
 import '../../core/security/secure_store.dart';
 import '../../core/util/phone.dart';
+import '../privacy/domain/privacy_settings.dart';
 import '../privacy/presentation/privacy_provider.dart';
+import '../communities/community.dart';
 import 'demo_data.dart';
 import 'models.dart';
 
@@ -153,7 +155,45 @@ class AppController extends ChangeNotifier {
   bool isRecording(String chatId) => (_recordingUntil[chatId]?.isAfter(DateTime.now())) ?? false;
 
   /// Chats de la lista principal (sin los ocultos).
-  List<Chat> get visibleChats => chats.where((c) => !c.hidden).toList();
+  /// Chats visibles; los fijados van arriba (en el orden en que se fijaron).
+  List<Chat> get visibleChats {
+    final list = chats.where((c) => !c.hidden).toList();
+    if (pinnedChats.isEmpty) return list;
+    final pinned = [for (final id in pinnedChats) ...list.where((c) => c.id == id)];
+    return [...pinned, ...list.where((c) => !pinnedChats.contains(c.id))];
+  }
+
+  // ---------- Chats fijados y marcar como leído ----------
+
+  /// Ids de los chats fijados arriba (sin límite).
+  List<String> pinnedChats = [];
+  static const _pinnedChatsKey = 'klk.pinnedChats';
+
+  bool isPinnedChat(String chatId) => pinnedChats.contains(chatId);
+
+  Future<void> _loadPinnedChats() async {
+    try {
+      final raw = await _store.read(_pinnedChatsKey);
+      if (raw != null) pinnedChats = (jsonDecode(raw) as List).cast<String>();
+    } catch (_) {}
+  }
+
+  Future<void> togglePinChat(String chatId) async {
+    pinnedChats = isPinnedChat(chatId)
+        ? pinnedChats.where((id) => id != chatId).toList()
+        : [chatId, ...pinnedChats];
+    notifyListeners();
+    try {
+      await _store.write(_pinnedChatsKey, jsonEncode(pinnedChats));
+    } catch (_) {}
+  }
+
+  /// Marca un chat como leído sin abrirlo (manda el doble check azul si lo tienes activado).
+  Future<void> markChatRead(String chatId) async {
+    await _db!.clearUnread(chatId);
+    await _sendReadReceipts(chatId);
+    await _refresh();
+  }
   List<Chat> get hiddenChats => chats.where((c) => c.hidden).toList();
 
   /// Mis contactos individuales (para crear grupos y enviar estados).
@@ -195,6 +235,8 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _openSession() async {
+    unawaited(_loadLastSeen());
+    await _loadPinnedChats();
     _db = await LocalDb.open(await _store.databaseKey());
     final savedProfile = await _store.read(_profileKey);
     if (savedProfile != null) profile = Profile.fromJson(jsonDecode(savedProfile) as Map<String, dynamic>);
@@ -243,10 +285,12 @@ class AppController extends ChangeNotifier {
 
   /// La app vuelve a primer plano: iOS cierra los sockets en segundo plano.
   void onResume() {
+    _foreground = true;
     if (phase == AppPhase.ready && !isDemo && !online) {
       _backoff = 1;
       unawaited(_connect());
     }
+    unawaited(_announcePresence());
   }
 
   // ---------- Registro ----------
@@ -413,6 +457,9 @@ class AppController extends ChangeNotifier {
       // De un contacto bloqueado no se acepta nada (ni mensajes, ni llamadas, ni estados).
       if (g == null && (direct?.blocked ?? false)) return;
 
+      // Comunidad a la que no pertenezco (me salí hace poco): no se acepta nada
+      if (g != null && isCommunityChat(g['id'] as String? ?? '') && await db.chat(g['id'] as String) == null) return;
+
       // Chat de destino: el grupo o el chat individual
       final chatId = g == null ? from : await _ensureGroup(g, from, identity);
       final senderName = g == null ? '' : _nameOf(from, g);
@@ -420,6 +467,21 @@ class AppController extends ChangeNotifier {
       switch (p.kind) {
         case 'text':
           await _receiveText(p, f, from: from, chatId: chatId, senderName: senderName, isGroup: g != null);
+        case 'presence?':
+          if (g == null) {
+            _presenceWatchers[from] = DateTime.now();
+            await _sendPresence(from);
+          }
+        case 'presence':
+          if (g == null) {
+            final e = p.exp;
+            presence[from] = Presence(
+              online: p.on == true,
+              lastSeen: e == null ? null : DateTime.fromMillisecondsSinceEpoch(e * 1000),
+              at: DateTime.now(),
+            );
+            notifyListeners();
+          }
         case 'typing' || 'recording':
           {
             final target = p.kind == 'typing' ? _typingUntil : _recordingUntil;
@@ -568,7 +630,9 @@ class AppController extends ChangeNotifier {
     await _alert(chatId, msg);
     // Confirmaciones solo en chats individuales
     if (!isGroup) {
-      await _sendEncrypted(from, Payload(kind: 'delivered', ids: [id]), ref: 'x-${_uuid.v4()}');
+      if (_gate.canSendDelivered()) {
+        await _sendEncrypted(from, Payload(kind: 'delivered', ids: [id]), ref: 'x-${_uuid.v4()}');
+      }
       if (openChatId == chatId) await _sendReadReceipts(chatId);
     }
   }
@@ -667,7 +731,8 @@ class AppController extends ChangeNotifier {
         updatedAt: DateTime.now(),
       ));
     } else {
-      await db.upsertChat(existing.copyWith(title: title, members: members));
+      // En las comunidades el nombre es fijo (el mío), solo se actualizan los miembros
+      await db.upsertChat(isCommunityChat(id) ? existing.copyWith(members: members) : existing.copyWith(title: title, members: members));
     }
     return id;
   }
@@ -679,7 +744,8 @@ class AppController extends ChangeNotifier {
       final m = (e as Map).cast<String, dynamic>();
       if (m['id'] == accountId) {
         final n = (m['n'] as String?) ?? '';
-        return n.isNotEmpty ? n : prettyPhone((m['p'] as String?) ?? '');
+        final p = (m['p'] as String?) ?? '';
+        return n.isNotEmpty ? n : (p.isEmpty ? 'Miembro' : prettyPhone(p));
       }
     }
     return 'Alguien';
@@ -715,10 +781,15 @@ class AppController extends ChangeNotifier {
   /// Envía a un chat individual o a cada miembro de un grupo.
   Future<void> _sendToChat(String chatId, Payload p,
       {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
-    final chat = await _db!.chat(chatId);
+    var chat = await _db!.chat(chatId);
     if (chat == null) throw StateError('Chat no encontrado');
     if (!chat.isGroup) {
       return _sendEncrypted(chatId, p, ref: ref, deliverAt: deliverAt, ephemeral: ephemeral);
+    }
+    final community = isCommunityChat(chat.id);
+    if (community && !ephemeral) {
+      await _syncCommunityMembers(chat.id);
+      chat = await _db!.chat(chatId) ?? chat;
     }
     final members = await _membersWithKeys(chat);
     final withGroup = Payload(
@@ -726,7 +797,8 @@ class AppController extends ChangeNotifier {
       id: p.id,
       text: p.text,
       on: p.on,
-      senderPhone: session?.phone,
+      // En las comunidades no se envía el número de teléfono
+      senderPhone: community ? null : session?.phone,
       media: p.media,
       reply: p.reply,
       exp: p.exp,
@@ -747,7 +819,8 @@ class AppController extends ChangeNotifier {
         'id': chat.id,
         'n': chat.title,
         'm': [
-          GroupMember(id: myId, phone: session?.phone ?? '', name: profile.name).toJson(withKey: false),
+          GroupMember(id: myId, phone: isCommunityChat(chat.id) ? '' : (session?.phone ?? ''), name: profile.name)
+              .toJson(withKey: false),
           for (final m in members) m.toJson(withKey: false),
         ],
       };
@@ -1309,6 +1382,14 @@ class AppController extends ChangeNotifier {
   /// Elimina un contacto: su chat y todos los mensajes desaparecen de este móvil.
   /// (Como en WhatsApp, no se le avisa. Si vuelve a escribir, aparecerá como contacto nuevo.)
   Future<void> deleteContact(String chatId) async {
+    // Borrar el chat de una comunidad es salirse de ella
+    if (isCommunityChat(chatId) && !isDemo && _api != null) {
+      try {
+        await _api!.leaveCommunity(chatId.substring('community:'.length));
+      } catch (_) {}
+      final code = chatId.substring('community:'.length);
+      communities = [for (final c in communities) c.id == code ? c.copyWith(joined: false) : c];
+    }
     if (openChatId == chatId) openChatId = null;
     _messages.remove(chatId);
     await _db!.deleteChatWithMessages(chatId);
@@ -1336,6 +1417,95 @@ class AppController extends ChangeNotifier {
   // ---------- Grupos ----------
 
   /// Crea un grupo con mis contactos y avisa a los miembros.
+  // ---------- Comunidades por país ----------
+
+  List<Community> communities = const [];
+  bool communitiesLoading = false;
+  String? communitiesError;
+  final Map<String, DateTime> _communitySynced = {};
+
+  /// Carga la lista de comunidades con los miembros reales (del servidor).
+  Future<void> loadCommunities() async {
+    communitiesLoading = true;
+    communitiesError = null;
+    notifyListeners();
+    try {
+      if (isDemo || _api == null) {
+        final joined = {for (final c in chats.where((c) => isCommunityChat(c.id))) c.id};
+        communities = [
+          for (final c in demoCommunities)
+            c.copyWith(joined: joined.contains(c.chatId), members: joined.contains(c.chatId) ? 1 : 0),
+        ];
+      } else {
+        communities = [for (final j in await _api!.communities()) Community.fromJson(j)];
+      }
+    } catch (e) {
+      communitiesError = e.toString();
+    } finally {
+      communitiesLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Unirme o salirme de una comunidad. Al unirme aparece su chat en mi lista.
+  Future<void> setCommunityJoined(Community c, bool join) async {
+    if (!isDemo && _api != null) {
+      if (join) {
+        await _api!.joinCommunity(c.id);
+      } else {
+        await _api!.leaveCommunity(c.id);
+      }
+    }
+    if (join) {
+      final existing = await _db!.chat(c.chatId);
+      await _db!.upsertChat(existing?.copyWith(title: c.title) ??
+          Chat(id: c.chatId, title: c.title, isGroup: true, members: const [], updatedAt: DateTime.now()));
+      if (existing == null) {
+        await _system(c.chatId,
+            '${c.flag} Te uniste a la comunidad. Lo que escribas aquí lo verán todos sus miembros; tu número no se muestra.');
+      }
+      _communitySynced.remove(c.chatId);
+      unawaited(_syncCommunityMembers(c.chatId));
+    } else {
+      _messages.remove(c.chatId);
+      await _db!.deleteChatWithMessages(c.chatId);
+    }
+    communities = [
+      for (final x in communities)
+        x.id == c.id ? x.copyWith(joined: join, members: (x.members + (join ? 1 : -1)).clamp(0, 1 << 30).toInt()) : x,
+    ];
+    await _reloadChats();
+  }
+
+  /// Unirme a todas las comunidades de golpe.
+  Future<void> joinAllCommunities() async {
+    for (final c in communities.where((c) => !c.joined).toList()) {
+      await setCommunityJoined(c, true);
+    }
+    await loadCommunities();
+  }
+
+  /// Pide al servidor los miembros actuales (como mucho cada 30 s) antes de enviar.
+  Future<void> _syncCommunityMembers(String chatId, {bool force = false}) async {
+    if (isDemo || _api == null) return;
+    final last = _communitySynced[chatId];
+    if (!force && last != null && DateTime.now().difference(last).inSeconds < 30) return;
+    try {
+      final ids = await _api!.communityMembers(chatId.substring('community:'.length));
+      final chat = await _db!.chat(chatId);
+      if (chat == null) return;
+      final known = {for (final m in chat.members) m.id: m};
+      final members = [
+        for (final id in ids)
+          if (id != myId) known[id] ?? GroupMember(id: id, phone: '', name: ''),
+      ];
+      await _db!.upsertChat(chat.copyWith(members: members));
+      _communitySynced[chatId] = DateTime.now();
+    } catch (e) {
+      debugPrint('Miembros de la comunidad: $e');
+    }
+  }
+
   Future<String> createGroup(String name, List<Chat> contacts) async {
     final id = 'g-${_uuid.v4()}';
     final members = [
@@ -1549,6 +1719,82 @@ class AppController extends ChangeNotifier {
   }
 
   /// Avisa de que estoy escribiendo, si la privacidad lo permite.
+  // ---------- En línea y última conexión ----------
+
+  /// Lo que me contó cada contacto de su presencia.
+  final Map<String, Presence> presence = {};
+  final Map<String, DateTime> _presenceWatchers = {}; // quién me preguntó hace poco
+  bool _foreground = true;
+  DateTime? _myLastSeen;
+  static const _lastSeenKey = 'klk.lastSeen';
+
+  PrivacySettings get _privacy => _ref.read(privacyProvider);
+
+  /// Mi última conexión real (la última vez que salí de KLK).
+  DateTime? get myLastSeen => _myLastSeen;
+
+  /// ¿Comparto mi presencia con este chat? (Privacidad → Última conexión)
+  bool _sharesPresenceWith(String chatId) {
+    final c = chatById(chatId);
+    if (c == null || c.isGroup || c.blocked) return false;
+    final saved = c.title != 'Contacto nuevo' && c.title != prettyPhone(c.phone);
+    return _gate.canShareLastSeenWith(isContact: saved);
+  }
+
+  Payload _myPresence() {
+    final p = _privacy;
+    final frozen = p.frozenLastSeen;
+    final isOnline = _foreground && online && !p.hideOnline && frozen == null;
+    final seen = frozen ?? (isOnline ? null : (_myLastSeen ?? DateTime.now()));
+    return Payload(kind: 'presence', on: isOnline, exp: seen == null ? null : seen.millisecondsSinceEpoch ~/ 1000);
+  }
+
+  Future<void> _sendPresence(String chatId) async {
+    if (isDemo || !_sharesPresenceWith(chatId)) return;
+    try {
+      await _sendEncrypted(chatId, _myPresence(), ref: 'x-presence', ephemeral: true);
+    } catch (_) {}
+  }
+
+  /// La pantalla del chat lo llama al abrirse y cada 20 s: pregunta si el otro está en línea.
+  Future<void> watchPresence(String chatId) async {
+    final c = chatById(chatId);
+    if (c == null || c.isGroup || c.blocked) return;
+    // Reciprocidad, como WhatsApp: si no enseñas tu última conexión, no ves la de los demás
+    if (!_privacy.canSeeOthersLastSeen) return;
+    if (isDemo) {
+      presence[chatId] = Presence(online: true, at: DateTime.now());
+      notifyListeners();
+      return;
+    }
+    try {
+      await _sendEncrypted(chatId, const Payload(kind: 'presence?'), ref: 'x-presence', ephemeral: true);
+    } catch (_) {}
+  }
+
+  Future<void> _announcePresence() async {
+    final now = DateTime.now();
+    _presenceWatchers.removeWhere((_, t) => now.difference(t).inMinutes > 3);
+    final targets = {..._presenceWatchers.keys, if (openChatId != null) openChatId!};
+    for (final id in targets) {
+      await _sendPresence(id);
+    }
+  }
+
+  /// KLK pasa a segundo plano: mi última conexión es ahora.
+  void onPause() {
+    _foreground = false;
+    _myLastSeen = DateTime.now();
+    unawaited(_store.write(_lastSeenKey, _myLastSeen!.toIso8601String()).catchError((_) {}));
+    unawaited(_announcePresence());
+  }
+
+  Future<void> _loadLastSeen() async {
+    try {
+      _myLastSeen = DateTime.tryParse(await _store.read(_lastSeenKey) ?? '');
+    } catch (_) {}
+  }
+
   Future<void> setTyping(String chatId, bool on) async {
     if (isDemo || !_gate.canSendTyping()) return;
     final now = DateTime.now();

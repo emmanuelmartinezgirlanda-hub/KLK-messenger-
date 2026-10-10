@@ -13,6 +13,10 @@ class PrivacySettings {
   final bool hideRecording; // "grabando audio..."
   final bool allowStorySaving; // ¿otros pueden guardar mis estados?
   final bool appLock; // bloqueo con PIN / biometría
+  final bool hideOnline; // no mostrar "en línea" aunque tenga KLK abierto
+  final bool hideDelivered; // no enviar el segundo check gris (entregado)
+  final DateTime? frozenLastSeen; // última conexión congelada (null = no congelada)
+  final bool confirmCalls; // preguntar antes de llamar
 
   const PrivacySettings({
     this.lastSeen = Audience.contactos,
@@ -21,7 +25,13 @@ class PrivacySettings {
     this.hideRecording = false,
     this.allowStorySaving = false,
     this.appLock = false,
+    this.hideOnline = false,
+    this.hideDelivered = false,
+    this.frozenLastSeen,
+    this.confirmCalls = true,
   });
+
+  bool get lastSeenFrozen => frozenLastSeen != null;
 
   /// Reciprocidad: si ocultas tus confirmaciones de lectura,
   /// tampoco ves las de los demás. Justo para todos.
@@ -35,6 +45,11 @@ class PrivacySettings {
     bool? hideRecording,
     bool? allowStorySaving,
     bool? appLock,
+    bool? hideOnline,
+    bool? hideDelivered,
+    DateTime? frozenLastSeen,
+    bool unfreeze = false,
+    bool? confirmCalls,
   }) =>
       PrivacySettings(
         lastSeen: lastSeen ?? this.lastSeen,
@@ -43,6 +58,10 @@ class PrivacySettings {
         hideRecording: hideRecording ?? this.hideRecording,
         allowStorySaving: allowStorySaving ?? this.allowStorySaving,
         appLock: appLock ?? this.appLock,
+        hideOnline: hideOnline ?? this.hideOnline,
+        hideDelivered: hideDelivered ?? this.hideDelivered,
+        frozenLastSeen: unfreeze ? null : (frozenLastSeen ?? this.frozenLastSeen),
+        confirmCalls: confirmCalls ?? this.confirmCalls,
       );
 
   Map<String, dynamic> toJson() => {
@@ -52,6 +71,10 @@ class PrivacySettings {
         'hideRecording': hideRecording,
         'allowStorySaving': allowStorySaving,
         'appLock': appLock,
+        'hideOnline': hideOnline,
+        'hideDelivered': hideDelivered,
+        if (frozenLastSeen != null) 'frozenLastSeen': frozenLastSeen!.toIso8601String(),
+        'confirmCalls': confirmCalls,
       };
 
   factory PrivacySettings.fromJson(Map<String, dynamic> j) => PrivacySettings(
@@ -61,6 +84,10 @@ class PrivacySettings {
         hideRecording: j['hideRecording'] as bool? ?? false,
         allowStorySaving: j['allowStorySaving'] as bool? ?? false,
         appLock: j['appLock'] as bool? ?? false,
+        hideOnline: j['hideOnline'] as bool? ?? false,
+        hideDelivered: j['hideDelivered'] as bool? ?? false,
+        frozenLastSeen: DateTime.tryParse(j['frozenLastSeen'] as String? ?? ''),
+        confirmCalls: j['confirmCalls'] as bool? ?? true,
       );
 
   String encode() => jsonEncode(toJson());

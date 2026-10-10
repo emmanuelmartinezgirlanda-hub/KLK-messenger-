@@ -14,6 +14,7 @@ import '../theming/presentation/theme_picker_screen.dart';
 import '../theming/presentation/theme_provider.dart';
 import '../theming/wallpapers.dart';
 import '../../core/security/secure_store.dart';
+import '../home/tabs_provider.dart';
 import 'backup_screen.dart';
 import 'notifications_screen.dart';
 import 'translator_settings_screen.dart';
@@ -21,6 +22,11 @@ import '../../core/translate/translator.dart';
 
 class SettingsView extends ConsumerWidget {
   const SettingsView({super.key});
+
+  static String _tabsLabel(HiddenTabs t) {
+    final off = [if (t.status) 'Estados', if (t.communities) 'Comunidades'];
+    return off.isEmpty ? 'Todas visibles' : 'Ocultas: ${off.join(' y ')}';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -82,6 +88,36 @@ class SettingsView extends ConsumerWidget {
           subtitle: Text('${wallpaperName(ref.watch(wallpaperProvider))} · ilustraciones, colores o tu foto'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => showWallpaperPicker(context),
+        ),
+        ListTile(
+          leading: const Icon(Icons.view_week_outlined),
+          title: const Text('Pestañas'),
+          subtitle: Text(_tabsLabel(ref.watch(hiddenTabsProvider))),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (ctx) => Consumer(builder: (ctx, ref, _) {
+              final t = ref.watch(hiddenTabsProvider);
+              final n = ref.read(hiddenTabsProvider.notifier);
+              return AlertDialog(
+                title: const Text('Pestañas que ves abajo'),
+                contentPadding: const EdgeInsets.only(top: 12),
+                content: Column(mainAxisSize: MainAxisSize.min, children: [
+                  SwitchListTile(
+                    title: const Text('Estados'),
+                    value: !t.status,
+                    onChanged: (v) => n.set(HiddenTabs(status: !v, communities: t.communities)),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Comunidades'),
+                    value: !t.communities,
+                    onChanged: (v) => n.set(HiddenTabs(status: t.status, communities: !v)),
+                  ),
+                ]),
+                actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Listo'))],
+              );
+            }),
+          ),
         ),
         ListTile(
           leading: const Icon(Icons.lock_outline),

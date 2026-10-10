@@ -14,6 +14,7 @@ import '../messaging/models.dart';
 import '../settings/settings_view.dart';
 import '../status/status_views.dart';
 import '../theming/presentation/theme_picker_screen.dart';
+import 'tabs_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -87,6 +88,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (app.banned) return const _BannedScreen();
 
     final unreadChats = app.visibleChats.where((c) => c.unread > 0).length;
+    // Pestañas visibles (0 Chats, 1 Estados, 2 Comunidades, 3 Ajustes)
+    final hidden = ref.watch(hiddenTabsProvider);
+    final visible = [0, if (!hidden.status) 1, if (!hidden.communities) 2, 3];
+    if (!visible.contains(_tab)) _tab = 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -159,10 +164,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bottomNavigationBar: DecoratedBox(
         decoration: BoxDecoration(border: Border(top: BorderSide(color: cs.onSurface.withValues(alpha: 0.08)))),
         child: NavigationBar(
-          selectedIndex: _tab,
-          onDestinationSelected: (i) => setState(() => _tab = i),
+          selectedIndex: visible.indexOf(_tab),
+          onDestinationSelected: (i) => setState(() => _tab = visible[i]),
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           destinations: [
+            for (final (k, d) in <NavigationDestination>[
             NavigationDestination(
               icon: Badge(
                 isLabelVisible: unreadChats > 0,
@@ -184,6 +190,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'Comunidades'),
             const NavigationDestination(
                 icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Ajustes'),
+            ].indexed)
+              if (visible.contains(k)) d,
           ],
         ),
       ),

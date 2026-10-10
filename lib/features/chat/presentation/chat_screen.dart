@@ -47,6 +47,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final AppController _app;
   Timer? _typingOff;
   Timer? _clock;
+  Timer? _presenceTimer;
   int _lastCount = 0;
   Message? _replyTo; // mensaje al que respondo
 
@@ -60,6 +61,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Nota de voz
   final _recorder = AudioRecorder();
   bool _recording = false;
+  String? _voicePreview; // nota de voz grabada, para escucharla antes de enviarla
+  int _voicePreviewMs = 0;
   DateTime? _recStart;
   Timer? _recTimer;
 
@@ -74,12 +77,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
+    // ¿Está en línea? Se pregunta al abrir y cada 20 s mientras el chat está abierto.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _app.watchPresence(widget.chatId));
+    _presenceTimer = Timer.periodic(const Duration(seconds: 20), (_) => _app.watchPresence(widget.chatId));
   }
 
   @override
   void dispose() {
     _typingOff?.cancel();
     _clock?.cancel();
+    _presenceTimer?.cancel();
     _recTimer?.cancel();
     if (_recording) {
       _recorder.stop();
@@ -362,6 +369,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Antes de llamar, si allá es de madrugada, pregunta.
   Future<void> _call(Chat? chat, {required bool video}) async {
     final zone = chat == null ? null : zoneForPhone(chat.phone);
+    final lateThere = zone != null && (nowIn(zone.zone).hour >= 23 || nowIn(zone.zone).hour < 7);
+    // Confirmar antes de llamar (Privacidad → Llamadas), salvo que ya se pregunte por la hora
+    if (!lateThere && ref.read(privacyProvider).confirmCalls) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: Icon(video ? Icons.videocam_outlined : Icons.call_outlined),
+          title: Text(video ? '¿Videollamada a ${chat?.title ?? ''}?' : '¿Llamar a ${chat?.title ?? ''}?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Llamar')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
     if (zone != null) {
       final there = nowIn(zone.zone);
       if (there.hour >= 23 || there.hour < 7) {
@@ -466,13 +489,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _app.setRecording(widget.chatId, true);
   }
 
-  Future<void> _stopRecording({required bool send}) async {
+  Future<void> _stopRecording({required bool send, bool preview = false}) async {
     _recTimer?.cancel();
     final path = await _recorder.stop();
     final dur = DateTime.now().difference(_recStart ?? DateTime.now());
     setState(() => _recording = false);
     _app.setRecording(widget.chatId, false);
     if (path == null) return;
+    if (preview && dur.inMilliseconds >= 800) {
+      // Escucharla antes de enviarla
+      setState(() {
+        _voicePreview = path;
+        _voicePreviewMs = dur.inMilliseconds;
+      });
+      return;
+    }
     if (!send || dur.inMilliseconds < 800) {
       try {
         await File(path).delete();
@@ -488,6 +519,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       size: await File(path).length(),
     ));
   }
+
+  Future<void> _finishVoicePreview({required bool send}) async {
+    final path = _voicePreview;
+    final ms = _voicePreviewMs;
+    setState(() => _voicePreview = null);
+    if (path == null) return;
+    if (!send) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+      return;
+    }
+    await _sendMedia(MessageMedia(
+      type: MediaType.audio,
+      localPath: path,
+      mime: 'audio/mp4',
+      durationMs: ms,
+      size: await File(path).length(),
+    ));
+  }
+
+  Widget _voicePreviewBar(ColorScheme cs) => Row(children: [
+        IconButton(
+          tooltip: 'Borrar nota de voz',
+          onPressed: () => _finishVoicePreview(send: false),
+          icon: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A), size: 28),
+        ),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(24)),
+            child: VoiceNotePlayer(
+              key: ValueKey(_voicePreview),
+              path: _voicePreview!,
+              fg: cs.onSurface,
+              durationMs: _voicePreviewMs,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        IconButton.filled(
+          tooltip: 'Enviar nota de voz',
+          onPressed: () => _finishVoicePreview(send: true),
+          icon: const Icon(Icons.send),
+        ),
+      ]);
 
   // ---------- Acciones sobre un mensaje ----------
 
@@ -558,6 +635,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 Clipboard.setData(ClipboardData(text: m.body));
                 Navigator.pop(ctx);
                 _snack('Copiado');
+              },
+            ),
+          if (m.body.length > 20 && !m.deleted)
+            ListTile(
+              leading: const Icon(Icons.text_fields),
+              title: const Text('Seleccionar texto'),
+              subtitle: const Text('Para copiar solo una parte'),
+              onTap: () {
+                Navigator.pop(ctx);
+                showDialog<void>(
+                  context: context,
+                  builder: (d) => AlertDialog(
+                    title: const Text('Selecciona lo que quieras copiar'),
+                    content: SingleChildScrollView(
+                      child: SelectableText(m.body, style: const TextStyle(fontSize: 16)),
+                    ),
+                    actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cerrar'))],
+                  ),
+                );
               },
             ),
           if (!m.deleted)
@@ -741,14 +837,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final title = chat?.title ?? '';
     final zone = chat == null ? null : zoneForPhone(chat.phone);
+    final seen = (chat?.isGroup ?? true) ? null : presenceLabel(app.presence[widget.chatId], DateTime.now());
     final status = recording
         ? 'grabando audio…'
         : typing
             ? 'escribiendo…'
             : (chat?.isGroup ?? false)
-                ? 'Grupo'
-                : prettyPhone(chat?.phone ?? '');
-    final live = typing || recording;
+                ? (chat != null && chat.members.isNotEmpty ? '${chat.members.length + 1} miembros' : 'Grupo')
+                : (seen ?? prettyPhone(chat?.phone ?? ''));
+    final live = typing || recording || seen == 'en línea';
 
     return Scaffold(
       appBar: _searching
@@ -919,7 +1016,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ? _blockedBar(cs)
                 : Column(mainAxisSize: MainAxisSize.min, children: [
                     if (_replyTo != null && !_recording) _replyBar(cs),
-                    _recording ? _recordingBar(cs) : _composer(),
+                    _recording
+                        ? _recordingBar(cs)
+                        : (_voicePreview != null ? _voicePreviewBar(cs) : _composer()),
                     if (_emoji && !_recording) _emojiPanel(),
                   ]),
           ),
@@ -1115,6 +1214,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       Text('Grabando  ${formatDuration(elapsed.inMilliseconds)}',
           style: const TextStyle(fontSize: 16, fontFeatures: [FontFeature.tabularFigures()])),
       const Spacer(),
+      IconButton(
+        tooltip: 'Parar y escuchar antes de enviar',
+        onPressed: () => _stopRecording(send: false, preview: true),
+        icon: const Icon(Icons.stop_circle_outlined, size: 30),
+      ),
       IconButton.filled(
         tooltip: 'Enviar nota de voz',
         onPressed: () => _stopRecording(send: true),

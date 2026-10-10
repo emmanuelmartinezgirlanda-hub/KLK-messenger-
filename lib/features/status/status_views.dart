@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:klk_native/klk_native.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 
@@ -588,6 +589,14 @@ class _StatusViewerState extends ConsumerState<StatusViewer> {
                   if (isVideo) const Padding(padding: EdgeInsets.only(right: 4), child: Icon(Icons.videocam_outlined)),
                   if (!post.isMine && !post.allowSave)
                     const Tooltip(message: 'Su autor no permite guardarlo', child: Icon(Icons.lock_outline)),
+                  // Descargar: solo si su autor lo permite (Privacidad → Estados) o si es mío
+                  if ((post.isMine || post.allowSave) && hasFile)
+                    IconButton(
+                      tooltip: 'Guardar',
+                      icon: const Icon(Icons.download_rounded),
+                      onPressed: () => Share.shareXFiles([XFile(post.mediaPath!)],
+                          text: post.isMine ? null : 'Estado de ${widget.title}'),
+                    ),
                   IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
                 ]),
               ),

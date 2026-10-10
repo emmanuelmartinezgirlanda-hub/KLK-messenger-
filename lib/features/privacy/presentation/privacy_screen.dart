@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/privacy_settings.dart';
 import '../../lock/app_lock.dart';
 import '../../messaging/app_controller.dart';
+import '../../messaging/models.dart';
 import '../../settings/blocked_screen.dart';
 import 'privacy_provider.dart';
 
@@ -34,11 +35,37 @@ class PrivacyScreen extends ConsumerWidget {
             ),
           ),
           SwitchListTile(
+            secondary: const Icon(Icons.ac_unit),
+            title: const Text('Congelar mi última conexión'),
+            subtitle: Text(s.frozenLastSeen == null
+                ? 'Los demás verán siempre la misma hora, entres cuando entres'
+                : 'Congelada: ${presenceLabel(Presence(online: false, lastSeen: s.frozenLastSeen, at: DateTime.now()), DateTime.now()) ?? ''}'),
+            value: s.lastSeenFrozen,
+            onChanged: (v) {
+              final last = ref.read(appProvider).myLastSeen ?? DateTime.now();
+              notifier.update(v ? s.copyWith(frozenLastSeen: last) : s.copyWith(unfreeze: true));
+            },
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.circle_outlined),
+            title: const Text('Ocultar "en línea"'),
+            subtitle: const Text('Nadie verá cuándo tienes KLK abierto'),
+            value: s.hideOnline,
+            onChanged: (v) => notifier.update(s.copyWith(hideOnline: v)),
+          ),
+          SwitchListTile(
             secondary: const Icon(Icons.done_all),
             title: const Text('Ocultar confirmaciones de lectura'),
             subtitle: const Text('Si lo activas, tampoco verás las de los demás.'),
             value: s.hideReadReceipts,
             onChanged: (v) => notifier.update(s.copyWith(hideReadReceipts: v)),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.done),
+            title: const Text('Ocultar el check de entregado'),
+            subtitle: const Text('Quien te escribe solo verá un check gris, como si no te hubiera llegado'),
+            value: s.hideDelivered,
+            onChanged: (v) => notifier.update(s.copyWith(hideDelivered: v)),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.keyboard),
@@ -51,6 +78,14 @@ class PrivacyScreen extends ConsumerWidget {
             title: const Text('Ocultar "grabando audio..."'),
             value: s.hideRecording,
             onChanged: (v) => notifier.update(s.copyWith(hideRecording: v)),
+          ),
+          const _Section('Llamadas'),
+          SwitchListTile(
+            secondary: const Icon(Icons.phone_callback_outlined),
+            title: const Text('Confirmar antes de llamar'),
+            subtitle: const Text('Pregunta antes de empezar una llamada, para no llamar sin querer'),
+            value: s.confirmCalls,
+            onChanged: (v) => notifier.update(s.copyWith(confirmCalls: v)),
           ),
           const _Section('Estados'),
           SwitchListTile(

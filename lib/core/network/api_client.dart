@@ -140,6 +140,21 @@ class ApiClient {
   Future<void> report(String accountId, String reason, {List<String> messages = const []}) =>
       _send('POST', '/v1/reports', {'accountId': accountId, 'reason': reason, 'messages': messages});
 
+  /// Comunidades por país, con el número real de miembros y si ya estoy dentro.
+  Future<List<Map<String, dynamic>>> communities() async {
+    final j = await _send('GET', '/v1/communities') as Map<String, dynamic>;
+    return (j['communities'] as List? ?? const []).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> joinCommunity(String id) => _send('POST', '/v1/communities/$id');
+  Future<void> leaveCommunity(String id) => _send('DELETE', '/v1/communities/$id');
+
+  /// Ids de las cuentas de una comunidad (sin números de teléfono).
+  Future<List<String>> communityMembers(String id) async {
+    final j = await _send('GET', '/v1/communities/$id/members') as Map<String, dynamic>;
+    return (j['members'] as List? ?? const []).cast<String>();
+  }
+
   /// Avisos de KLK para todos (los más nuevos primero).
   Future<List<Map<String, dynamic>>> announcements() async {
     final j = await _send('GET', '/v1/announcements') as Map<String, dynamic>;

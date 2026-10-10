@@ -267,6 +267,8 @@ class _ChatTile extends ConsumerWidget {
               maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16.5)),
         ),
         if (chat.blocked) const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.block, size: 15, color: Color(0xFFFF6B7A))),
+        if (ref.watch(appProvider).isPinnedChat(chat.id))
+          Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.push_pin, size: 14, color: muted)),
         Text(chatTime(chat.updatedAt),
             style: TextStyle(
                 fontSize: 12, color: unread ? cs.primary : muted, fontWeight: unread ? FontWeight.w700 : null)),
@@ -298,6 +300,23 @@ class _ChatTile extends ConsumerWidget {
         showDragHandle: true,
         builder: (ctx) => SafeArea(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(
+              leading: Icon(ref.read(appProvider).isPinnedChat(chat.id) ? Icons.push_pin : Icons.push_pin_outlined),
+              title: Text(ref.read(appProvider).isPinnedChat(chat.id) ? 'Desfijar chat' : 'Fijar chat arriba'),
+              onTap: () {
+                Navigator.pop(ctx);
+                ref.read(appProvider).togglePinChat(chat.id);
+              },
+            ),
+            if (chat.unread > 0)
+              ListTile(
+                leading: const Icon(Icons.mark_chat_read_outlined),
+                title: const Text('Marcar como leído'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ref.read(appProvider).markChatRead(chat.id);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
               title: Text(chat.isGroup

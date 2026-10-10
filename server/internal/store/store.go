@@ -126,6 +126,16 @@ type Store interface {
 	DeleteAnnouncement(ctx context.Context, id string) error
 	Announcements(ctx context.Context, limit int) ([]Announcement, error)
 	BannedAccounts(ctx context.Context, limit int) ([]AccountView, error)
+
+	// ---- Comunidades por país ----
+	JoinCommunity(ctx context.Context, community, accountID string) error
+	LeaveCommunity(ctx context.Context, community, accountID string) error
+	// CommunityCounts devuelve cuántos miembros (no bloqueados) tiene cada comunidad.
+	CommunityCounts(ctx context.Context) (map[string]int, error)
+	// CommunitiesOf devuelve las comunidades a las que pertenece una cuenta.
+	CommunitiesOf(ctx context.Context, accountID string) ([]string, error)
+	// CommunityMembers devuelve los ids de las cuentas (no bloqueadas) de una comunidad.
+	CommunityMembers(ctx context.Context, community string, limit int) ([]string, error)
 }
 
 // Announcement es un aviso de KLK para todos.

@@ -729,3 +729,36 @@ class KlkAnnouncement {
         createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '')?.toLocal() ?? DateTime.now(),
       );
 }
+
+/// "En línea" / "últ. vez…" de un contacto, tal como me lo contó su móvil
+/// (mensaje cifrado; cada uno decide en su Privacidad qué comparte).
+class Presence {
+  final bool online;
+  final DateTime? lastSeen;
+  final DateTime at; // cuándo lo recibí
+
+  const Presence({required this.online, this.lastSeen, required this.at});
+
+  /// "en línea" caduca si no se confirma en 50 s.
+  bool onlineNow(DateTime now) => online && now.difference(at).inSeconds < 50;
+}
+
+/// Texto de la cabecera del chat: "en línea", "últ. vez hoy a las 14:05"…
+String? presenceLabel(Presence? p, DateTime now) {
+  if (p == null) return null;
+  if (p.onlineNow(now)) return 'en línea';
+  final seen = p.lastSeen?.toLocal();
+  if (seen == null) return null;
+  String two(int n) => n.toString().padLeft(2, '0');
+  final hm = '${two(seen.hour)}:${two(seen.minute)}';
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(seen.year, seen.month, seen.day);
+  final diff = today.difference(day).inDays;
+  if (diff <= 0) return 'últ. vez hoy a las $hm';
+  if (diff == 1) return 'últ. vez ayer a las $hm';
+  if (diff < 7) {
+    const days = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+    return 'últ. vez el ${days[seen.weekday - 1]} a las $hm';
+  }
+  return 'últ. vez el ${two(seen.day)}/${two(seen.month)}/${seen.year}';
+}

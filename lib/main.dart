@@ -63,7 +63,10 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) _backgroundSince ??= DateTime.now();
+    if (state == AppLifecycleState.paused) {
+      _backgroundSince ??= DateTime.now();
+      ref.read(appProvider).onPause();
+    }
     if (state == AppLifecycleState.resumed) {
       ref.read(appProvider).onResume();
       final since = _backgroundSince;
