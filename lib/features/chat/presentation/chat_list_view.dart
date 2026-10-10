@@ -6,6 +6,7 @@ import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import 'chat_avatar.dart';
 import 'chat_screen.dart';
+import '../../contacts/contact_actions.dart';
 import 'new_chat_sheet.dart';
 
 
@@ -297,6 +298,25 @@ class _ChatTile extends ConsumerWidget {
         showDragHandle: true,
         builder: (ctx) => SafeArea(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text(chat.isGroup
+                  ? 'Cambiar nombre (solo para mí)'
+                  : (isUnsavedContact(chat) ? 'Añadir a contactos' : 'Editar contacto')),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await editContactName(context, ref.read(appProvider), chat);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Color(0xFFCE1126)),
+              title: Text(chat.isGroup ? 'Eliminar grupo' : 'Eliminar contacto',
+                  style: const TextStyle(color: Color(0xFFCE1126))),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await deleteContactFlow(context, ref.read(appProvider), chat);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.lock_outline),
               title: const Text('Ocultar chat'),

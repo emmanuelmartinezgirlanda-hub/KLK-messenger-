@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:klk_native/klk_native.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
@@ -145,8 +146,8 @@ class _Section extends StatelessWidget {
 
 // ---------- Crear estado ----------
 
-/// Duración máxima de un estado de vídeo (como WhatsApp).
-const maxStatusVideo = Duration(seconds: 30);
+/// Duración máxima de un estado de vídeo. En el iPhone se comprime antes de subirlo.
+const maxStatusVideo = Duration(minutes: 10);
 
 /// Límite de subida del servidor (64 MB).
 const _maxUploadBytes = 64 * 1024 * 1024;
@@ -167,6 +168,7 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
   String? _media; // foto o vídeo elegido
   bool _isVideo = false;
   bool _posting = false;
+  bool _preparing = false; // comprimiendo un vídeo
 
   @override
   void dispose() {
@@ -192,7 +194,7 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
           ListTile(
             leading: const Icon(Icons.video_library_outlined),
             title: const Text('Vídeo de la galería'),
-            subtitle: const Text('Hasta 30 segundos'),
+            subtitle: const Text('Hasta 10 minutos'),
             onTap: () => Navigator.pop(ctx, 'video'),
           ),
           ListTile(
@@ -203,7 +205,7 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
           ListTile(
             leading: const Icon(Icons.videocam_outlined),
             title: const Text('Grabar un vídeo'),
-            subtitle: const Text('Hasta 30 segundos'),
+            subtitle: const Text('Hasta 10 minutos'),
             onTap: () => Navigator.pop(ctx, 'record'),
           ),
         ]),
@@ -227,12 +229,25 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
         );
       }
       if (x == null) return;
-      if (video && await File(x.path).length() > _maxUploadBytes) {
-        _say('Ese vídeo pesa demasiado (máx. 64 MB). Prueba con uno más corto.');
-        return;
+      var path = x.path;
+      if (video) {
+        // Los vídeos largos se comprimen en el móvil para que quepan
+        setState(() => _preparing = true);
+        try {
+          path = await KlkNative.compressVideo(path);
+        } catch (e) {
+          _say(e.toString());
+        } finally {
+          if (mounted) setState(() => _preparing = false);
+        }
+        if (await File(path).length() > _maxUploadBytes) {
+          _say('Ese vídeo pesa demasiado aun comprimido (máx. 64 MB). Prueba con uno más corto.');
+          return;
+        }
       }
+      if (!mounted) return;
       setState(() {
-        _media = x!.path;
+        _media = path;
         _isVideo = video;
       });
     } catch (_) {
@@ -249,7 +264,7 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
 
   @override
   Widget build(BuildContext context) {
-    final canPost = (_text.text.trim().isNotEmpty || _media != null) && !_posting;
+    final canPost = (_text.text.trim().isNotEmpty || _media != null) && !_posting && !_preparing;
     final media = _media;
     return Scaffold(
       backgroundColor: media != null ? Colors.black : Color(_color),
@@ -331,9 +346,11 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
             child: Row(children: [
               Expanded(
                 child: Text(
-                    _isVideo
-                        ? 'Vídeo de hasta 30 s · lo verán tus contactos durante 24 horas'
-                        : 'Lo verán tus contactos durante 24 horas',
+                    _preparing
+                        ? 'Preparando el vídeo…'
+                        : _isVideo
+                            ? 'Vídeo de hasta 10 min · lo verán tus contactos durante 24 horas'
+                            : 'Lo verán tus contactos durante 24 horas',
                     style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
               ),
               FloatingActionButton(

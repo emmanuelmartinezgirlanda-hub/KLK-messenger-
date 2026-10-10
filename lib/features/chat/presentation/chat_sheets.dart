@@ -1,15 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/util/phone.dart';
 import '../../messaging/models.dart';
+import '../../messaging/custom_stickers.dart';
 import '../../messaging/stickers.dart';
 import 'chat_avatar.dart';
 
 /// Hojas inferiores del chat: stickers, viaje, reenviar, temporales,
 /// información del grupo y servicios de dinero.
 
-/// Elige un sticker (por packs: criollos, pelota, Navidad…). Devuelve su id.
+/// Elige un sticker (mis stickers, o por packs: criollos, pelota, Navidad…).
+/// Devuelve el id del sticker del pack, o 'file:<ruta>' si es uno propio.
 Future<String?> pickSticker(BuildContext context, {int initialPack = 0}) => showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -18,16 +22,21 @@ Future<String?> pickSticker(BuildContext context, {int initialPack = 0}) => show
         child: SizedBox(
           height: MediaQuery.sizeOf(ctx).height * 0.6,
           child: DefaultTabController(
-            length: stickerPacks.length,
-            initialIndex: initialPack.clamp(0, stickerPacks.length - 1).toInt(),
+            length: stickerPacks.length + 1,
+            // La pestaña 0 es "Míos"; los packs van después
+            initialIndex: (initialPack + 1).clamp(0, stickerPacks.length).toInt(),
             child: Column(children: [
               TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
-                tabs: [for (final p in stickerPacks) Tab(text: '${p.icon} ${p.name}')],
+                tabs: [
+                  const Tab(text: '⭐ Míos'),
+                  for (final p in stickerPacks) Tab(text: '${p.icon} ${p.name}'),
+                ],
               ),
               Expanded(
                 child: TabBarView(children: [
+                  const _MyStickers(),
                   for (final pack in stickerPacks)
                     GridView.count(
                       crossAxisCount: 3,
@@ -51,6 +60,102 @@ Future<String?> pickSticker(BuildContext context, {int initialPack = 0}) => show
         ),
       ),
     );
+
+/// Pestaña "Míos": crear un sticker desde una foto, usarlo o borrarlo.
+class _MyStickers extends StatefulWidget {
+  const _MyStickers();
+
+  @override
+  State<_MyStickers> createState() => _MyStickersState();
+}
+
+class _MyStickersState extends State<_MyStickers> {
+  List<String> _paths = const [];
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final list = await CustomStickers.list();
+    if (mounted) setState(() => _paths = list);
+  }
+
+  Future<void> _create() async {
+    setState(() => _busy = true);
+    try {
+      final path = await CustomStickers.createFromGallery();
+      if (path != null) await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo crear el sticker. Revisa el permiso de Fotos en Ajustes → KLK.')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _delete(String path) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Borrar este sticker?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Borrar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await CustomStickers.delete(path);
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return GridView.count(
+      crossAxisCount: 3,
+      padding: const EdgeInsets.all(12),
+      children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _busy ? null : _create,
+          child: Container(
+            margin: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: cs.outlineVariant, width: 1.5),
+            ),
+            child: Center(
+              child: _busy
+                  ? const CircularProgressIndicator()
+                  : Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.add_photo_alternate_outlined, size: 34, color: cs.secondary),
+                      const SizedBox(height: 6),
+                      const Text('Crear sticker', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5)),
+                    ]),
+            ),
+          ),
+        ),
+        for (final path in _paths)
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => Navigator.pop(context, 'file:$path'),
+            onLongPress: () => _delete(path),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Image.file(File(path), fit: BoxFit.contain, semanticLabel: 'Mi sticker'),
+            ),
+          ),
+      ],
+    );
+  }
+}
 
 /// Índice del pack de cumpleaños (para felicitar).
 int get birthdayPackIndex => stickerPacks.indexWhere((p) => p.name == 'Cumpleaños');

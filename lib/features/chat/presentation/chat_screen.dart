@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +23,8 @@ import '../../theming/domain/klk_theme.dart';
 import '../../theming/wallpapers.dart';
 import 'chat_avatar.dart';
 import 'chat_sheets.dart';
+import '../../contacts/contact_actions.dart';
+import '../../messaging/custom_stickers.dart';
 import 'media_bubbles.dart';
 import 'message_bubble.dart';
 
@@ -38,6 +41,8 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _input = TextEditingController();
+  final _focus = FocusNode();
+  bool _emoji = false; // panel de emojis abierto
   final _scroll = ScrollController();
   late final AppController _app;
   Timer? _typingOff;
@@ -84,6 +89,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (_input.text.isNotEmpty) _app.setTyping(widget.chatId, false);
     _app.closeChat();
     _input.dispose();
+    _focus.dispose();
     _search.dispose();
     _scroll.dispose();
     super.dispose();
@@ -96,8 +102,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   // ---------- Texto ----------
 
+  // Ojo: aquí no se llama a setState. Antes cada letra reconstruía el chat
+  // entero (todos los mensajes) y en chats largos el teclado se quedaba colgado.
+  // El botón enviar/micrófono escucha al controlador por su cuenta (_composer).
   void _onChanged(String v) {
-    setState(() {});
     if (v.isEmpty) {
       _typingOff?.cancel();
       _app.setTyping(widget.chatId, false);
@@ -159,6 +167,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       await _app.sendMedia(widget.chatId, media, caption: caption, replyTo: reply);
     } catch (e) {
       _snack(e.toString());
+    }
+  }
+
+  /// Sticker propio: se envía cifrado como archivo (el original se queda en "Míos").
+  Future<void> _sendCustomSticker(String sourcePath) async {
+    try {
+      final path = await MediaStore.importFile(sourcePath);
+      await _app.sendMedia(
+        widget.chatId,
+        MessageMedia(
+          type: MediaType.sticker,
+          name: customStickerName,
+          localPath: path,
+          mime: 'image/png',
+          size: await File(path).length(),
+        ),
+      );
+    } catch (e) {
+      _snack('No se pudo enviar el sticker: $e');
+    }
+  }
+
+  /// Imagen pegada desde el teclado (stickers, emojis creados, GIF…): se guarda en
+  /// "Míos" y se envía como sticker.
+  Future<void> _onKeyboardContent(KeyboardInsertedContent c) async {
+    final data = c.data;
+    if (data == null || data.isEmpty) return;
+    try {
+      final path = await CustomStickers.saveBytes(data);
+      await _sendCustomSticker(path);
+    } catch (_) {
+      _snack('No se pudo usar esa imagen');
     }
   }
 
@@ -228,7 +268,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         case 'sticker':
           {
             final id = await pickSticker(context);
-            if (id != null) await _sendMedia(MessageMedia(type: MediaType.sticker, name: id));
+            if (id != null && id.startsWith('file:')) {
+              await _sendCustomSticker(id.substring(5));
+            } else if (id != null) {
+              await _sendMedia(MessageMedia(type: MediaType.sticker, name: id));
+            }
           }
         case 'trip':
           {
@@ -601,6 +645,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         });
       case 'wallpaper':
         await _pickWallpaper();
+      case 'rename':
+        await editContactName(context, _app, chat);
+      case 'delete':
+        {
+          final nav = Navigator.of(context);
+          if (await deleteContactFlow(context, _app, chat)) nav.pop();
+        }
       case 'block':
         {
           if (!chat.blocked) {
@@ -642,12 +693,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _scrollToEndIfNew(int count) {
     if (count == _lastCount) return;
     _lastCount = count;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(_scroll.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
-      }
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _goToEnd(0));
+  }
+
+  /// La lista se construye a medida que se ve, así que el final real puede
+  /// estar más abajo de lo que se calculó: se repite hasta llegar.
+  Future<void> _goToEnd(int attempt) async {
+    if (!mounted || !_scroll.hasClients) return;
+    final target = _scroll.position.maxScrollExtent;
+    if (attempt == 0) {
+      await _scroll.animateTo(target, duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+    } else {
+      _scroll.jumpTo(target);
+    }
+    if (attempt < 4 && mounted && _scroll.hasClients && _scroll.position.maxScrollExtent > _scroll.offset + 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _goToEnd(attempt + 1));
+    }
   }
 
   // ---------- Interfaz ----------
@@ -742,11 +803,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 child: Text('Mensajes temporales · ${disappearLabel(chat?.disappearSec)}'),
               ),
               const PopupMenuItem(value: 'wallpaper', child: Text('Fondo de pantalla')),
+              if (chat != null)
+                PopupMenuItem(
+                  value: 'rename',
+                  child: Text(chat.isGroup
+                      ? 'Cambiar nombre (solo para mí)'
+                      : (isUnsavedContact(chat) ? 'Añadir a contactos' : 'Editar contacto')),
+                ),
               PopupMenuItem(value: 'hide', child: Text((chat?.hidden ?? false) ? 'Mostrar en la lista' : 'Ocultar chat')),
               if (!(chat?.isGroup ?? true)) ...[
                 PopupMenuItem(value: 'block', child: Text(blocked ? 'Desbloquear' : 'Bloquear')),
                 const PopupMenuItem(value: 'report', child: Text('Denunciar')),
               ],
+              if (chat != null)
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text(chat.isGroup ? 'Eliminar grupo' : 'Eliminar contacto',
+                      style: const TextStyle(color: Color(0xFFCE1126))),
+                ),
             ],
           ),
         ],
@@ -776,22 +850,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         Expanded(
           child: Stack(fit: StackFit.expand, children: [
             Positioned.fill(child: ChatWallpaper(id: wallpaper)),
-            ListView(
-            controller: _scroll,
-            padding: const EdgeInsets.only(top: 8, bottom: 12),
-            children: [
+            Builder(builder: (context) {
+              // Avisos de arriba + mensajes. Se construye solo lo que se ve en pantalla.
+              final header = <Widget>[
               if (_searching && query.isNotEmpty && messages.isEmpty)
-                const _Chip(icon: Icons.search_off, text: 'No hay mensajes con esas palabras'),
-              if (zone != null && !_searching)
-                _Chip(icon: Icons.schedule, text: 'En ${zone.place} son las ${DateFormat.jm('es').format(nowIn(zone.zone))}'),
-              if (!_searching)
-              const _Chip(
-                icon: Icons.lock_outline,
-                text: 'Mensajes y archivos cifrados de punta a punta. Nadie fuera de este chat puede verlos.',
-                accent: true,
-              ),
-              for (final m in messages)
-                GestureDetector(
+                  const _Chip(icon: Icons.search_off, text: 'No hay mensajes con esas palabras'),
+                if (zone != null && !_searching)
+                  _Chip(icon: Icons.schedule, text: 'En ${zone.place} son las ${DateFormat.jm('es').format(nowIn(zone.zone))}'),
+                if (!_searching && chat != null && isUnsavedContact(chat))
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: FilledButton.tonalIcon(
+                        icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+                        label: const Text('Añadir a contactos'),
+                        onPressed: () => editContactName(context, _app, chat),
+                      ),
+                    ),
+                  ),
+                if (!_searching)
+                const _Chip(
+                  icon: Icons.lock_outline,
+                  text: 'Mensajes y archivos cifrados de punta a punta. Nadie fuera de este chat puede verlos.',
+                  accent: true,
+                ),
+              ];
+              return ListView.builder(
+                controller: _scroll,
+                padding: const EdgeInsets.only(top: 8, bottom: 12),
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                itemCount: header.length + messages.length,
+                itemBuilder: (context, i) {
+                  if (i < header.length) return header[i];
+                  final m = messages[i - header.length];
+                  if (translator.auto && !m.isMine && !m.deleted && m.body.isNotEmpty) {
+                    translator.autoTranslate(m.id, m.body);
+                  }
+                  return GestureDetector(
                   key: ValueKey(m.id),
                   onLongPress: m.kind == MessageKind.system ? null : () => _messageActions(m),
                   child: MessageBubble(
@@ -808,9 +903,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     transcribing: _transcribing.contains(m.id),
                     highlight: _searching ? _search.text : null,
                   ),
-                ),
-            ],
-          ),
+                );
+                },
+              );
+            }),
           ]),
         ),
         ColoredBox(
@@ -824,6 +920,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 : Column(mainAxisSize: MainAxisSize.min, children: [
                     if (_replyTo != null && !_recording) _replyBar(cs),
                     _recording ? _recordingBar(cs) : _composer(),
+                    if (_emoji && !_recording) _emojiPanel(),
                   ]),
           ),
         ),
@@ -898,8 +995,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _composer() {
-    final hasText = _input.text.trim().isNotEmpty;
+  void _toggleEmoji() {
+    if (_emoji) {
+      setState(() => _emoji = false);
+      _focus.requestFocus();
+    } else {
+      _focus.unfocus();
+      setState(() => _emoji = true);
+    }
+  }
+
+  Widget _emojiPanel() => SizedBox(
+        height: 290,
+        child: EmojiPicker(
+          textEditingController: _input,
+          config: Config(height: 290, checkPlatformCompatibility: true),
+        ),
+      );
+
+  Widget _composer() => ValueListenableBuilder<TextEditingValue>(
+        valueListenable: _input,
+        builder: (context, value, _) => _composerRow(value.text.trim().isNotEmpty),
+      );
+
+  Widget _composerRow(bool hasText) {
     final cs = Theme.of(context).colorScheme;
     final light = Theme.of(context).brightness == Brightness.light;
     final muted = cs.onSurface.withValues(alpha: 0.55);
@@ -921,6 +1040,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             Expanded(
               child: TextField(
                 controller: _input,
+                focusNode: _focus,
+                onTap: () {
+                  if (_emoji) setState(() => _emoji = false);
+                },
+                // Stickers, emojis creados y GIF pegados desde el teclado
+                contentInsertionConfiguration: ContentInsertionConfiguration(
+                  allowedMimeTypes: const ['image/png', 'image/gif', 'image/jpeg', 'image/webp', 'image/heic'],
+                  onContentInserted: _onKeyboardContent,
+                ),
                 minLines: 1,
                 maxLines: 6,
                 textCapitalization: TextCapitalization.sentences,
@@ -936,6 +1064,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   contentPadding: EdgeInsets.symmetric(vertical: 13),
                 ),
               ),
+            ),
+            IconButton(
+              tooltip: _emoji ? 'Teclado' : 'Emojis',
+              onPressed: _toggleEmoji,
+              icon: Icon(_emoji ? Icons.keyboard_outlined : Icons.emoji_emotions_outlined, color: muted),
             ),
             if (hasText)
               IconButton(

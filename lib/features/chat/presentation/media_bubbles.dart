@@ -60,7 +60,10 @@ class MediaContent extends StatelessWidget {
         ]),
       MediaType.file => _FileTile(media: media, fg: fg),
       MediaType.location => _LocationCard(lat: media.lat ?? 0, lng: media.lng ?? 0, fg: fg),
-      MediaType.sticker => Image.asset(stickerAsset(media.name), width: 150, height: 150),
+      MediaType.sticker => media.isCustomSticker
+          ? Image.file(File(path!), width: 150, height: 150, fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Image.asset(stickerAsset(null), width: 150, height: 150))
+          : Image.asset(stickerAsset(media.name), width: 150, height: 150),
       MediaType.trip => _TripCard(media: media, fg: fg),
       MediaType.poll => PollCard(media: media, fg: fg, onVote: onVote),
       MediaType.live => _LiveCard(media: media, fg: fg, mine: message.isMine, onStop: onStopLive),

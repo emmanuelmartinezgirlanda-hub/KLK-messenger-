@@ -21,6 +21,7 @@ import '../../core/database/local_db.dart';
 import '../../core/media/media_store.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/presence_gate.dart';
+import '../../core/notify/alerts.dart';
 import '../../core/security/secure_store.dart';
 import '../../core/util/phone.dart';
 import '../privacy/presentation/privacy_provider.dart';
@@ -564,12 +565,32 @@ class AppController extends ChangeNotifier {
       final chat = await db.chat(chatId);
       if (chat != null && !chat.hidden) onNotify?.call(chat, msg);
     }
+    await _alert(chatId, msg);
     // Confirmaciones solo en chats individuales
     if (!isGroup) {
       await _sendEncrypted(from, Payload(kind: 'delivered', ids: [id]), ref: 'x-${_uuid.v4()}');
       if (openChatId == chatId) await _sendReadReceipts(chatId);
     }
   }
+
+  /// Sonido, notificación y número en el icono (ver core/notify/alerts.dart).
+  Future<void> _alert(String chatId, Message msg) async {
+    try {
+      await _reloadChats();
+      final chat = chats.where((c) => c.id == chatId).firstOrNull;
+      if (chat == null || chat.hidden || chat.blocked) return;
+      final who = chat.isGroup && msg.sender.isNotEmpty ? '${msg.sender} @ ${chat.title}' : chat.title;
+      await Alerts.instance.incoming(
+        chatId: chatId,
+        title: who,
+        text: msg.summary,
+        chatOpen: openChatId == chatId,
+      );
+    } catch (_) {}
+  }
+
+  /// Total de mensajes sin leer en chats visibles (para el número del icono).
+  int get unreadTotal => visibleChats.fold(0, (n, c) => n + (c.blocked ? 0 : c.unread));
 
   Future<void> _receiveProfile(Payload p, {required String from}) async {
     final db = _db!;
@@ -1277,6 +1298,23 @@ class AppController extends ChangeNotifier {
   }
 
   /// Borra un mensaje solo en este móvil.
+  /// Cambia el nombre con el que veo a un contacto (o grupo, solo para mí).
+  Future<void> renameChat(String chatId, String name) async {
+    final n = name.trim();
+    if (n.isEmpty) return;
+    await _db!.setTitle(chatId, n);
+    await _reloadChats();
+  }
+
+  /// Elimina un contacto: su chat y todos los mensajes desaparecen de este móvil.
+  /// (Como en WhatsApp, no se le avisa. Si vuelve a escribir, aparecerá como contacto nuevo.)
+  Future<void> deleteContact(String chatId) async {
+    if (openChatId == chatId) openChatId = null;
+    _messages.remove(chatId);
+    await _db!.deleteChatWithMessages(chatId);
+    await _reloadChats();
+  }
+
   Future<void> deleteMessage(String id) async {
     await _db!.deleteMessage(id);
     await _refresh();
@@ -1669,6 +1707,7 @@ class AppController extends ChangeNotifier {
         onNotify?.call(chat, reply);
       }
       await _refresh();
+      await _alert(chatId, reply);
     });
   }
 

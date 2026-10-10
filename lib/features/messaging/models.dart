@@ -264,6 +264,9 @@ class Message {
       );
 }
 
+/// Nombre que llevan los stickers propios (los demás usan el id del sticker del pack).
+const customStickerName = 'custom';
+
 enum MediaType { image, video, audio, file, location, sticker, trip, poll, live }
 
 /// Adjunto de un mensaje: foto, vídeo, nota de voz, documento, ubicación,
@@ -331,7 +334,11 @@ class MessageMedia {
     this.transcript,
   });
 
-  bool get hasFile => const [MediaType.image, MediaType.video, MediaType.audio, MediaType.file].contains(type);
+  bool get hasFile =>
+      const [MediaType.image, MediaType.video, MediaType.audio, MediaType.file].contains(type) || isCustomSticker;
+
+  /// Sticker hecho por el usuario (viaja como archivo cifrado, igual que una foto).
+  bool get isCustomSticker => type == MediaType.sticker && name == customStickerName;
 
   /// ¿Sigue compartiéndose la ubicación en tiempo real?
   bool liveActive(DateTime now) => type == MediaType.live && !liveEnded && (liveUntil?.isAfter(now) ?? false);

@@ -263,6 +263,12 @@ class LocalDb {
 
   Future<void> deleteChat(String chatId) => _db.delete('chats', where: 'id = ?', whereArgs: [chatId]);
 
+  /// Borra el chat y todos sus mensajes (al eliminar un contacto).
+  Future<void> deleteChatWithMessages(String chatId) async {
+    await _db.delete('messages', where: 'chat_id = ?', whereArgs: [chatId]);
+    await _db.delete('chats', where: 'id = ?', whereArgs: [chatId]);
+  }
+
   // ---------- v4: estados ----------
 
   Future<void> addStatus(StatusPost s) =>

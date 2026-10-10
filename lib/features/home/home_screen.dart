@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/notify/alerts.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_list_view.dart';
 import '../chat/presentation/chat_screen.dart';
@@ -31,6 +32,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.initState();
     // Aviso dentro de la app cuando llega un mensaje a otro chat
     ref.read(appProvider).onNotify = _notify;
+    // Al tocar una notificación se abre ese chat
+    Alerts.instance.attach((chatId) {
+      if (!mounted) return;
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: chatId)));
+    });
   }
 
   void _notify(Chat chat, Message m) {

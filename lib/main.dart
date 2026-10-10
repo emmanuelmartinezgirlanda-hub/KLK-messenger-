@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'core/brand/klk_brand.dart';
 import 'core/brand/klk_logo.dart';
 import 'core/media/media_store.dart';
+import 'core/notify/alerts.dart';
 import 'features/calls/call_controller.dart';
 import 'features/home/home_screen.dart';
 import 'features/messaging/app_controller.dart';
@@ -42,6 +43,9 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     // Crea el controlador de llamadas desde el arranque para recibir llamadas entrantes.
     ref.read(callProvider);
+    // Sonido, notificaciones y número de no leídos en el icono
+    Alerts.instance.unreadTotal = () => ref.read(appProvider).unreadTotal;
+    Alerts.instance.init();
     ref.read(privacyProvider.notifier).loaded.then((_) {
       if (!mounted) return;
       setState(() {

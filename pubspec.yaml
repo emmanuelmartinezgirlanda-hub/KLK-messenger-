@@ -59,6 +59,12 @@ dependencies:
   klk_native:
     path: packages/klk_native
 
+  # Notificaciones, sonido y número de no leídos en el icono
+  flutter_local_notifications: ">=17.2.0 <19.0.0"
+
+  # Panel de emojis como el de WhatsApp
+  emoji_picker_flutter: ">=3.1.0 <5.0.0"
+
   # Utilidades
   google_fonts: ^6.2.1
   intl: any   # la versión la fija flutter_localizations

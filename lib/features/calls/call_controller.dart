@@ -43,6 +43,10 @@ class CallController extends ChangeNotifier {
   bool speaker = false;
   bool cameraOff = false;
   bool remoteVideo = false;
+
+  /// Filtro de color de mi cámara y el que eligió el otro (índices de videoFilters).
+  int myFilter = 0;
+  int remoteFilter = 0;
   DateTime? startedAt;
   String status = '';
 
@@ -156,6 +160,16 @@ class CallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Cambia el filtro de mi cámara y se lo dice al otro móvil para que lo vea igual.
+  Future<void> setFilter(int index) async {
+    myFilter = index;
+    notifyListeners();
+    if (_app.isDemo || phase == CallPhase.idle || phase == CallPhase.ended) return;
+    try {
+      await _signal({'a': 'filter', 'f': index});
+    } catch (_) {}
+  }
+
   Future<void> switchCamera() async {
     final tracks = _local?.getVideoTracks() ?? [];
     if (tracks.isNotEmpty) await Helper.switchCamera(tracks.first);
@@ -198,6 +212,11 @@ class CallController extends ChangeNotifier {
     if (from != chatId || id != callId) return; // señal de otra llamada
 
     switch (action) {
+      case 'filter':
+        {
+          remoteFilter = (s['f'] as num?)?.toInt() ?? 0;
+          notifyListeners();
+        }
       case 'answer':
         {
           _ringTimeout?.cancel();
@@ -349,6 +368,8 @@ class CallController extends ChangeNotifier {
     muted = false;
     cameraOff = false;
     remoteVideo = false;
+    myFilter = 0;
+    remoteFilter = 0;
     notifyListeners();
     _closeScreen();
   }

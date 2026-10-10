@@ -72,5 +72,26 @@ for act in $(find android/app/src/main -name "MainActivity.kt" -o -name "MainAct
   sed -i.bak 's/io\.flutter\.embedding\.android\.FlutterActivity/io.flutter.embedding.android.FlutterFragmentActivity/; s/: FlutterActivity()/: FlutterFragmentActivity()/; s/extends FlutterActivity/extends FlutterFragmentActivity/' "$act"
 done
 
+# iOS: que las notificaciones se puedan mostrar (flutter_local_notifications)
+APPDELEGATE=ios/Runner/AppDelegate.swift
+if [ -f "$APPDELEGATE" ] && ! grep -q "UNUserNotificationCenter" "$APPDELEGATE"; then
+  perl -0pi -e 's/import UIKit\n/import UIKit\nimport UserNotifications\n/' "$APPDELEGATE"
+  perl -0pi -e 's/(\n(\s*)GeneratedPluginRegistrant\.register\([^\n]*\)\n)/$1$2UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate\n/' "$APPDELEGATE"
+fi
+
+# Android: las notificaciones locales necesitan "desugaring" de Java
+for g in android/app/build.gradle.kts; do
+  if [ -f "$g" ] && ! grep -q "CoreLibraryDesugaring" "$g"; then
+    perl -0pi -e 's/compileOptions \{/compileOptions {\n        isCoreLibraryDesugaringEnabled = true/' "$g"
+    printf '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n' >> "$g"
+  fi
+done
+for g in android/app/build.gradle; do
+  if [ -f "$g" ] && ! grep -q "coreLibraryDesugaring" "$g"; then
+    perl -0pi -e 's/compileOptions \{/compileOptions {\n        coreLibraryDesugaringEnabled true/' "$g"
+    printf "\ndependencies {\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n}\n" >> "$g"
+  fi
+done
+
 find ios android -name "*.bak" -delete
 echo "Carpetas nativas listas (bundle: $BUNDLE_ID)"

@@ -33,6 +33,20 @@ class KlkNative {
     }
   }
 
+  /// Comprime un vídeo en el propio iPhone (para estados largos).
+  /// Si no se puede (Android o versión antigua), devuelve el archivo original.
+  static Future<String> compressVideo(String path) async {
+    if (!supported) return path;
+    try {
+      final out = await _channel.invokeMethod<String>('compressVideo', {'path': path});
+      return (out == null || out.isEmpty) ? path : out;
+    } on MissingPluginException {
+      return path;
+    } on PlatformException catch (e) {
+      throw KlkNativeException(e.code, e.message ?? 'No se pudo preparar el vídeo');
+    }
+  }
+
   /// Se emite cada vez que el usuario hace una captura de pantalla (iPhone).
   static Stream<void> get screenshots =>
       supported ? _shots.receiveBroadcastStream().map((_) {}) : const Stream.empty();

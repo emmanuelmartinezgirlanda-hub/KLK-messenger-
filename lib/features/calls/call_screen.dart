@@ -5,6 +5,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../messaging/models.dart';
 import 'call_controller.dart';
+import 'video_filters.dart';
 
 /// Pantalla de llamada: entrante, saliente y en curso (voz o vídeo).
 class CallScreen extends ConsumerWidget {
@@ -30,10 +31,13 @@ class CallScreen extends ConsumerWidget {
         body: Stack(fit: StackFit.expand, children: [
           // Fondo: vídeo del otro, o mi cámara mientras suena, o degradado
           if (showRemoteVideo)
-            RTCVideoView(call.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+            withVideoFilter(call.remoteFilter,
+                RTCVideoView(call.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover))
           else if (showLocalVideo && call.phase != CallPhase.active)
-            RTCVideoView(call.localRenderer,
-                mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+            withVideoFilter(
+                call.myFilter,
+                RTCVideoView(call.localRenderer,
+                    mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover))
           else
             const DecoratedBox(
               decoration: BoxDecoration(
@@ -54,8 +58,10 @@ class CallScreen extends ConsumerWidget {
               height: 160,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: RTCVideoView(call.localRenderer,
-                    mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+                child: withVideoFilter(
+                    call.myFilter,
+                    RTCVideoView(call.localRenderer,
+                        mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)),
               ),
             ),
 
@@ -148,6 +154,10 @@ class _ActiveControls extends StatelessWidget {
           _RoundButton(icon: Icons.cameraswitch, label: 'Girar', onTap: ended ? null : call.switchCamera),
         ],
       ]),
+      if (call.video && !ended && !call.cameraOff) ...[
+        const SizedBox(height: 18),
+        _FilterStrip(call: call),
+      ],
       const SizedBox(height: 28),
       _RoundButton(
         icon: Icons.call_end,
@@ -197,4 +207,33 @@ class _RoundButton extends StatelessWidget {
       ],
     ]);
   }
+}
+
+/// Tira de filtros de color para mi cámara (se ven igual en el otro móvil).
+class _FilterStrip extends StatelessWidget {
+  final CallController call;
+  const _FilterStrip({required this.call});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 38,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: videoFilters.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, i) {
+            final on = call.myFilter == i;
+            return ChoiceChip(
+              label: Text(videoFilters[i].name),
+              selected: on,
+              onSelected: (_) => call.setFilter(i),
+              labelStyle: TextStyle(color: on ? const Color(0xFF0B1320) : Colors.white, fontSize: 12.5),
+              selectedColor: Colors.white,
+              backgroundColor: Colors.white24,
+              side: BorderSide.none,
+              showCheckmark: false,
+            );
+          },
+        ),
+      );
 }

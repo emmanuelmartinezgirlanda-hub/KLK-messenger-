@@ -15,6 +15,9 @@ import '../theming/presentation/theme_provider.dart';
 import '../theming/wallpapers.dart';
 import '../../core/security/secure_store.dart';
 import 'backup_screen.dart';
+import 'notifications_screen.dart';
+import 'translator_settings_screen.dart';
+import '../../core/translate/translator.dart';
 
 class SettingsView extends ConsumerWidget {
   const SettingsView({super.key});
@@ -43,6 +46,22 @@ class SettingsView extends ConsumerWidget {
             ),
           ),
         const Divider(),
+        ListTile(
+          leading: const Icon(Icons.notifications_outlined),
+          title: const Text('Notificaciones'),
+          subtitle: const Text('Sonido, avisos y vibración'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+        ),
+        ListTile(
+          leading: const Icon(Icons.translate),
+          title: const Text('Traductor'),
+          subtitle: Text(ref.watch(translatorProvider).auto
+              ? 'Automático · a ${ref.watch(translatorProvider).myLanguageName.toLowerCase()}'
+              : 'Traduce mensajes en otros idiomas'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TranslatorSettingsScreen())),
+        ),
         ListTile(
           leading: const Icon(Icons.shield_outlined),
           title: const Text('Privacidad'),

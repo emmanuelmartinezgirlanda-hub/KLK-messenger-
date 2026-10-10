@@ -1,3 +1,4 @@
+import AVFoundation
 import Flutter
 import Speech
 import UIKit
@@ -30,6 +31,12 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         return
       }
       transcribe(path: path, locale: (args["locale"] as? String) ?? "es-ES", result: result)
+    case "compressVideo":
+      guard let args = call.arguments as? [String: Any], let path = args["path"] as? String else {
+        result(FlutterError(code: "bad_args", message: "Falta el vídeo", details: nil))
+        return
+      }
+      compressVideo(path: path, result: result)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -78,6 +85,32 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             DispatchQueue.main.async { result(text) }
           }
         }
+      }
+    }
+  }
+
+  // ---------- Comprimir vídeo (estados largos) ----------
+
+  /// Reduce el vídeo para que quepa en el servidor: hasta 2 minutos en 960×540;
+  /// más largo, en calidad media (unos 5 MB por minuto). Devuelve la ruta del nuevo archivo.
+  private func compressVideo(path: String, result: @escaping FlutterResult) {
+    let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+    let seconds = CMTimeGetSeconds(asset.duration)
+    let preset = (seconds.isFinite && seconds > 120) ? AVAssetExportPresetMediumQuality : AVAssetExportPreset960x540
+    guard let export = AVAssetExportSession(asset: asset, presetName: preset) else {
+      fail(result, "no_export", "No se pudo preparar el vídeo")
+      return
+    }
+    let out = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("klk_\(UUID().uuidString).mp4")
+    export.outputURL = out
+    export.outputFileType = .mp4
+    export.shouldOptimizeForNetworkUse = true
+    export.exportAsynchronously {
+      if export.status == .completed {
+        DispatchQueue.main.async { result(out.path) }
+      } else {
+        let why = export.error?.localizedDescription ?? "error desconocido"
+        self.fail(result, "failed", "No se pudo preparar el vídeo: \(why)")
       }
     }
   }
