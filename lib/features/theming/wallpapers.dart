@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/security/secure_store.dart';
+import 'domain/klk_theme.dart';
 
 /// Fondos de chat dominicanos, dibujados en el propio móvil (sin fotos de terceros).
 class Wallpaper {
@@ -13,7 +14,8 @@ class Wallpaper {
 }
 
 const wallpapers = [
-  Wallpaper('ninguno', 'Sin fondo'),
+  Wallpaper('klk', 'Dibujitos KLK'),
+  Wallpaper('ninguno', 'Color liso'),
   Wallpaper('malecon', 'Malecón al atardecer'),
   Wallpaper('samana', 'Playa de Samaná'),
   Wallpaper('pico', 'Pico Duarte'),
@@ -28,7 +30,7 @@ class WallpaperNotifier extends Notifier<String> {
   @override
   String build() {
     _restore();
-    return 'ninguno';
+    return 'klk';
   }
 
   Future<void> _restore() async {
@@ -52,8 +54,21 @@ class ChatWallpaper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (id == 'ninguno') return const SizedBox.expand();
-    final surface = Theme.of(context).colorScheme.surface;
+    final theme = Theme.of(context);
+    final bg = theme.extension<BubbleStyle>()?.chatBg ?? theme.colorScheme.surface;
+    if (id == 'ninguno') return ColoredBox(color: bg);
+    if (id == 'klk') {
+      final dark = theme.brightness == Brightness.dark;
+      return ColoredBox(
+        color: bg,
+        child: CustomPaint(
+          painter: _DoodlePainter(
+            ink: (dark ? Colors.white : const Color(0xFF002D62)).withValues(alpha: dark ? 0.045 : 0.07),
+          ),
+        ),
+      );
+    }
+    final surface = theme.colorScheme.surface;
     return Stack(fit: StackFit.expand, children: [
       CustomPaint(painter: _WallpaperPainter(id)),
       if (dim) ColoredBox(color: surface.withValues(alpha: 0.35)),
@@ -228,4 +243,59 @@ class _WallpaperPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_WallpaperPainter old) => old.id != id;
+}
+
+
+/// Fondo de dibujitos (como el de WhatsApp) con cosas nuestras:
+/// palmeras, sol, pelota, avión, café, música, corazones…
+class _DoodlePainter extends CustomPainter {
+  final Color ink;
+  _DoodlePainter({required this.ink});
+
+  static const _icons = <IconData>[
+    Icons.beach_access_outlined,
+    Icons.wb_sunny_outlined,
+    Icons.sports_baseball_outlined,
+    Icons.flight_outlined,
+    Icons.local_cafe_outlined,
+    Icons.music_note_outlined,
+    Icons.favorite_border,
+    Icons.chat_bubble_outline,
+    Icons.star_border,
+    Icons.emoji_emotions_outlined,
+    Icons.sailing_outlined,
+    Icons.headphones_outlined,
+    Icons.local_florist_outlined,
+    Icons.camera_alt_outlined,
+    Icons.icecream_outlined,
+    Icons.pets_outlined,
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const cell = 64.0;
+    final rnd = math.Random(7); // siempre el mismo dibujo
+    for (var y = -cell / 2; y < size.height + cell; y += cell) {
+      final row = (y / cell).round();
+      for (var x = (row.isEven ? 0.0 : cell / 2) - cell / 2; x < size.width + cell; x += cell) {
+        final icon = _icons[rnd.nextInt(_icons.length)];
+        final s = 20.0 + rnd.nextDouble() * 8;
+        final tp = TextPainter(
+          text: TextSpan(
+            text: String.fromCharCode(icon.codePoint),
+            style: TextStyle(fontFamily: icon.fontFamily, package: icon.fontPackage, fontSize: s, color: ink),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        canvas.save();
+        canvas.translate(x + (rnd.nextDouble() - 0.5) * 16, y + (rnd.nextDouble() - 0.5) * 16);
+        canvas.rotate((rnd.nextDouble() - 0.5) * 0.9);
+        tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+        canvas.restore();
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DoodlePainter old) => old.ink != ink;
 }

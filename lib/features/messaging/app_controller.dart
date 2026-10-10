@@ -51,6 +51,59 @@ class AppController extends ChangeNotifier {
   String? openChatId;
   Profile profile = const Profile();
 
+  /// Avisos de KLK (del panel del dueño) y los que ya cerré.
+  List<KlkAnnouncement> announcements = [];
+  Set<String> _dismissedNews = {};
+  static const _newsKey = 'klk.news.dismissed';
+
+  /// El dueño de KLK bloqueó esta cuenta.
+  bool banned = false;
+  DateTime _bannedCheckedAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// El aviso que se enseña arriba de los chats (el más nuevo sin cerrar).
+  KlkAnnouncement? get currentAnnouncement =>
+      announcements.where((a) => !_dismissedNews.contains(a.id)).firstOrNull;
+
+  Future<void> dismissAnnouncement(String id) async {
+    _dismissedNews = {..._dismissedNews, id};
+    notifyListeners();
+    // Solo se guardan los últimos 50 para que no crezca sin fin.
+    final keep = _dismissedNews.toList();
+    await _store.write(_newsKey, jsonEncode(keep.length > 50 ? keep.sublist(keep.length - 50) : keep));
+  }
+
+  Future<void> _loadAnnouncements() async {
+    if (isDemo) {
+      announcements = [
+        KlkAnnouncement(
+          id: 'demo-bienvenida',
+          title: '¡Bienvenido a KLK messenger! 🇩🇴',
+          body: 'Aquí te saldrán los avisos de KLK: novedades, versiones nuevas y consejos.',
+          createdAt: DateTime.now(),
+        ),
+      ];
+      notifyListeners();
+      return;
+    }
+    final api = _api;
+    if (api == null) return;
+    try {
+      final list = await api.announcements();
+      announcements = list.map(KlkAnnouncement.fromJson).toList();
+      if (banned) banned = false;
+      notifyListeners();
+    } on ApiException catch (e) {
+      _checkBanned(e);
+    } catch (_) {}
+  }
+
+  void _checkBanned(ApiException e) {
+    if (e.code == 'banned' && !banned) {
+      banned = true;
+      notifyListeners();
+    }
+  }
+
   /// Lo registra el controlador de llamadas para recibir sus señales.
   void Function(String fromChatId, Map<String, dynamic> signal)? onCallSignal;
 
@@ -144,9 +197,14 @@ class AppController extends ChangeNotifier {
     _db = await LocalDb.open(await _store.databaseKey());
     final savedProfile = await _store.read(_profileKey);
     if (savedProfile != null) profile = Profile.fromJson(jsonDecode(savedProfile) as Map<String, dynamic>);
+    try {
+      final news = await _store.read(_newsKey);
+      if (news != null) _dismissedNews = (jsonDecode(news) as List).cast<String>().toSet();
+    } catch (_) {}
     _crypto = await _loadCrypto();
     if (session!.isDemo) {
       if ((await _db!.chats()).isEmpty) await seedDemo(_db!);
+      unawaited(_loadAnnouncements());
     } else {
       _api = ApiClient(session!.server, token: session!.token);
       unawaited(_connect());
@@ -255,8 +313,14 @@ class AppController extends ChangeNotifier {
         ch.sink.add(frame);
       }
       unawaited(_resumeDownloads());
+      unawaited(_loadAnnouncements());
     } catch (e) {
       debugPrint('WebSocket: $e');
+      // ¿No conecta porque el dueño bloqueó la cuenta? (como mucho 1 vez por minuto)
+      if (DateTime.now().difference(_bannedCheckedAt) > const Duration(minutes: 1)) {
+        _bannedCheckedAt = DateTime.now();
+        unawaited(_loadAnnouncements());
+      }
       _onDisconnect();
     }
   }
@@ -277,6 +341,15 @@ class AppController extends ChangeNotifier {
     switch (f['t']) {
       case 'msg':
         await _onEnvelope(f);
+      case 'announce':
+        {
+          final a = f['announcement'];
+          if (a is Map) {
+            final n = KlkAnnouncement.fromJson(a.cast<String, dynamic>());
+            announcements = [n, ...announcements.where((x) => x.id != n.id)];
+            notifyListeners();
+          }
+        }
       case 'sent':
         {
           final ref = f['ref'] as String? ?? '';
@@ -1548,6 +1621,9 @@ class AppController extends ChangeNotifier {
     _messages.clear();
     _outbox.clear();
     openChatId = null;
+    announcements = [];
+    _dismissedNews = {};
+    banned = false;
     phase = AppPhase.onboarding;
     notifyListeners();
   }

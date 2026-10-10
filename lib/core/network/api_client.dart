@@ -139,4 +139,10 @@ class ApiClient {
   /// (el servidor no puede leer los mensajes por sí mismo).
   Future<void> report(String accountId, String reason, {List<String> messages = const []}) =>
       _send('POST', '/v1/reports', {'accountId': accountId, 'reason': reason, 'messages': messages});
+
+  /// Avisos de KLK para todos (los más nuevos primero).
+  Future<List<Map<String, dynamic>>> announcements() async {
+    final j = await _send('GET', '/v1/announcements') as Map<String, dynamic>;
+    return (j['announcements'] as List? ?? const []).cast<Map<String, dynamic>>();
+  }
 }

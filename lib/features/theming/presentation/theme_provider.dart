@@ -13,7 +13,7 @@ class ThemeNotifier extends Notifier<KlkTheme> {
   @override
   KlkTheme build() {
     _restore();
-    return KlkTheme.nocheCaribe; // tema por defecto
+    return KlkTheme.auto; // por defecto: claro u oscuro según el móvil
   }
 
   Future<void> _restore() async {

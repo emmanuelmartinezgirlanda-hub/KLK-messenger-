@@ -27,6 +27,19 @@ class SettingsView extends ConsumerWidget {
     return ListView(
       children: [
         const _ProfileHeader(),
+        if (app.isDemo)
+          Card(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            color: cs.primary.withValues(alpha: 0.10),
+            elevation: 0,
+            child: ListTile(
+              leading: Icon(Icons.login_rounded, color: cs.primary),
+              title: const Text('Usar KLK de verdad', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('Sal del modo demo y entra con tu número de móvil'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _leaveDemo(context, ref),
+            ),
+          ),
         const Divider(),
         ListTile(
           leading: const Icon(Icons.shield_outlined),
@@ -79,6 +92,21 @@ class SettingsView extends ConsumerWidget {
         const SizedBox(height: 24),
       ],
     );
+  }
+
+  Future<void> _leaveDemo(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Salir del modo demo?'),
+        content: const Text('Se borran los chats de ejemplo y vuelves a la pantalla de inicio para entrar con tu número.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Salir')),
+        ],
+      ),
+    );
+    if (ok == true) await ref.read(appProvider).panic();
   }
 
   Future<void> _confirmPanic(BuildContext context, WidgetRef ref) async {

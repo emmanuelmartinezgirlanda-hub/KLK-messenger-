@@ -11,6 +11,24 @@ import 'package:klk/features/privacy/domain/privacy_settings.dart';
 import 'package:klk/features/theming/domain/klk_theme.dart';
 
 void main() {
+  test('Los temas KLK claro y oscuro se serializan sin pérdidas', () {
+    for (final t in [KlkTheme.auto, KlkTheme.klkClaro, KlkTheme.klkOscuro]) {
+      expect(KlkTheme.decode(t.encode()).toJson(), t.toJson());
+    }
+    expect(KlkTheme.auto.isAuto, isTrue);
+  });
+
+  test('Aviso de KLK desde JSON del servidor', () {
+    final a = KlkAnnouncement.fromJson({
+      'id': 'a1',
+      'title': '¡Hola!',
+      'body': 'Bienvenidos',
+      'createdAt': '2026-10-10T15:40:55Z',
+    });
+    expect(a.title, '¡Hola!');
+    expect(a.createdAt.toUtc(), DateTime.utc(2026, 10, 10, 15, 40, 55));
+  });
+
   test('KlkTheme se serializa y deserializa sin pérdidas', () {
     const t = KlkTheme.nocheCaribe;
     expect(KlkTheme.decode(t.encode()).toJson(), t.toJson());

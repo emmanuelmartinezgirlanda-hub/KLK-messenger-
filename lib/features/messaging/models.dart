@@ -705,3 +705,20 @@ String foldForSearch(String s) {
   }
   return b.toString().toLowerCase();
 }
+
+
+/// Aviso de KLK para todos los usuarios (lo escribe el dueño desde su panel).
+class KlkAnnouncement {
+  final String id;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  const KlkAnnouncement({required this.id, required this.title, required this.body, required this.createdAt});
+
+  factory KlkAnnouncement.fromJson(Map<String, dynamic> j) => KlkAnnouncement(
+        id: j['id'] as String? ?? '',
+        title: j['title'] as String? ?? '',
+        body: j['body'] as String? ?? '',
+        createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+      );
+}

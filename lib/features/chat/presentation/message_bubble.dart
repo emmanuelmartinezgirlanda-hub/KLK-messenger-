@@ -56,11 +56,13 @@ class MessageBubble extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
-            color: cs.secondary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 1.5, offset: Offset(0, 1))],
           ),
           child: Text(message.body,
-              textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: cs.secondary)),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.7))),
         ),
       );
     }
@@ -89,7 +91,7 @@ class MessageBubble extends StatelessWidget {
         Text(time, style: TextStyle(color: fg.withValues(alpha: 0.65), fontSize: 11)),
         if (mine && !scheduled && !message.deleted) ...[
           const SizedBox(width: 3),
-          _StatusIcon(status: message.status, color: fg, readColor: cs.secondary, showRead: showReadReceipts),
+          _StatusIcon(status: message.status, color: fg, readColor: const Color(0xFF1D9BF0), showRead: showReadReceipts),
         ],
       ],
     );
@@ -163,7 +165,7 @@ class MessageBubble extends StatelessWidget {
 
     final bubble = Container(
       constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
-      margin: EdgeInsets.fromLTRB(10, 2.5, 10, message.reactions.isEmpty ? 2.5 : 14),
+      margin: EdgeInsets.fromLTRB(mine ? 48 : 10, 2, mine ? 10 : 48, message.reactions.isEmpty ? 2 : 14),
       padding: isSticker
           ? EdgeInsets.zero
           : (media == null || message.deleted
@@ -174,11 +176,12 @@ class MessageBubble extends StatelessWidget {
           : BoxDecoration(
               color: bg,
               border: scheduled ? Border.all(color: fg.withValues(alpha: 0.6), width: 1.2) : null,
+              boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 1.5, offset: Offset(0, 1))],
               borderRadius: BorderRadius.only(
-                topLeft: r,
-                topRight: r,
-                bottomLeft: mine ? r : const Radius.circular(5),
-                bottomRight: mine ? const Radius.circular(5) : r,
+                topLeft: mine ? r : const Radius.circular(3),
+                topRight: mine ? const Radius.circular(3) : r,
+                bottomLeft: r,
+                bottomRight: r,
               ),
             ),
       child: content,

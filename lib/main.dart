@@ -12,6 +12,7 @@ import 'features/messaging/app_controller.dart';
 import 'features/lock/app_lock.dart';
 import 'features/onboarding/welcome_screen.dart';
 import 'features/privacy/presentation/privacy_provider.dart';
+import 'features/theming/domain/klk_theme.dart';
 import 'features/theming/presentation/theme_provider.dart';
 
 Future<void> main() async {
@@ -79,7 +80,9 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
       navigatorKey: ref.watch(navigatorKeyProvider),
       title: KlkBrand.fullName,
       debugShowCheckedModeBanner: false,
-      theme: theme.toThemeData(),
+      theme: theme.isAuto ? KlkTheme.klkClaro.toThemeData() : theme.toThemeData(),
+      darkTheme: theme.isAuto ? KlkTheme.klkOscuro.toThemeData() : null,
+      themeMode: theme.isAuto ? ThemeMode.system : ThemeMode.light,
       locale: const Locale('es'),
       supportedLocales: const [Locale('es'), Locale('en')],
       localizationsDelegates: const [

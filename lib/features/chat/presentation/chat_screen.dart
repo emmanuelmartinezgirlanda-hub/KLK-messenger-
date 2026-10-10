@@ -18,6 +18,7 @@ import '../../calls/call_controller.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import '../../privacy/presentation/privacy_provider.dart';
+import '../../theming/domain/klk_theme.dart';
 import '../../theming/wallpapers.dart';
 import 'chat_avatar.dart';
 import 'chat_sheets.dart';
@@ -855,10 +856,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           ]),
         ),
-        SafeArea(
+        ColoredBox(
+          color: Theme.of(context).extension<BubbleStyle>()?.chatBg ?? cs.surface,
+          child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(4, 4, 8, 8),
+            padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
             child: blocked
                 ? _blockedBar(cs)
                 : Column(mainAxisSize: MainAxisSize.min, children: [
@@ -866,6 +869,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     _recording ? _recordingBar(cs) : _composer(),
                   ]),
           ),
+        ),
         ),
       ]),
     );
@@ -939,34 +943,71 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _composer() {
     final hasText = _input.text.trim().isNotEmpty;
-    return Row(children: [
-      IconButton(tooltip: 'Adjuntar', onPressed: _showAttachSheet, icon: const Icon(Icons.add_circle_outline, size: 28)),
+    final cs = Theme.of(context).colorScheme;
+    final light = Theme.of(context).brightness == Brightness.light;
+    final muted = cs.onSurface.withValues(alpha: 0.55);
+    return Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
       Expanded(
-        child: TextField(
-          controller: _input,
-          minLines: 1,
-          maxLines: 5,
-          textCapitalization: TextCapitalization.sentences,
-          onChanged: _onChanged,
-          decoration: InputDecoration(
-            hintText: 'Escribe un mensaje',
-            filled: true,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          decoration: BoxDecoration(
+            color: light ? Colors.white : const Color(0xFF1F2C34),
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 2, offset: Offset(0, 1))],
           ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            IconButton(
+              tooltip: 'Adjuntar',
+              onPressed: _showAttachSheet,
+              icon: Icon(Icons.add, size: 26, color: muted),
+            ),
+            Expanded(
+              child: TextField(
+                controller: _input,
+                minLines: 1,
+                maxLines: 6,
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: _onChanged,
+                style: const TextStyle(fontSize: 16.5),
+                decoration: const InputDecoration(
+                  hintText: 'Mensaje',
+                  filled: false,
+                  isDense: true,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 13),
+                ),
+              ),
+            ),
+            if (hasText)
+              IconButton(
+                tooltip: 'Programar mensaje',
+                onPressed: _schedule,
+                icon: Icon(Icons.schedule_send_outlined, color: muted),
+              )
+            else
+              IconButton(
+                tooltip: 'Cámara',
+                onPressed: () => _attach('camera'),
+                icon: Icon(Icons.photo_camera_outlined, color: muted),
+              ),
+          ]),
         ),
       ),
-      if (hasText)
-        IconButton(
-          tooltip: 'Programar mensaje',
-          onPressed: _schedule,
-          icon: const Icon(Icons.schedule_send_outlined),
+      const SizedBox(width: 6),
+      SizedBox(
+        width: 48,
+        height: 48,
+        child: FloatingActionButton(
+          heroTag: null,
+          elevation: 1,
+          shape: const CircleBorder(),
+          tooltip: hasText ? 'Enviar' : 'Grabar nota de voz',
+          onPressed: hasText ? () => _send() : _startRecording,
+          child: Icon(hasText ? Icons.send_rounded : Icons.mic_rounded, size: 24),
         ),
-      const SizedBox(width: 4),
-      hasText
-          ? IconButton.filled(tooltip: 'Enviar', onPressed: () => _send(), icon: const Icon(Icons.send))
-          : IconButton.filled(tooltip: 'Grabar nota de voz', onPressed: _startRecording, icon: const Icon(Icons.mic)),
+      ),
     ]);
   }
 

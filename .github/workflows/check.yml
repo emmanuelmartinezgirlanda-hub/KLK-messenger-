@@ -1,0 +1,49 @@
+# Comprobación rápida del código de la app (análisis + tests) en cada cambio.
+name: Comprobar código
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "test/**"
+      - "packages/**"
+      - "pubspec.yaml"
+      - ".github/workflows/check.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Análisis
+        shell: bash
+        run: |
+          flutter pub get
+          set -o pipefail
+          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee analyze.log
+      - name: Tests
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee test.log
+      - name: Resumen del error (si falla)
+        if: failure()
+        shell: bash
+        run: |
+          for f in analyze.log test.log; do
+            [ -f "$f" ] || continue
+            grep -n -E "error •|Error:|FAILED|Expected|Actual" "$f" | head -60 > errs.txt || true
+            msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' errs.txt)
+            echo "::error title=Errores en $f::${msg}"
+          done

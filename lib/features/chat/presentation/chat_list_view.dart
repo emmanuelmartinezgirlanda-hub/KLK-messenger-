@@ -18,20 +18,89 @@ String chatTime(DateTime t) {
   return DateFormat.yMd('es').format(t);
 }
 
-class ChatListView extends ConsumerWidget {
+enum _Filter { all, unread, groups }
+
+class ChatListView extends ConsumerStatefulWidget {
   const ChatListView({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatListView> createState() => _ChatListViewState();
+}
+
+class _ChatListViewState extends ConsumerState<ChatListView> {
+  final _search = TextEditingController();
+  _Filter _filter = _Filter.all;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final app = ref.watch(appProvider);
     final cs = Theme.of(context).colorScheme;
-    final chats = app.visibleChats;
+    final all = app.visibleChats;
+    final q = foldForSearch(_search.text.trim());
+    final unreadCount = all.where((c) => c.unread > 0).length;
+    final chats = all.where((c) {
+      if (_filter == _Filter.unread && c.unread == 0) return false;
+      if (_filter == _Filter.groups && !c.isGroup) return false;
+      if (q.isEmpty) return true;
+      return foldForSearch(c.title).contains(q) || foldForSearch(c.lastText).contains(q) || c.phone.contains(q);
+    }).toList();
+    final news = app.currentAnnouncement;
 
-    if (chats.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+    final top = <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
+        child: TextField(
+          controller: _search,
+          onChanged: (_) => setState(() {}),
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: 'Buscar',
+            isDense: true,
+            prefixIcon: const Icon(Icons.search, size: 22),
+            suffixIcon: _search.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Borrar',
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => setState(_search.clear),
+                  ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 11),
+          ),
+        ),
+      ),
+      SizedBox(
+        height: 44,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          children: [
+            _chip('Todos', _Filter.all),
+            _chip(unreadCount > 0 ? 'No leídos $unreadCount' : 'No leídos', _Filter.unread),
+            _chip('Grupos', _Filter.groups),
+          ],
+        ),
+      ),
+      if (news != null && q.isEmpty)
+        _AnnouncementCard(
+          news: news,
+          onClose: () => ref.read(appProvider).dismissAnnouncement(news.id),
+        ),
+      if (app.birthdaysToday.isNotEmpty && q.isEmpty && _filter == _Filter.all)
+        _BirthdayCard(people: app.birthdaysToday),
+    ];
+
+    if (all.isEmpty) {
+      return ListView(children: [
+        ...top,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(32, 48, 32, 32),
+          child: Column(children: [
             Icon(Icons.forum_outlined, size: 56, color: cs.primary),
             const SizedBox(height: 16),
             const Text('Todavía no tienes chats', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
@@ -46,17 +115,25 @@ class ChatListView extends ConsumerWidget {
             ),
           ]),
         ),
-      );
+      ]);
     }
 
-    final birthdays = app.birthdaysToday;
-    final header = birthdays.isEmpty ? 0 : 1;
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 88),
-      itemCount: chats.length + header,
+      padding: const EdgeInsets.only(bottom: 96),
+      itemCount: top.length + (chats.isEmpty ? 1 : chats.length),
       itemBuilder: (context, i) {
-        if (i < header) return _BirthdayCard(people: birthdays);
-        final c = chats[i - header];
+        if (i < top.length) return top[i];
+        if (chats.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(40),
+            child: Text(
+              q.isNotEmpty ? 'No hay chats con «${_search.text.trim()}»' : 'No hay chats aquí',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6)),
+            ),
+          );
+        }
+        final c = chats[i - top.length];
         return _ChatTile(
           chat: c,
           activity: app.isRecording(c.id)
@@ -66,6 +143,57 @@ class ChatListView extends ConsumerWidget {
                   : null,
         );
       },
+    );
+  }
+
+  Widget _chip(String label, _Filter f) => Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: ChoiceChip(
+          label: Text(label),
+          selected: _filter == f,
+          onSelected: (_) => setState(() => _filter = f),
+        ),
+      );
+}
+
+/// Aviso de KLK (lo manda el dueño desde su panel).
+class _AnnouncementCard extends StatelessWidget {
+  final KlkAnnouncement news;
+  final VoidCallback onClose;
+  const _AnnouncementCard({required this.news, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
+          child: Icon(Icons.campaign_rounded, size: 20, color: cs.onPrimary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('KLK · ${news.title}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            const SizedBox(height: 3),
+            Text(news.body, style: TextStyle(fontSize: 14, color: cs.onSurface.withValues(alpha: 0.8))),
+          ]),
+        ),
+        IconButton(
+          tooltip: 'Cerrar aviso',
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.close, size: 20),
+          onPressed: onClose,
+        ),
+      ]),
     );
   }
 }
@@ -129,17 +257,18 @@ class _ChatTile extends ConsumerWidget {
     final typing = activity != null;
 
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: ChatAvatar(id: chat.id, title: chat.title, photoPath: chat.avatarPath),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      minVerticalPadding: 10,
+      leading: ChatAvatar(id: chat.id, title: chat.title, photoPath: chat.avatarPath, radius: 27),
       title: Row(children: [
         Expanded(
           child: Text(chat.title,
-              maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+              maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16.5)),
         ),
         if (chat.blocked) const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.block, size: 15, color: Color(0xFFFF6B7A))),
         Text(chatTime(chat.updatedAt),
             style: TextStyle(
-                fontSize: 12, color: unread ? cs.secondary : muted, fontWeight: unread ? FontWeight.w700 : null)),
+                fontSize: 12, color: unread ? cs.primary : muted, fontWeight: unread ? FontWeight.w700 : null)),
       ]),
       subtitle: Row(children: [
         Expanded(
@@ -147,16 +276,19 @@ class _ChatTile extends ConsumerWidget {
             activity ?? chat.lastText,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: typing ? cs.secondary : muted, fontWeight: typing ? FontWeight.w600 : null),
+            style: TextStyle(
+                fontSize: 14.5, color: typing ? cs.primary : muted, fontWeight: typing ? FontWeight.w600 : null),
           ),
         ),
         if (unread)
           Container(
             margin: const EdgeInsets.only(left: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(color: cs.secondary, borderRadius: BorderRadius.circular(10)),
+            constraints: const BoxConstraints(minWidth: 22),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(12)),
             child: Text('${chat.unread}',
-                style: TextStyle(color: cs.onSecondary, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
           ),
       ]),
       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: chat.id))),
