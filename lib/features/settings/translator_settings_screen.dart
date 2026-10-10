@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 
 import '../../core/translate/translator.dart';
 
