@@ -33,7 +33,7 @@ services:
       - key: KLK_SMS_PRICE
         value: "0.08"
       - key: KLK_SERVER_COST
-        value: "0"
+        value: "12"
 
 databases:
   - name: klk-db
