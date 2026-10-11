@@ -233,4 +233,3 @@ func (m *Memory) Announcements(_ context.Context, limit int) ([]Announcement, er
 	}
 	return out, nil
 }
-

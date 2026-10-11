@@ -177,3 +177,10 @@ func randomDigits(n int) (string, error) {
 	}
 	return fmt.Sprintf("%0*d", n, v), nil
 }
+
+// SetNow cambia el reloj (solo para tests).
+func (o *OTP) SetNow(now func() time.Time) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.now = now
+}

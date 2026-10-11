@@ -127,6 +127,17 @@ type Store interface {
 	Announcements(ctx context.Context, limit int) ([]Announcement, error)
 	BannedAccounts(ctx context.Context, limit int) ([]AccountView, error)
 
+	// ---- PIN de registro y antifraude de SMS ----
+	PinState(ctx context.Context, phone string) (PinState, error)
+	// SetPin guarda el hash del PIN (hash nil = quitar el PIN).
+	SetPin(ctx context.Context, accountID string, hash, salt []byte) error
+	// PinFailed suma un intento fallido y devuelve cuántos lleva.
+	PinFailed(ctx context.Context, phone string) (int, error)
+	PinOK(ctx context.Context, phone string) error
+	AccountPhone(ctx context.Context, accountID string) (string, error)
+	// SMSCount cuenta los SMS enviados desde [since] ("" = todos los países).
+	SMSCount(ctx context.Context, country string, since time.Time) (int, error)
+
 	// ---- Comunidades por país ----
 	JoinCommunity(ctx context.Context, community, accountID string) error
 	LeaveCommunity(ctx context.Context, community, accountID string) error
@@ -176,22 +187,22 @@ type DayCount struct {
 
 // Stats son los números del panel.
 type Stats struct {
-	Users        int            `json:"users"`
-	NewToday     int            `json:"newToday"`
-	New7d        int            `json:"new7d"`
-	Active24h    int            `json:"active24h"`
-	Active7d     int            `json:"active7d"`
-	Active30d    int            `json:"active30d"`
-	Banned       int            `json:"banned"`
-	OpenReports  int            `json:"openReports"`
-	SMSToday     int            `json:"smsToday"`
-	SMSMonth     int            `json:"smsMonth"` // desde el día 1 del mes (UTC)
-	SMS30d       int            `json:"sms30d"`
-	Attachments  int            `json:"attachments"`
-	AttachBytes  int64          `json:"attachBytes"`
-	Signups      []DayCount     `json:"signups"`  // últimos 30 días
-	SMSDaily     []DayCount     `json:"smsDaily"` // últimos 30 días
-	Countries    map[string]int `json:"countries"`
+	Users       int            `json:"users"`
+	NewToday    int            `json:"newToday"`
+	New7d       int            `json:"new7d"`
+	Active24h   int            `json:"active24h"`
+	Active7d    int            `json:"active7d"`
+	Active30d   int            `json:"active30d"`
+	Banned      int            `json:"banned"`
+	OpenReports int            `json:"openReports"`
+	SMSToday    int            `json:"smsToday"`
+	SMSMonth    int            `json:"smsMonth"` // desde el día 1 del mes (UTC)
+	SMS30d      int            `json:"sms30d"`
+	Attachments int            `json:"attachments"`
+	AttachBytes int64          `json:"attachBytes"`
+	Signups     []DayCount     `json:"signups"`  // últimos 30 días
+	SMSDaily    []DayCount     `json:"smsDaily"` // últimos 30 días
+	Countries   map[string]int `json:"countries"`
 }
 
 // MaskPhone deja ver el país y las 2 últimas cifras: +1809•••••34.
@@ -226,7 +237,7 @@ func CountryOf(phone string) string {
 func days30(now time.Time) ([]DayCount, map[string]int) {
 	out := make([]DayCount, 30)
 	idx := map[string]int{}
-	d0 := now.UTC().Truncate(24 * time.Hour).AddDate(0, 0, -29)
+	d0 := now.UTC().Truncate(24*time.Hour).AddDate(0, 0, -29)
 	for i := range out {
 		day := d0.AddDate(0, 0, i).Format("2006-01-02")
 		out[i] = DayCount{Day: day}
@@ -234,3 +245,15 @@ func days30(now time.Time) ([]DayCount, map[string]int) {
 	}
 	return out, idx
 }
+
+// PinState es lo que el servidor sabe del PIN de una cuenta (por número).
+type PinState struct {
+	Exists   bool // el número tiene cuenta
+	Hash     []byte
+	Salt     []byte
+	Failures int
+	LastSeen *time.Time
+}
+
+// Enabled dice si la cuenta tiene PIN.
+func (p PinState) Enabled() bool { return p.Exists && len(p.Hash) > 0 }

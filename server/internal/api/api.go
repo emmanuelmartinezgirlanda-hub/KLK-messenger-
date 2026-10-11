@@ -32,7 +32,12 @@ type Server struct {
 
 	ipLimits    sync.Map // ip -> *rate.Limiter
 	adminLimits sync.Map // ip -> *rate.Limiter (panel)
-	touched  sync.Map // accountID -> time.Time (última vez que se apuntó last_seen)
+	touched     sync.Map // accountID -> time.Time (última vez que se apuntó last_seen)
+
+	// SMS son los límites antifraude de los códigos por SMS (nil = sin límites).
+	SMS *SMSGuard
+	// regs: números que ya pasaron el SMS y solo les falta el PIN.
+	regs regTokens
 
 	// AdminToken abre el panel del dueño (/admin). Vacío = panel desactivado.
 	AdminToken string
@@ -67,6 +72,9 @@ func (s *Server) Routes() http.Handler {
 
 	mux.HandleFunc("POST /v1/reports", s.authed(s.report))
 	mux.HandleFunc("GET /v1/announcements", s.authed(s.announcements))
+	mux.HandleFunc("GET /v1/account/pin", s.authed(s.pinStatus))
+	mux.HandleFunc("PUT /v1/account/pin", s.limited(s.authed(s.setPin)))
+	mux.HandleFunc("DELETE /v1/account/pin", s.authed(s.clearPin))
 
 	mux.HandleFunc("GET /v1/communities", s.authed(s.listCommunities))
 	mux.HandleFunc("POST /v1/communities/{id}", s.authed(s.joinCommunity))
@@ -155,7 +163,22 @@ func (s *Server) requestCode(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "banned", "este número está bloqueado por incumplir las normas de KLK")
 		return
 	}
-	switch err := s.otp.Request(req.Phone); {
+	ip := s.clientIP(r)
+	if auth.ValidPhone(req.Phone) {
+		if code, msg := s.smsAllowed(r.Context(), req.Phone, ip); code != "" {
+			status := http.StatusTooManyRequests
+			if code == "country_blocked" {
+				status = http.StatusForbidden
+			}
+			writeErr(w, status, code, msg)
+			return
+		}
+	}
+	err := s.otp.Request(req.Phone)
+	if err != nil && s.SMS != nil && auth.ValidPhone(req.Phone) {
+		s.SMS.giveBackIP(ip) // no se envió: no cuenta
+	}
+	switch {
 	case errors.Is(err, auth.ErrInvalidPhone):
 		writeErr(w, http.StatusBadRequest, "invalid_phone", err.Error())
 	case errors.Is(err, auth.ErrTooSoon):
@@ -175,6 +198,8 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Phone          string `json:"phone"`
 		Code           string `json:"code"`
+		RegToken       string `json:"regToken"` // tras "pin_required": en vez del código
+		Pin            string `json:"pin"`
 		DeviceName     string `json:"deviceName"`
 		RegistrationID int    `json:"registrationId"`
 		IdentityKey    []byte `json:"identityKey"`
@@ -186,13 +211,44 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_keys", "identityKey o registrationId inválidos")
 		return
 	}
-	if err := s.otp.Verify(req.Phone, req.Code); err != nil {
+	if req.RegToken != "" {
+		if !s.regs.valid(req.RegToken, req.Phone) {
+			writeErr(w, http.StatusForbidden, "bad_code", "el código caducó: pide otro SMS")
+			return
+		}
+	} else if err := s.otp.Verify(req.Phone, req.Code); err != nil {
 		writeErr(w, http.StatusForbidden, "bad_code", err.Error())
 		return
 	}
 	if banned, err := s.store.PhoneBanned(r.Context(), req.Phone); err == nil && banned {
 		writeErr(w, http.StatusForbidden, "banned", "este número está bloqueado por incumplir las normas de KLK")
 		return
+	}
+	// PIN de registro: si la cuenta lo tiene y se usó hace poco, hay que darlo.
+	if st, err := s.store.PinState(r.Context(), req.Phone); err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	} else if pinNeeded(st, time.Now()) {
+		tok := req.RegToken
+		if tok == "" {
+			tok = s.regs.issue(req.Phone)
+		}
+		if st.Failures >= pinMaxFailures {
+			writeJSON(w, http.StatusLocked, map[string]any{"code": "pin_locked",
+				"message": "demasiados intentos: podrás entrar sin PIN 7 días después del último uso de la cuenta"})
+			return
+		}
+		if req.Pin == "" {
+			writeJSON(w, http.StatusLocked, map[string]any{"code": "pin_required",
+				"message": "esta cuenta tiene PIN de seguridad", "regToken": tok, "attemptsLeft": pinMaxFailures - st.Failures})
+			return
+		}
+		if left, err := s.checkPin(r.Context(), req.Phone, req.Pin, st); err != nil {
+			writeJSON(w, http.StatusLocked, map[string]any{"code": "bad_pin",
+				"message": "PIN incorrecto", "regToken": tok, "attemptsLeft": left})
+			return
+		}
+		s.regs.drop(tok)
 	}
 	token, hash, err := auth.NewToken()
 	if err != nil {

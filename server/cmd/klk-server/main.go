@@ -8,6 +8,8 @@
 //	KLK_ADMIN_TOKEN  clave del panel del dueño (/admin). Vacía = panel apagado.
 //	KLK_SMS_PRICE    precio de cada SMS en euros, para el panel (por defecto 0.08)
 //	KLK_SERVER_COST  coste mensual del servidor en euros, para el panel (por defecto 0)
+//	KLK_SMS_COUNTRIES   prefijos a los que se mandan SMS ("+1,+34,…"; vacío = RD y diáspora; "*" = todos)
+//	KLK_SMS_DAILY_MAX   SMS al día en total (500) · KLK_SMS_COUNTRY_MAX por país (200) · KLK_SMS_IP_MAX por conexión (10)
 package main
 
 import (
@@ -89,6 +91,12 @@ func main() {
 	apiServer := api.New(st, otp, hub)
 	apiServer.TrustProxy = os.Getenv("KLK_TRUST_PROXY") == "1"
 	apiServer.AdminToken = os.Getenv("KLK_ADMIN_TOKEN")
+	apiServer.SMS = &api.SMSGuard{
+		Countries:  smsCountries(os.Getenv("KLK_SMS_COUNTRIES")),
+		DailyMax:   envInt("KLK_SMS_DAILY_MAX", 500),
+		CountryMax: envInt("KLK_SMS_COUNTRY_MAX", 200),
+		PerIPMax:   envInt("KLK_SMS_IP_MAX", 10),
+	}
 	apiServer.SMSPrice = envFloat("KLK_SMS_PRICE", 0.08)
 	apiServer.ServerCost = envFloat("KLK_SERVER_COST", 0)
 	if apiServer.AdminToken == "" {
@@ -140,6 +148,34 @@ func purgeAttachments(ctx context.Context, st store.Store) {
 		case <-t.C:
 		}
 	}
+}
+
+func envInt(k string, def int) int {
+	if v, err := strconv.Atoi(strings.TrimSpace(os.Getenv(k))); err == nil && v >= 0 {
+		return v
+	}
+	return def
+}
+
+// smsCountries lee "+1,+34,+353"; vacío = los países por defecto; "*" = todos.
+func smsCountries(v string) []string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return api.DefaultSMSCountries
+	}
+	if v == "*" {
+		return nil
+	}
+	var out []string
+	for _, c := range strings.Split(v, ",") {
+		if c = strings.TrimSpace(c); c != "" {
+			if !strings.HasPrefix(c, "+") {
+				c = "+" + c
+			}
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func envFloat(k string, def float64) float64 {

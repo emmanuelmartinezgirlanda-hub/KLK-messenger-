@@ -115,18 +115,24 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 		online = s.hub.OnlineCount()
 	}
 	smsMonth := float64(st.SMSMonth) * s.SMSPrice
+	limits := map[string]any{}
+	if s.SMS != nil {
+		limits = map[string]any{"daily": s.SMS.DailyMax, "perCountry": s.SMS.CountryMax,
+			"perIP": s.SMS.PerIPMax, "countries": s.SMS.Countries}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"stats":  st,
-		"online": online,
+		"stats":     st,
+		"smsLimits": limits,
+		"online":    online,
 		"money": map[string]any{
-			"smsPrice":      s.SMSPrice,
-			"smsCostMonth":  smsMonth,
-			"smsCostToday":  float64(st.SMSToday) * s.SMSPrice,
-			"serverCost":    s.ServerCost,
-			"totalMonth":    smsMonth + s.ServerCost,
-			"incomeMonth":   0,
-			"plusActive":    false,
-			"currency":      "EUR",
+			"smsPrice":     s.SMSPrice,
+			"smsCostMonth": smsMonth,
+			"smsCostToday": float64(st.SMSToday) * s.SMSPrice,
+			"serverCost":   s.ServerCost,
+			"totalMonth":   smsMonth + s.ServerCost,
+			"incomeMonth":  0,
+			"plusActive":   false,
+			"currency":     "EUR",
 		},
 	})
 }

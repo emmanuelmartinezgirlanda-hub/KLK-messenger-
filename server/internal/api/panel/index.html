@@ -247,6 +247,17 @@ function renderBanned(){
   <div class="card list">${list.length?list.map(a=>`<div class="item"><div><b>${esc(a.phone)}</b><div class="muted small">${esc(a.bannedReason||"sin motivo")} · ${dt(a.bannedAt)} · ${a.reports} denuncia${a.reports===1?"":"s"}</div></div><button class="btn" data-unban="${esc(a.id)}">Desbloquear</button></div>`).join(""):`<div class="empty">No hay nadie bloqueado.</div>`}</div>`;
 }
 
+function smsLimitsHtml(l){
+  if(!l||!Object.keys(l).length)return `<p class="muted small">Sin límites configurados.</p>`;
+  const cs=(l.countries&&l.countries.length)?l.countries.map(c=>esc(countries[c]||c)).join(", "):"todos los países";
+  return `<table class="money">
+    <tr><td>Máximo de SMS al día (total)</td><td>${l.daily?nf.format(l.daily):"sin tope"}</td></tr>
+    <tr><td>Máximo al día por país</td><td>${l.perCountry?nf.format(l.perCountry):"sin tope"}</td></tr>
+    <tr><td>Máximo al día por conexión</td><td>${l.perIP?nf.format(l.perIP):"sin tope"}</td></tr>
+  </table>
+  <p class="muted small">Países permitidos: ${cs}. Se cambia en Render → Environment: <b>KLK_SMS_COUNTRIES</b>, <b>KLK_SMS_DAILY_MAX</b>, <b>KLK_SMS_COUNTRY_MAX</b>, <b>KLK_SMS_IP_MAX</b>.</p>`;
+}
+
 function renderMoney(){
   const {stats:s,money:m}=data.stats;
   return `<div class="grid">
@@ -261,6 +272,8 @@ function renderMoney(){
     <tr><td><b>Total del mes</b></td><td>${eur.format(m.totalMonth)}</td></tr>
   </table>
   <p class="muted small">Los precios se cambian en Render → klk-server → Environment: <b>KLK_SMS_PRICE</b> (cada SMS) y <b>KLK_SERVER_COST</b> (servidor al mes). La factura exacta la ves en Twilio y en Render.</p></div>
+  <h2>Protección antifraude de SMS</h2>
+  <div class="card">${smsLimitsHtml(data.stats.smsLimits)}</div>
   <h2>SMS enviados (30 días)</h2>
   <div class="card">${chart(s.smsDaily)}</div>
   <h2>Ingresos</h2>
