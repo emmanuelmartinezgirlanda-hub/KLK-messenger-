@@ -48,7 +48,9 @@ type Stripe struct {
 
 var ErrBadSignature = errors.New("firma de Stripe incorrecta")
 
-func (s *Stripe) Test() bool { return strings.HasPrefix(s.SecretKey, "sk_test_") || strings.HasPrefix(s.SecretKey, "rk_test_") }
+func (s *Stripe) Test() bool {
+	return strings.HasPrefix(s.SecretKey, "sk_test_") || strings.HasPrefix(s.SecretKey, "rk_test_")
+}
 
 func (s *Stripe) post(ctx context.Context, path string, form url.Values, idem string, out any) error {
 	base := s.APIURL
