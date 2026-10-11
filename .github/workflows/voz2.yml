@@ -1,0 +1,42 @@
+# Voces más naturales para el anuncio: Chatterbox (MIT) y Kokoro (Apache 2.0).
+# Whisper comprueba que cada frase se entiende bien.
+name: Voz natural del anuncio
+on:
+  push:
+    branches: [main]
+    paths:
+      - "marketing/anuncio/guion_voz.txt"
+      - "marketing/anuncio/voz.py"
+      - ".github/workflows/voz2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  voz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq espeak-ng ffmpeg
+          pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -q chatterbox-tts || echo "chatterbox no se pudo instalar"
+          pip install -q "kokoro>=0.9.4" soundfile openai-whisper
+      - name: Generar voces
+        run: python marketing/anuncio/voz.py
+      - name: Guardar en la rama marketing-voz2
+        if: always()
+        run: |
+          cd out
+          git init -q -b marketing-voz2
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -qm "Voz natural del anuncio"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" marketing-voz2
