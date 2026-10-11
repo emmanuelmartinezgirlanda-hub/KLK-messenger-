@@ -9,6 +9,8 @@ on:
       - "server/**"
       - "render.yaml"
       - "ingles/**"
+      - "marketing/**"
+      - ".github/workflows/voz.yml"
       - ".github/workflows/ingles.yml"
   workflow_dispatch:
 

@@ -9,6 +9,8 @@ on:
       - "server/**"
       - "render.yaml"
       - "ingles/**"
+      - "marketing/**"
+      - ".github/workflows/voz.yml"
       - ".github/workflows/ingles.yml"
       - ".github/workflows/ios.yml"
       - ".github/workflows/windows.yml"

@@ -1,0 +1,48 @@
+# Genera la voz del anuncio (marketing/anuncio/guion.txt) con Piper, una voz libre.
+name: Voz del anuncio
+on:
+  push:
+    branches: [main]
+    paths:
+      - "marketing/anuncio/guion.txt"
+      - ".github/workflows/voz.yml"
+  workflow_dispatch:
+
+jobs:
+  voz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar Piper
+        run: pip install piper-tts==1.2.0
+      - name: Bajar voces
+        run: |
+          mkdir -p voces
+          base=https://huggingface.co/rhasspy/piper-voices/resolve/main/es
+          for v in es_MX/claude/high/es_MX-claude-high es_MX/ald/medium/es_MX-ald-medium es_ES/davefx/medium/es_ES-davefx-medium; do
+            n=$(basename $v)
+            curl -fsSL -o voces/$n.onnx "$base/$v.onnx"
+            curl -fsSL -o voces/$n.onnx.json "$base/$v.onnx.json"
+            curl -fsSL -o voces/$n.MODEL_CARD "$(dirname $base/$v)/MODEL_CARD" || true
+          done
+          ls -la voces
+      - name: Generar frases
+        run: |
+          mkdir -p out
+          for m in voces/*.onnx; do
+            n=$(basename $m .onnx)
+            mkdir -p out/$n
+            cp voces/$n.MODEL_CARD out/$n/ 2>/dev/null || true
+            while IFS='|' read -r id text; do
+              [ -z "$id" ] && continue
+              echo "$text" | piper --model $m --length_scale 0.92 --sentence_silence 0.15 --output_file out/$n/$id.wav
+            done < marketing/anuncio/guion.txt
+          done
+          ls -R out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voz
+          path: out
