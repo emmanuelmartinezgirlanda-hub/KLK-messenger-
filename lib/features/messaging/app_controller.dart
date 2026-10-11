@@ -418,6 +418,8 @@ class AppController extends ChangeNotifier {
         rethrow;
       }
       pendingRegToken = null;
+      // Registrarse otra vez borra mis claves del servidor: hay que volver a subirlas.
+      await _store.write('signal.spk.uploaded.${res.accountId}', '');
       final spk = await crypto.signedPreKey();
       await ApiClient(pendingServer, token: res.token).putSignedPreKey(spk.keyId, spk.publicKey, spk.signature);
       session = Session(phone: phone, server: pendingServer, accountId: res.accountId, token: res.token);
