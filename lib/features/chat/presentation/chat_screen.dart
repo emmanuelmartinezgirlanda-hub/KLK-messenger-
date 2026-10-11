@@ -16,6 +16,7 @@ import '../../../core/media/media_store.dart';
 import '../../../core/translate/translator.dart';
 import '../../../core/util/phone.dart';
 import '../../calls/call_controller.dart';
+import '../../topup/recharge_sheet.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import '../../privacy/presentation/privacy_provider.dart';
@@ -365,7 +366,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         case 'money':
           await showMoneyInfo(context, recharge: false);
         case 'recharge':
-          await showMoneyInfo(context, recharge: true);
+          await showRechargeSheet(context, chatId: widget.chatId);
       }
     } on PlatformException catch (e) {
       _snack(e.code.contains('denied') || e.code.contains('access')

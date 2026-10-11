@@ -9,6 +9,12 @@
 //	KLK_SMS_PRICE    precio de cada SMS en euros, para el panel (por defecto 0.08)
 //	KLK_SERVER_COST  coste mensual del servidor en euros, para el panel (por defecto 0)
 //	KLK_SMS_COUNTRIES   prefijos a los que se mandan SMS ("+1,+34,…"; vacío = RD y diáspora; "*" = todos)
+//	Recargas a RD (apagadas si no hay claves):
+//	  RELOADLY_CLIENT_ID / RELOADLY_CLIENT_SECRET  claves de Reloadly · RELOADLY_SANDBOX=0 para recargas de verdad
+//	  STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET    claves de Stripe (sk_test_… = sin cobrar de verdad)
+//	  KLK_TOPUP_DEMO=1   modo prueba sin ninguna cuenta (proveedor y pago de mentira)
+//	  KLK_TOPUP_CURRENCY (EUR) · KLK_TOPUP_MARGIN (0.08) · KLK_TOPUP_FEE (0.35) · KLK_TOPUP_MAX (40) · KLK_TOPUP_DAILY_MAX (5)
+//	  KLK_PUBLIC_URL     dirección pública del servidor (https://…)
 //	KLK_SMS_DAILY_MAX   SMS al día en total (500) · KLK_SMS_COUNTRY_MAX por país (200) · KLK_SMS_IP_MAX por conexión (10)
 package main
 
@@ -28,6 +34,7 @@ import (
 	"github.com/klk-app/klk-server/internal/auth"
 	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
+	"github.com/klk-app/klk-server/internal/topup"
 )
 
 func main() {
@@ -96,6 +103,21 @@ func main() {
 		DailyMax:   envInt("KLK_SMS_DAILY_MAX", 500),
 		CountryMax: envInt("KLK_SMS_COUNTRY_MAX", 200),
 		PerIPMax:   envInt("KLK_SMS_IP_MAX", 10),
+	}
+	apiServer.Topups = topupConfig()
+	if apiServer.Topups != nil {
+		go func() {
+			t := time.NewTicker(5 * time.Minute)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case now := <-t.C:
+					apiServer.SweepTopups(ctx, now)
+				}
+			}
+		}()
 	}
 	apiServer.SMSPrice = envFloat("KLK_SMS_PRICE", 0.08)
 	apiServer.ServerCost = envFloat("KLK_SERVER_COST", 0)
@@ -190,4 +212,39 @@ func envOr(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// topupConfig enciende las recargas si están las claves (o el modo prueba).
+func topupConfig() *api.Topups {
+	pricing := topup.Pricing{
+		Currency: strings.ToUpper(envOr("KLK_TOPUP_CURRENCY", "EUR")),
+		Margin:   envFloat("KLK_TOPUP_MARGIN", 0.08),
+		Fee:      envFloat("KLK_TOPUP_FEE", 0.35),
+		MaxPrice: envFloat("KLK_TOPUP_MAX", 40),
+	}
+	public := strings.TrimRight(envOr("KLK_PUBLIC_URL", os.Getenv("RENDER_EXTERNAL_URL")), "/")
+	t := &api.Topups{Pricing: pricing, PublicURL: public, DailyMax: envInt("KLK_TOPUP_DAILY_MAX", 5)}
+	id, secret := os.Getenv("RELOADLY_CLIENT_ID"), os.Getenv("RELOADLY_CLIENT_SECRET")
+	sk := os.Getenv("STRIPE_SECRET_KEY")
+	switch {
+	case id != "" && secret != "" && sk != "":
+		sandbox := os.Getenv("RELOADLY_SANDBOX") != "0"
+		t.Provider = &topup.Reloadly{ClientID: id, ClientSecret: secret, Test: sandbox}
+		t.Payments = &topup.Stripe{SecretKey: sk, WebhookSecret: os.Getenv("STRIPE_WEBHOOK_SECRET")}
+		if os.Getenv("STRIPE_WEBHOOK_SECRET") == "" {
+			slog.Warn("recargas: falta STRIPE_WEBHOOK_SECRET; los pagos no se confirmarán")
+		}
+		slog.Info("recargas encendidas", "reloadlyPrueba", sandbox, "stripePrueba", t.Payments.Test())
+		return t
+	case os.Getenv("KLK_TOPUP_DEMO") == "1":
+		if public == "" {
+			slog.Warn("recargas: modo prueba sin KLK_PUBLIC_URL; no se pueden abrir los pagos de prueba")
+			return nil
+		}
+		t.Provider = &topup.Fake{}
+		t.Payments = &topup.FakePay{BaseURL: public}
+		slog.Info("recargas en MODO PRUEBA (no se cobra ni se recarga de verdad)")
+		return t
+	}
+	return nil
 }

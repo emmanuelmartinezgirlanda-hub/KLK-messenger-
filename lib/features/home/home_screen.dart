@@ -17,6 +17,7 @@ import '../messaging/models.dart';
 import '../settings/settings_view.dart';
 import '../status/status_views.dart';
 import '../theming/presentation/theme_picker_screen.dart';
+import '../topup/recharge_sheet.dart';
 import 'tabs_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -87,6 +88,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ref.read(appProvider).openNotes().then((id) {
           if (mounted) nav.push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: id)));
         });
+      case 'recharge':
+        showRechargeSheet(context);
       case 'themes':
         nav.push(MaterialPageRoute(builder: (_) => const ThemePickerScreen()));
       case 'settings':
@@ -152,6 +155,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               PopupMenuItem(value: 'qr', child: Text('Mi código QR')),
               PopupMenuItem(value: 'scan', child: Text('Escanear código QR')),
               PopupMenuItem(value: 'notes', child: Text('Notas para mí')),
+              PopupMenuItem(value: 'recharge', child: Text('Recargar un móvil de RD')),
               PopupMenuItem(value: 'starred', child: Text('Mensajes destacados')),
               PopupMenuItem(value: 'archived', child: Text('Archivados')),
               PopupMenuItem(value: 'hidden', child: Text('Chats ocultos')),

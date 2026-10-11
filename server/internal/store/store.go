@@ -147,6 +147,21 @@ type Store interface {
 	CommunitiesOf(ctx context.Context, accountID string) ([]string, error)
 	// CommunityMembers devuelve los ids de las cuentas (no bloqueadas) de una comunidad.
 	CommunityMembers(ctx context.Context, community string, limit int) ([]string, error)
+
+	// ---- Recargas de móvil ----
+	CreateTopup(ctx context.Context, t Topup) error
+	GetTopup(ctx context.Context, id string) (Topup, error)
+	TopupByPaymentRef(ctx context.Context, ref string) (Topup, error)
+	// MoveTopup cambia el estado solo si sigue en [from]; si no, ErrWrongState.
+	MoveTopup(ctx context.Context, id, from, to string, u TopupUpdate, at time.Time) error
+	// TopupsBy cuenta las recargas creadas por una cuenta desde [since].
+	TopupsBy(ctx context.Context, accountID string, since time.Time) (int, error)
+	// TopupsOf devuelve las últimas recargas de una cuenta.
+	TopupsOf(ctx context.Context, accountID string, limit int) ([]Topup, error)
+	// StaleTopups devuelve las recargas en [status] sin cambios desde antes de [before].
+	StaleTopups(ctx context.Context, status string, before time.Time, limit int) ([]Topup, error)
+	TopupStats(ctx context.Context, since time.Time) (TopupStats, error)
+	ListTopups(ctx context.Context, limit int) ([]Topup, error)
 }
 
 // Announcement es un aviso de KLK para todos.

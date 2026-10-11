@@ -25,6 +25,7 @@ type Memory struct {
 	pin       map[string]*memPin
 
 	communities map[string]map[string]bool // comunidad -> cuentas
+	topups      map[string]Topup
 }
 
 type memAttachment struct {

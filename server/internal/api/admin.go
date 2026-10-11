@@ -66,6 +66,7 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/api/announcements", s.admin(s.adminNewsList))
 	mux.HandleFunc("POST /admin/api/announcements", s.admin(s.adminNewsAdd))
 	mux.HandleFunc("DELETE /admin/api/announcements/{id}", s.admin(s.adminNewsDelete))
+	mux.HandleFunc("GET /admin/api/topups", s.admin(s.adminTopups))
 }
 
 func (s *Server) adminEnabled() bool { return len(s.AdminToken) >= minAdminTokenLen }
@@ -115,6 +116,20 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 		online = s.hub.OnlineCount()
 	}
 	smsMonth := float64(st.SMSMonth) * s.SMSPrice
+	now := time.Now()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	tops, err := s.store.TopupStats(r.Context(), monthStart)
+	if err != nil {
+		slog.Warn("panel recargas", "err", err)
+	}
+	topupMode := "off"
+	if s.Topups != nil {
+		topupMode = "live"
+		if s.Topups.test() {
+			topupMode = "test"
+		}
+	}
+	profit := float64(tops.IncomeMonth-tops.CostMonth) / 100
 	limits := map[string]any{}
 	if s.SMS != nil {
 		limits = map[string]any{"daily": s.SMS.DailyMax, "perCountry": s.SMS.CountryMax,
@@ -123,6 +138,7 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"stats":     st,
 		"smsLimits": limits,
+		"topups":    map[string]any{"mode": topupMode, "stats": tops},
 		"online":    online,
 		"money": map[string]any{
 			"smsPrice":     s.SMSPrice,
@@ -130,7 +146,7 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 			"smsCostToday": float64(st.SMSToday) * s.SMSPrice,
 			"serverCost":   s.ServerCost,
 			"totalMonth":   smsMonth + s.ServerCost,
-			"incomeMonth":  0,
+			"incomeMonth":  profit,
 			"plusActive":   false,
 			"currency":     "EUR",
 		},
@@ -274,4 +290,24 @@ func (s *Server) adminNewsDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// adminTopups: las últimas recargas (con el número tapado).
+func (s *Server) adminTopups(w http.ResponseWriter, r *http.Request) {
+	list, err := s.store.ListTopups(r.Context(), 100)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	out := make([]map[string]any, 0, len(list))
+	for _, t := range list {
+		stuck := t.Status == store.TopupPaid && time.Since(t.UpdatedAt) > topupStuckAfter
+		out = append(out, map[string]any{
+			"id": t.ID, "phone": maskPhone(t.Phone), "operator": shortOperator(t.OperatorName),
+			"localAmount": t.LocalAmount, "priceCents": t.PriceCents, "costCents": t.CostCents,
+			"currency": t.Currency, "status": t.Status, "error": t.Error, "test": t.Test,
+			"stuck": stuck, "createdAt": t.CreatedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"topups": out})
 }

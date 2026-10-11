@@ -226,4 +226,19 @@ class ApiClient {
   Future<void> setPin(String pin) => _send('PUT', '/v1/account/pin', {'pin': pin});
 
   Future<void> clearPin() => _send('DELETE', '/v1/account/pin');
+
+  // ---------- Recargas a RD ----------
+
+  /// Compañía del número y montos disponibles con su precio.
+  Future<Map<String, dynamic>> topupQuote(String phone) async =>
+      await _send('GET', '/v1/topups/quote?phone=${Uri.encodeQueryComponent(phone)}') as Map<String, dynamic>;
+
+  /// Crea la recarga y devuelve {topup, payUrl}.
+  Future<Map<String, dynamic>> createTopup(String phone, num amount) async =>
+      await _send('POST', '/v1/topups', {'phone': phone, 'amount': amount}) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> topup(String id) async {
+    final j = await _send('GET', '/v1/topups/$id') as Map<String, dynamic>;
+    return j['topup'] as Map<String, dynamic>;
+  }
 }

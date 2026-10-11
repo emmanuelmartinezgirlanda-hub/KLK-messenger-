@@ -158,8 +158,8 @@ async function login(){
 
 async function loadAll(){
   try{
-    const [s,r,n,b]=await Promise.all([api("stats"),api("reports"+(showAll?"?all=1":"")),api("announcements"),api("banned")]);
-    data.stats=s;data.reports=r.reports;data.news=n.announcements;data.banned=b.accounts;
+    const [s,r,n,b,tp]=await Promise.all([api("stats"),api("reports"+(showAll?"?all=1":"")),api("announcements"),api("banned"),api("topups").catch(()=>({topups:[]}))]);
+    data.stats=s;data.reports=r.reports;data.news=n.announcements;data.banned=b.accounts;data.topups=tp.topups||[];
     $("#updated").textContent="Actualizado "+new Date().toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"});
     const open=s.stats.openReports;$("#repBadge").hidden=!open;$("#repBadge").textContent=open;
     render();
@@ -276,14 +276,36 @@ function renderMoney(){
   <div class="card">${smsLimitsHtml(data.stats.smsLimits)}</div>
   <h2>SMS enviados (30 días)</h2>
   <div class="card">${chart(s.smsDaily)}</div>
+  <h2>Recargas a RD</h2>
+  ${topupsHtml(data.stats.topups,data.topups||[])}
   <h2>Ingresos</h2>
   <div class="card">
     <table class="money">
+      <tr><td>Ganancia de recargas este mes</td><td>${eur.format(m.incomeMonth)}</td></tr>
       <tr><td>KLK Plus</td><td>${m.plusActive?"":"próximamente"}</td></tr>
-      <tr><td>Recargas a RD</td><td>próximamente</td></tr>
     </table>
-    <p class="muted small">Cuando actives KLK Plus o las recargas, aquí verás lo que ganas cada mes.</p>
   </div>`;
+}
+
+const topupState={awaiting_payment:"sin pagar",paid:"pagada, enviando",done:"✅ hecha",failed:"falló",refunded:"↩️ devuelta",expired:"caducada"};
+function topupsHtml(t,list){
+  t=t||{mode:"off",stats:{}};const st=t.stats||{};
+  const mode={off:"🔴 Apagadas",test:"🟡 MODO PRUEBA (no se cobra ni se recarga de verdad)",live:"🟢 Encendidas (dinero de verdad)"}[t.mode]||t.mode;
+  const money=c=>eur.format((c||0)/100);
+  const rows=list.slice(0,40).map(x=>`<div class="item"><div><b>${esc(x.operator)} RD$${nf.format(x.localAmount)}</b> · ${esc(x.phone)}${x.test?' <span class="muted small">(prueba)</span>':""}
+    <div class="muted small">${dt(x.createdAt)} · ${esc(topupState[x.status]||x.status)}${x.stuck?' · <b style="color:#CE1126">⚠️ revisar en Reloadly</b>':""}${x.error?" · "+esc(x.error):""}</div></div>
+    <div style="text-align:right"><b>${money(x.priceCents)}</b>${x.costCents?`<div class="muted small">coste ${money(x.costCents)}</div>`:""}</div></div>`).join("");
+  return `<div class="card"><p><b>${mode}</b></p>
+    <table class="money">
+      <tr><td>Recargas hechas este mes</td><td>${nf.format(st.doneMonth||0)}</td></tr>
+      <tr><td>Cobrado a los clientes</td><td>${money(st.incomeCents)}</td></tr>
+      <tr><td>Pagado al proveedor</td><td>${money(st.costCents)}</td></tr>
+      <tr><td><b>Ganancia</b> (antes de comisión de tarjeta)</td><td>${money((st.incomeCents||0)-(st.costCents||0))}</td></tr>
+      <tr><td>Fallidas (dinero devuelto)</td><td>${nf.format(st.failedMonth||0)}</td></tr>
+      ${st.testDoneMonth?`<tr><td>Recargas de prueba</td><td>${nf.format(st.testDoneMonth)}</td></tr>`:""}
+    </table>
+    <p class="muted small">Se encienden en Render → klk-server → Environment con las claves de Reloadly y Stripe.</p></div>
+  <div class="card list">${rows||`<div class="empty">Todavía no hay recargas.</div>`}</div>`;
 }
 
 function render(){

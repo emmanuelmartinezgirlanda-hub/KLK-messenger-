@@ -45,6 +45,9 @@ type Server struct {
 	SMSPrice   float64
 	ServerCost float64
 
+	// Topups: recargas de móvil a RD (nil = apagadas).
+	Topups *Topups
+
 	// TrustProxy usa X-Forwarded-For para identificar la IP del cliente.
 	// Actívalo solo detrás de un proxy de confianza (Render, Cloudflare…).
 	TrustProxy bool
@@ -84,6 +87,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /c/{digits}", s.contactPage)
 
 	s.adminRoutes(mux)
+	s.topupRoutes(mux)
 
 	mux.HandleFunc("GET /v1/ws", s.authed(s.websocket))
 	return mux

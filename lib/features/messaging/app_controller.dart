@@ -962,6 +962,9 @@ class AppController extends ChangeNotifier {
 
   // ---------- PIN de seguridad ----------
 
+  /// Cliente del servidor para las recargas (null en modo demo o sin sesión).
+  ApiClient? get topupApi => isDemo ? null : _api;
+
   Future<bool> pinEnabled() async => _api == null ? false : _api!.pinEnabled();
   Future<void> setRegistrationPin(String pin) => _api!.setPin(pin);
   Future<void> clearRegistrationPin() => _api!.clearPin();
