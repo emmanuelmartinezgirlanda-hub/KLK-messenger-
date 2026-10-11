@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -175,4 +176,23 @@ func TestMaskPhone(t *testing.T) {
 	}
 	_ = context.Background
 	_ = time.Now
+}
+
+func TestContactPage(t *testing.T) {
+	e := newEnv(t)
+	resp, err := http.Get(e.srv.URL + "/c/18095551234?n=%3Cb%3EAna%3C%2Fb%3E")
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("página: %v %v", err, resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	page := string(body)
+	if !strings.Contains(page, "18095551234") || strings.Contains(page, "<b>Ana</b>") || !strings.Contains(page, "&lt;b&gt;Ana") {
+		t.Fatalf("contenido inesperado: %s", page)
+	}
+	resp, _ = http.Get(e.srv.URL + "/c/12ab")
+	if resp.StatusCode != 404 {
+		t.Fatalf("número malo: %d", resp.StatusCode)
+	}
+	resp.Body.Close()
 }

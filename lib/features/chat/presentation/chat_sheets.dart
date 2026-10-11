@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/util/phone.dart';
@@ -8,6 +10,7 @@ import '../../messaging/models.dart';
 import '../../messaging/custom_stickers.dart';
 import '../../messaging/stickers.dart';
 import 'chat_avatar.dart';
+import 'sticker_editor.dart';
 
 /// Hojas inferiores del chat: stickers, viaje, reenviar, temporales,
 /// información del grupo y servicios de dinero.
@@ -85,10 +88,39 @@ class _MyStickersState extends State<_MyStickers> {
   }
 
   Future<void> _create() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Text('Crear sticker', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Elegir una foto'),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Hacer una foto'),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+        ]),
+      ),
+    );
+    if (source == null || !mounted) return;
     setState(() => _busy = true);
     try {
-      final path = await CustomStickers.createFromGallery();
-      if (path != null) await _load();
+      final x = await ImagePicker().pickImage(source: source, maxWidth: 1600, maxHeight: 1600);
+      if (x == null || !mounted) return;
+      final bytes = await Navigator.of(context).push<Uint8List>(
+        MaterialPageRoute(builder: (_) => StickerEditor(imagePath: x.path)),
+      );
+      if (bytes == null) return;
+      await CustomStickers.saveBytes(bytes);
+      await _load();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -9,6 +9,7 @@ import '../chat/presentation/chat_screen.dart';
 import '../chat/presentation/new_chat_sheet.dart';
 import '../chat/presentation/starred_screen.dart';
 import '../communities/communities_view.dart';
+import '../contacts/my_qr_screen.dart';
 import '../groups/create_group_screen.dart';
 import '../hidden/hidden_chats_screen.dart';
 import '../messaging/app_controller.dart';
@@ -74,6 +75,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         nav.push(MaterialPageRoute(builder: (_) => const CreateGroupScreen()));
       case 'hidden':
         nav.push(MaterialPageRoute(builder: (_) => const HiddenChatsScreen()));
+      case 'qr':
+        nav.push(MaterialPageRoute(builder: (_) => const MyQrScreen()));
+      case 'scan':
+        nav.push(MaterialPageRoute(builder: (_) => const QrScannerScreen()));
       case 'starred':
         nav.push(MaterialPageRoute(builder: (_) => const StarredScreen()));
       case 'archived':
@@ -110,22 +115,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: Row(children: [
           Flexible(
             child: _tab == 0
-                ? Text.rich(
-                    TextSpan(children: [
-                      TextSpan(
-                        text: 'KLK',
+                ? Row(mainAxisSize: MainAxisSize.min, children: [
+                    Image.asset('assets/brand/klk_header.png', height: 38, semanticLabel: 'KLK'),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'messenger',
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
                         style: TextStyle(
-                            fontWeight: FontWeight.w900, fontSize: 25, color: light ? cs.primary : cs.onSurface, letterSpacing: 0.4),
+                            fontWeight: FontWeight.w800, fontSize: 21, color: light ? cs.primary : cs.onSurface),
                       ),
-                      TextSpan(
-                        text: ' messenger',
-                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: cs.secondary),
-                      ),
-                    ]),
-                    maxLines: 1,
-                    overflow: TextOverflow.fade,
-                    softWrap: false,
-                  )
+                    ),
+                  ])
                 : Text(_titles[_tab], style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 24)),
           ),
           const SizedBox(width: 8),
@@ -146,6 +149,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onSelected: _menu,
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'group', child: Text('Nuevo grupo')),
+              PopupMenuItem(value: 'qr', child: Text('Mi código QR')),
+              PopupMenuItem(value: 'scan', child: Text('Escanear código QR')),
               PopupMenuItem(value: 'notes', child: Text('Notas para mí')),
               PopupMenuItem(value: 'starred', child: Text('Mensajes destacados')),
               PopupMenuItem(value: 'archived', child: Text('Archivados')),

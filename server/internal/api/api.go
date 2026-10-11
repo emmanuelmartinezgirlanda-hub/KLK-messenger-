@@ -73,6 +73,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("DELETE /v1/communities/{id}", s.authed(s.joinCommunity))
 	mux.HandleFunc("GET /v1/communities/{id}/members", s.authed(s.communityMembers))
 
+	mux.HandleFunc("GET /c/{digits}", s.contactPage)
+
 	s.adminRoutes(mux)
 
 	mux.HandleFunc("GET /v1/ws", s.authed(s.websocket))

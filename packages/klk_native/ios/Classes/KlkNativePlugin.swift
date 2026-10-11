@@ -1,7 +1,9 @@
 import AVFoundation
+import CoreImage
 import Flutter
 import Speech
 import UIKit
+import Vision
 
 /// Funciones nativas de KLK:
 /// - "transcribe": pasa una nota de voz a texto SIN enviarla a ningún servidor
@@ -31,6 +33,12 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         return
       }
       transcribe(path: path, locale: (args["locale"] as? String) ?? "es-ES", result: result)
+    case "liftSubject":
+      guard let args = call.arguments as? [String: Any], let path = args["path"] as? String else {
+        result(FlutterError(code: "bad_args", message: "Falta la foto", details: nil))
+        return
+      }
+      liftSubject(path: path, result: result)
     case "compressVideo":
       guard let args = call.arguments as? [String: Any], let path = args["path"] as? String else {
         result(FlutterError(code: "bad_args", message: "Falta el vídeo", details: nil))
@@ -111,6 +119,56 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       } else {
         let why = export.error?.localizedDescription ?? "error desconocido"
         self.fail(result, "failed", "No se pudo preparar el vídeo: \(why)")
+      }
+    }
+  }
+
+  // ---------- Recortar persona u objeto (stickers) ----------
+
+  /// Quita el fondo de una foto y deja solo a la persona, mascota u objeto,
+  /// como hace el iPhone al mantener pulsada una foto. Todo en el móvil.
+  /// Devuelve la ruta de un PNG transparente recortado al sujeto.
+  private func liftSubject(path: String, result: @escaping FlutterResult) {
+    guard #available(iOS 17.0, *) else {
+      fail(result, "unsupported", "Quitar el fondo necesita iOS 17 o más nuevo.")
+      return
+    }
+    DispatchQueue.global(qos: .userInitiated).async {
+      guard let original = UIImage(contentsOfFile: path) else {
+        self.fail(result, "bad_image", "No se pudo abrir la foto")
+        return
+      }
+      // Dibuja la foto "derecha" para no lidiar con la orientación.
+      let format = UIGraphicsImageRendererFormat()
+      format.scale = 1
+      let upright = UIGraphicsImageRenderer(size: original.size, format: format).image { _ in
+        original.draw(in: CGRect(origin: .zero, size: original.size))
+      }
+      guard let cg = upright.cgImage else {
+        self.fail(result, "bad_image", "No se pudo leer la foto")
+        return
+      }
+      let handler = VNImageRequestHandler(cgImage: cg, options: [:])
+      let request = VNGenerateForegroundInstanceMaskRequest()
+      do {
+        try handler.perform([request])
+        guard let obs = request.results?.first, !obs.allInstances.isEmpty else {
+          self.fail(result, "no_subject", "No encontré a nadie en la foto. Prueba con otra.")
+          return
+        }
+        let buffer = try obs.generateMaskedImage(
+          ofInstances: obs.allInstances, from: handler, croppedToInstancesExtent: true)
+        let ci = CIImage(cvPixelBuffer: buffer)
+        guard let out = CIContext().createCGImage(ci, from: ci.extent),
+              let png = UIImage(cgImage: out).pngData() else {
+          self.fail(result, "failed", "No se pudo recortar la foto")
+          return
+        }
+        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("klk_cut_\(UUID().uuidString).png")
+        try png.write(to: url)
+        DispatchQueue.main.async { result(url.path) }
+      } catch {
+        self.fail(result, "failed", "No se pudo quitar el fondo: \(error.localizedDescription)")
       }
     }
   }

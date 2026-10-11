@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/brand/klk_logo.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
+import '../contacts/my_qr_screen.dart';
 import '../hidden/hidden_chats_screen.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
@@ -248,6 +249,11 @@ class _ProfileHeader extends ConsumerWidget {
               ),
             ),
           ]),
+        ),
+        IconButton(
+          tooltip: 'Mi código QR',
+          icon: Icon(Icons.qr_code_2, color: cs.primary),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyQrScreen())),
         ),
         IconButton(
           tooltip: 'Cambiar nombre',

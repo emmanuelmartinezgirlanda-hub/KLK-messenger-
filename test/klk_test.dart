@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:klk/core/backup/backup_codec.dart';
 import 'package:klk/core/crypto/crypto_engine.dart';
 import 'package:klk/core/network/link_preview.dart';
+import 'package:klk/features/contacts/my_qr_screen.dart';
 import 'package:klk/core/util/phone.dart';
 import 'package:klk/features/messaging/models.dart';
 import 'package:klk/features/messaging/stickers.dart';
@@ -31,6 +32,14 @@ void main() {
     final q = LinkPreviewFetcher.parse('<title> Hola  mundo </title>', 'https://www.ejemplo.do/a');
     expect(q.title, 'Hola mundo');
     expect(q.site, 'ejemplo.do');
+  });
+
+  test('Código QR de contacto: ida y vuelta', () {
+    final link = contactLink('https://klk-server.onrender.com', '+18095551234', 'Emmanuel M');
+    expect(link, 'https://klk-server.onrender.com/c/18095551234?n=Emmanuel+M');
+    expect(parseContactLink(link), ('+18095551234', 'Emmanuel M'));
+    expect(parseContactLink('https://otra.web/x'), isNull);
+    expect(contactLink('', '+34600000000', ''), 'https://klk-server.onrender.com/c/34600000000');
   });
 
   test('Primer enlace del texto', () {
