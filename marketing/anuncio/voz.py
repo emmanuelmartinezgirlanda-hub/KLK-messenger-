@@ -1,57 +1,43 @@
-"""Genera la voz del anuncio con varias voces libres y la comprueba con Whisper."""
-import os, traceback
+"""Voz del anuncio con Chatterbox (MIT): 4 tomas por frase y Whisper elige la que mejor se entiende."""
+import os, re, difflib, traceback, unicodedata
 import numpy as np
 import soundfile as sf
+import torch
+import whisper
+from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
 lines = [l.strip().split("|", 1) for l in open("marketing/anuncio/guion_voz.txt", encoding="utf-8") if "|" in l]
-os.makedirs("out", exist_ok=True)
+# Lo que debería "oír" Whisper en cada frase (ortografía normal).
+def heard(t):
+    t = t.replace("Queloque", "que lo que").replace("mésenyer", "messenger")
+    t = t.replace("ese eme ese", "sms").replace("cu erre", "qr").replace("stíkers", "stickers")
+    return norm(t)
+def norm(t):
+    t = unicodedata.normalize("NFD", t.lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9 ]+", " ", t).split()
+
+os.makedirs("out/best", exist_ok=True); os.makedirs("out/takes", exist_ok=True)
 report = open("out/informe.txt", "w", encoding="utf-8")
-
-def save(folder, i, wav, sr):
-    os.makedirs(f"out/{folder}", exist_ok=True)
-    sf.write(f"out/{folder}/{i}.wav", np.asarray(wav, dtype=np.float32), sr)
-
-# --- Kokoro (Apache 2.0) ---
-try:
-    from kokoro import KPipeline
-    pipe = KPipeline(lang_code="e")
-    for voice in ["em_alex", "ef_dora", "em_santa"]:
-        for i, text in lines:
-            chunks = [a for _, _, a in pipe(text, voice=voice, speed=1.0)]
-            save(f"kokoro_{voice}", i, np.concatenate([np.asarray(c) for c in chunks]), 24000)
-        print("kokoro", voice, "ok", flush=True)
-except Exception:
-    traceback.print_exc(); report.write("kokoro falló\n" + traceback.format_exc())
-
-# --- Chatterbox multilingüe (MIT) ---
-try:
-    import torch
-    from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-    model = ChatterboxMultilingualTTS.from_pretrained(device="cpu")
-    for name, ex in [("chatterbox", 0.5), ("chatterbox_viva", 0.75)]:
-        for i, text in lines:
-            torch.manual_seed(int(i))
-            wav = model.generate(text, language_id="es", exaggeration=ex, cfg_weight=0.5)
-            save(name, i, wav.squeeze(0).cpu().numpy(), model.sr)
-            print(name, i, "ok", flush=True)
-except Exception:
-    traceback.print_exc(); report.write("chatterbox falló\n" + traceback.format_exc())
-
-# --- Comprobación con Whisper ---
-try:
-    import whisper
-    w = whisper.load_model("small")
-    for folder in sorted(os.listdir("out")):
-        if not os.path.isdir(f"out/{folder}"): continue
-        report.write(f"\n== {folder}\n")
-        for i, text in lines:
-            p = f"out/{folder}/{i}.wav"
-            if os.path.exists(p):
-                r = w.transcribe(p, language="es", fp16=False)
-                d = sf.info(p).duration
-                report.write(f"{i} [{d:.2f}s] {r['text'].strip()}\n")
-        report.flush()
-except Exception:
-    traceback.print_exc(); report.write("whisper falló\n" + traceback.format_exc())
+model = ChatterboxMultilingualTTS.from_pretrained(device="cpu")
+w = whisper.load_model("small")
+for i, text in lines:
+    want = heard(text)
+    best = None
+    for take in range(4):
+        torch.manual_seed(1000 * int(i) + take)
+        wav = model.generate(text, language_id="es", exaggeration=0.6, cfg_weight=0.5, temperature=0.75)
+        p = f"out/takes/{i}_{take}.wav"
+        sf.write(p, wav.squeeze(0).cpu().numpy().astype(np.float32), model.sr)
+        got = w.transcribe(p, language="es", fp16=False)["text"].strip()
+        score = difflib.SequenceMatcher(None, want, norm(got)).ratio()
+        dur = sf.info(p).duration
+        # Penaliza tomas que se alargan (palabras repetidas o inventadas).
+        if dur > 0.085 * len(text) + 1.0: score -= 0.1
+        report.write(f"{i}.{take} [{score:.2f} {dur:.2f}s] {got}\n"); report.flush()
+        print(i, take, round(score, 2), got, flush=True)
+        if best is None or score > best[0]:
+            best = (score, p)
+    os.replace(best[1], f"out/best/{i}.wav")
+    report.write(f"==> {i}: {best[1]} ({best[0]:.2f})\n")
 report.close()
-print(open("out/informe.txt", encoding="utf-8").read())
