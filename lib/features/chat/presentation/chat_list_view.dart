@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import 'chat_avatar.dart';
+import 'archived_screen.dart';
 import 'chat_screen.dart';
+import 'chat_sheets.dart';
 import '../../contacts/contact_actions.dart';
 import 'new_chat_sheet.dart';
 
@@ -87,6 +89,15 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
           ],
         ),
       ),
+      if (app.archivedChats.isNotEmpty && q.isEmpty)
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 30),
+          leading: Icon(Icons.archive_outlined, color: cs.onSurface.withValues(alpha: 0.7)),
+          title: const Text('Archivados', style: TextStyle(fontWeight: FontWeight.w600)),
+          trailing: Text('${app.archivedChats.length}',
+              style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700)),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ArchivedScreen())),
+        ),
       if (news != null && q.isEmpty)
         _AnnouncementCard(
           news: news,
@@ -96,7 +107,7 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
         _BirthdayCard(people: app.birthdaysToday),
     ];
 
-    if (all.isEmpty) {
+    if (all.isEmpty && app.archivedChats.isEmpty) {
       return ListView(children: [
         ...top,
         Padding(
@@ -267,6 +278,8 @@ class _ChatTile extends ConsumerWidget {
               maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16.5)),
         ),
         if (chat.blocked) const Padding(padding: EdgeInsets.only(right: 6), child: Icon(Icons.block, size: 15, color: Color(0xFFFF6B7A))),
+        if (chat.muted)
+          Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.notifications_off_outlined, size: 15, color: muted)),
         if (ref.watch(appProvider).isPinnedChat(chat.id))
           Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.push_pin, size: 14, color: muted)),
         Text(chatTime(chat.updatedAt),
@@ -288,7 +301,9 @@ class _ChatTile extends ConsumerWidget {
             margin: const EdgeInsets.only(left: 8),
             constraints: const BoxConstraints(minWidth: 22),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+                color: chat.muted ? cs.onSurface.withValues(alpha: 0.35) : cs.primary,
+                borderRadius: BorderRadius.circular(12)),
             child: Text('${chat.unread}',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: cs.onPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
@@ -298,7 +313,9 @@ class _ChatTile extends ConsumerWidget {
       onLongPress: () => showModalBottomSheet(
         context: context,
         showDragHandle: true,
+        isScrollControlled: true,
         builder: (ctx) => SafeArea(
+          child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             ListTile(
               leading: Icon(ref.read(appProvider).isPinnedChat(chat.id) ? Icons.push_pin : Icons.push_pin_outlined),
@@ -308,6 +325,36 @@ class _ChatTile extends ConsumerWidget {
                 ref.read(appProvider).togglePinChat(chat.id);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.archive_outlined),
+              title: const Text('Archivar chat'),
+              onTap: () {
+                Navigator.pop(ctx);
+                ref.read(appProvider).setArchived(chat.id, true);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('«${chat.title}» archivado'),
+                  action: SnackBarAction(
+                    label: 'Deshacer',
+                    onPressed: () => ref.read(appProvider).setArchived(chat.id, false),
+                  ),
+                ));
+              },
+            ),
+            if (!chat.isNotes)
+              ListTile(
+                leading: Icon(chat.muted ? Icons.notifications_active_outlined : Icons.notifications_off_outlined),
+                title: Text(chat.muted ? 'Activar sonido' : 'Silenciar'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final app = ref.read(appProvider);
+                  if (chat.muted) {
+                    await app.setMuted(chat.id, unmute: true);
+                    return;
+                  }
+                  final d = await pickMuteDuration(context);
+                  if (d != null) await app.setMuted(chat.id, duration: d == Duration.zero ? null : d);
+                },
+              ),
             if (chat.unread > 0)
               ListTile(
                 leading: const Icon(Icons.mark_chat_read_outlined),
@@ -317,6 +364,7 @@ class _ChatTile extends ConsumerWidget {
                   ref.read(appProvider).markChatRead(chat.id);
                 },
               ),
+            if (!chat.isNotes)
             ListTile(
               leading: const Icon(Icons.edit_outlined),
               title: Text(chat.isGroup
@@ -327,6 +375,7 @@ class _ChatTile extends ConsumerWidget {
                 await editContactName(context, ref.read(appProvider), chat);
               },
             ),
+            if (!chat.isNotes)
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Color(0xFFCE1126)),
               title: Text(chat.isGroup ? 'Eliminar grupo' : 'Eliminar contacto',
@@ -354,6 +403,7 @@ class _ChatTile extends ConsumerWidget {
               },
             ),
           ]),
+          ),
         ),
       ),
     );

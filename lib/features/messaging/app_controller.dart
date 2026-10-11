@@ -20,6 +20,7 @@ import '../../core/crypto/crypto_engine.dart';
 import '../../core/database/local_db.dart';
 import '../../core/media/media_store.dart';
 import '../../core/network/api_client.dart';
+import '../../core/network/link_preview.dart';
 import '../../core/network/presence_gate.dart';
 import '../../core/notify/alerts.dart';
 import '../../core/security/secure_store.dart';
@@ -157,10 +158,82 @@ class AppController extends ChangeNotifier {
   /// Chats de la lista principal (sin los ocultos).
   /// Chats visibles; los fijados van arriba (en el orden en que se fijaron).
   List<Chat> get visibleChats {
-    final list = chats.where((c) => !c.hidden).toList();
+    final list = chats.where((c) => !c.hidden && !c.archived).toList();
     if (pinnedChats.isEmpty) return list;
     final pinned = [for (final id in pinnedChats) ...list.where((c) => c.id == id)];
     return [...pinned, ...list.where((c) => !pinnedChats.contains(c.id))];
+  }
+
+  // ---------- Archivar, silenciar, destacar, editar y notas ----------
+
+  /// Chats archivados (no salen en la lista principal).
+  List<Chat> get archivedChats => chats.where((c) => c.archived && !c.hidden).toList();
+
+  Future<void> setArchived(String chatId, bool archived) async {
+    await _db!.setArchived(chatId, archived);
+    await _refresh();
+  }
+
+  /// Silencia un chat ([duration] null = siempre) o lo vuelve a activar ([unmute]).
+  Future<void> setMuted(String chatId, {Duration? duration, bool unmute = false}) async {
+    final until = unmute ? null : (duration == null ? DateTime(9999) : DateTime.now().add(duration));
+    await _db!.setMuted(chatId, until);
+    await _refresh();
+  }
+
+  Future<void> toggleStar(Message m) async {
+    final fresh = await _db!.message(m.id) ?? m;
+    await _db!.setStarred(m.id, !fresh.starred);
+    await _refresh();
+  }
+
+  Future<List<Message>> starredMessages() async => _db == null ? const [] : _db!.starredMessages();
+
+  /// Se puede editar un mensaje de texto mío durante 15 minutos.
+  static const editWindow = Duration(minutes: 15);
+
+  bool canEdit(Message m) =>
+      m.isMine &&
+      !m.deleted &&
+      m.status != MessageStatus.scheduled &&
+      m.status != MessageStatus.failed &&
+      (m.media == null || m.body.isNotEmpty) &&
+      DateTime.now().difference(m.createdAt) < editWindow;
+
+  Future<void> editMessage(Message m, String newText) async {
+    final text = newText.trim();
+    if (!canEdit(m) || text.isEmpty || text == m.body) return;
+    final now = DateTime.now();
+    final url = firstUrl(text);
+    LinkPreview? link;
+    if (url != null && !isDemo) link = await LinkPreviewFetcher.fetch(url);
+    await _db!.editMessage(m.id, text, now, linkJson: link == null ? null : jsonEncode(link.toJson()));
+    await _refresh();
+    if (isDemo || isNotesChat(m.chatId)) return;
+    try {
+      await _sendToChat(m.chatId, Payload(kind: 'edit', target: m.id, text: text, link: link?.toJson()),
+          ref: 'x-${_uuid.v4()}');
+    } catch (_) {}
+  }
+
+  bool isNotesChat(String chatId) => chatId == notesChatId;
+
+  /// Abre (o crea) "Notas para mí": un chat contigo mismo que nunca sale del móvil.
+  Future<String> openNotes() async {
+    final db = _db!;
+    if (await db.chat(notesChatId) == null) {
+      await db.upsertChat(Chat(id: notesChatId, title: 'Notas para mí', updatedAt: DateTime.now()));
+      await db.addMessage(Message(
+        id: _uuid.v4(),
+        chatId: notesChatId,
+        kind: MessageKind.system,
+        body: '📝 Guarda aquí tus notas, enlaces, fotos y audios. Solo los ves tú.',
+        status: MessageStatus.read,
+        createdAt: DateTime.now(),
+      ));
+    }
+    await _refresh();
+    return notesChatId;
   }
 
   // ---------- Chats fijados y marcar como leído ----------
@@ -572,6 +645,22 @@ class AppController extends ChangeNotifier {
               }
             }
           }
+        case 'edit':
+          {
+            final m = await db.message(p.target ?? '');
+            final text = (p.text ?? '').trim();
+            // Solo el autor puede editar su mensaje
+            final author = m != null &&
+                m.kind == MessageKind.incoming &&
+                m.chatId == chatId &&
+                !m.deleted &&
+                (g == null ? chatId == from : m.sender == senderName);
+            if (author && text.isNotEmpty && text.length <= 65536) {
+              final link = p.link == null ? null : LinkPreview.fromJson(p.link!);
+              await db.editMessage(m.id, text, DateTime.now(),
+                  linkJson: link == null ? null : jsonEncode(link.toJson()));
+            }
+          }
         case 'shot':
           {
             final who = g == null ? (direct?.title ?? 'Tu contacto') : senderName;
@@ -617,7 +706,9 @@ class AppController extends ChangeNotifier {
       replyToId: p.reply?['id'] as String?,
       replyPreview: p.reply?['p'] as String?,
       expiresAt: exp == null || exp <= 0 ? null : ts.add(Duration(seconds: exp)),
+      link: p.link == null ? null : LinkPreview.fromJson(p.link!),
     );
+    final mentioned = isGroup && (p.mentions?.contains(myId) ?? false);
     await db.addMessage(msg, countUnread: openChatId != chatId);
     if (media?.needsDownload ?? false) unawaited(_downloadMedia(msg));
     _typingUntil.remove(chatId);
@@ -625,9 +716,10 @@ class AppController extends ChangeNotifier {
 
     if (openChatId != chatId) {
       final chat = await db.chat(chatId);
-      if (chat != null && !chat.hidden) onNotify?.call(chat, msg);
+      // Silenciado: sin aviso, salvo que me mencionen con @
+      if (chat != null && !chat.hidden && (!chat.muted || mentioned)) onNotify?.call(chat, msg);
     }
-    await _alert(chatId, msg);
+    await _alert(chatId, msg, mentioned: mentioned);
     // Confirmaciones solo en chats individuales
     if (!isGroup) {
       if (_gate.canSendDelivered()) {
@@ -638,11 +730,12 @@ class AppController extends ChangeNotifier {
   }
 
   /// Sonido, notificación y número en el icono (ver core/notify/alerts.dart).
-  Future<void> _alert(String chatId, Message msg) async {
+  Future<void> _alert(String chatId, Message msg, {bool mentioned = false}) async {
     try {
       await _reloadChats();
       final chat = chats.where((c) => c.id == chatId).firstOrNull;
       if (chat == null || chat.hidden || chat.blocked) return;
+      if (chat.muted && !mentioned) return;
       final who = chat.isGroup && msg.sender.isNotEmpty ? '${msg.sender} @ ${chat.title}' : chat.title;
       await Alerts.instance.incoming(
         chatId: chatId,
@@ -755,6 +848,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> _sendEncrypted(String chatId, Payload p,
       {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
+    if (isNotesChat(chatId)) return; // las notas nunca salen del móvil
     final chat = await _db!.chat(chatId);
     final key = chat?.identityKey;
     if (key == null) throw StateError('Sin clave del contacto');
@@ -781,6 +875,7 @@ class AppController extends ChangeNotifier {
   /// Envía a un chat individual o a cada miembro de un grupo.
   Future<void> _sendToChat(String chatId, Payload p,
       {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
+    if (isNotesChat(chatId)) return; // las notas nunca salen del móvil
     var chat = await _db!.chat(chatId);
     if (chat == null) throw StateError('Chat no encontrado');
     if (!chat.isGroup) {
@@ -806,6 +901,8 @@ class AppController extends ChangeNotifier {
       target: p.target,
       options: p.options,
       loc: p.loc,
+      mentions: p.mentions,
+      link: p.link,
       group: _groupMeta(chat, members),
     );
     for (final m in members) {
@@ -853,7 +950,8 @@ class AppController extends ChangeNotifier {
 
   // ---------- Acciones: mensajes ----------
 
-  Future<void> sendText(String chatId, String text, {DateTime? at, Message? replyTo}) async {
+  Future<void> sendText(String chatId, String text,
+      {DateTime? at, Message? replyTo, List<String> mentions = const []}) async {
     final scheduled = at != null && at.isAfter(DateTime.now());
     final timer = _timerOf(chatId);
     final now = DateTime.now();
@@ -872,6 +970,22 @@ class AppController extends ChangeNotifier {
     await _db!.addMessage(m);
     await _refresh();
 
+    // Vista previa del enlace (como mucho 4 s; si no llega, se envía sin ella).
+    LinkPreview? link;
+    final url = firstUrl(text);
+    if (url != null && !isDemo) {
+      link = await LinkPreviewFetcher.fetch(url);
+      if (link != null) {
+        await _db!.updateMessage(m.copyWith(link: link));
+        await _refresh();
+      }
+    }
+
+    if (isNotesChat(chatId)) {
+      await _db!.setStatus(m.id, MessageStatus.read);
+      await _refresh();
+      return;
+    }
     if (isDemo) {
       if (!scheduled) _simulateReply(chatId, m.id);
       return;
@@ -886,6 +1000,8 @@ class AppController extends ChangeNotifier {
           senderPhone: session!.phone,
           reply: replyTo == null ? null : {'id': replyTo.id, 'p': m.replyPreview},
           exp: timer,
+          mentions: mentions.isEmpty ? null : mentions,
+          link: link?.toJson(),
         ),
         ref: m.id,
         deliverAt: scheduled ? at : null,
@@ -924,6 +1040,11 @@ class AppController extends ChangeNotifier {
     await _db!.addMessage(m);
     await _refresh();
 
+    if (isNotesChat(chatId)) {
+      await _db!.setStatus(m.id, MessageStatus.read);
+      await _refresh();
+      return m.id;
+    }
     if (isDemo) {
       if (media.type == MediaType.poll) _simulateVotes(m.id);
       if (media.type != MediaType.live) _simulateReply(chatId, m.id);

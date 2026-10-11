@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../messaging/models.dart';
 import '../../theming/domain/klk_theme.dart';
@@ -88,6 +89,14 @@ class MessageBubble extends StatelessWidget {
           Icon(Icons.schedule, size: 13, color: fg.withValues(alpha: 0.7)),
           const SizedBox(width: 3),
         ],
+        if (message.starred && !message.deleted) ...[
+          const Icon(Icons.star_rounded, size: 13, color: Color(0xFFFFB627)),
+          const SizedBox(width: 3),
+        ],
+        if (message.editedAt != null && !message.deleted) ...[
+          Text('editado', style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 11, fontStyle: FontStyle.italic)),
+          const SizedBox(width: 4),
+        ],
         Text(time, style: TextStyle(color: fg.withValues(alpha: 0.65), fontSize: 11)),
         if (mine && !scheduled && !message.deleted) ...[
           const SizedBox(width: 3),
@@ -132,6 +141,7 @@ class MessageBubble extends StatelessWidget {
               onTranscribe: onTranscribe,
               transcribing: transcribing,
             ),
+          if (message.link != null && !message.link!.isEmpty) _LinkCard(link: message.link!, fg: fg, accent: cs.primary),
           Wrap(
             alignment: WrapAlignment.end,
             crossAxisAlignment: WrapCrossAlignment.end,
@@ -209,7 +219,7 @@ class MessageBubble extends StatelessWidget {
   /// Resalta [highlight] dentro del texto (sin importar tildes ni mayúsculas).
   Widget _highlighted(String text, TextStyle style, Color accent) {
     final q = highlight == null ? '' : foldForSearch(highlight!.trim());
-    if (q.isEmpty) return Text(text, style: style);
+    if (q.isEmpty) return _decorated(text, style, accent);
     final folded = foldForSearch(text);
     if (folded.length != text.length) return Text(text, style: style);
     final spans = <TextSpan>[];
@@ -229,6 +239,82 @@ class MessageBubble extends StatelessWidget {
     }
     return Text.rich(TextSpan(style: style, children: spans));
   }
+
+  /// Menciones (@Ana) en negrita y enlaces subrayados.
+  Widget _decorated(String text, TextStyle style, Color accent) {
+    final re = RegExp(r'(?<![^\s])(@[^\s@]{1,40})|(https?://[^\s<>"]+)', caseSensitive: false);
+    if (!re.hasMatch(text)) return Text(text, style: style);
+    final spans = <TextSpan>[];
+    var i = 0;
+    for (final m in re.allMatches(text)) {
+      if (m.start > i) spans.add(TextSpan(text: text.substring(i, m.start)));
+      final isMention = m.group(1) != null;
+      spans.add(TextSpan(
+        text: m.group(0),
+        style: isMention
+            ? TextStyle(fontWeight: FontWeight.w700, color: accent)
+            : const TextStyle(decoration: TextDecoration.underline),
+      ));
+      i = m.end;
+    }
+    if (i < text.length) spans.add(TextSpan(text: text.substring(i)));
+    return Text.rich(TextSpan(style: style, children: spans));
+  }
+}
+
+/// Tarjeta con el título y la descripción del enlace (se abre al tocarla).
+class _LinkCard extends StatelessWidget {
+  final LinkPreview link;
+  final Color fg, accent;
+  const _LinkCard({required this.link, required this.fg, required this.accent});
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: () {
+          final u = Uri.tryParse(link.url);
+          if (u != null) launchUrl(u, mode: LaunchMode.externalApplication);
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          constraints: const BoxConstraints(minWidth: 180),
+          decoration: BoxDecoration(
+            color: fg.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(8),
+            border: Border(left: BorderSide(color: accent, width: 3)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            if (link.title.isNotEmpty)
+              Text(link.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 14)),
+            if (link.description.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(link.description,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: fg.withValues(alpha: 0.75), fontSize: 13)),
+              ),
+            if (link.site.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.link, size: 13, color: fg.withValues(alpha: 0.55)),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(link.site,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: fg.withValues(alpha: 0.55), fontSize: 12)),
+                  ),
+                ]),
+              ),
+          ]),
+        ),
+      );
 }
 
 class _ReplyQuote extends StatelessWidget {

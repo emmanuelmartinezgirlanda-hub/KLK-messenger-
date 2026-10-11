@@ -498,3 +498,32 @@ Future<void> showMoneyInfo(BuildContext context, {required bool recharge}) => sh
         ),
       ),
     );
+
+/// ¿Cuánto tiempo silenciar? (Duration.zero = siempre)
+Future<Duration?> pickMuteDuration(BuildContext context) => showModalBottomSheet<Duration>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 4),
+            child: Text('Silenciar notificaciones',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Text('No sonará ni te avisará. Si te mencionan con @ en un grupo, sí te avisa.'),
+          ),
+          for (final (label, d) in const [
+            ('8 horas', Duration(hours: 8)),
+            ('1 semana', Duration(days: 7)),
+            ('Siempre', Duration.zero),
+          ])
+            ListTile(
+              leading: const Icon(Icons.notifications_off_outlined),
+              title: Text(label),
+              onTap: () => Navigator.pop(ctx, d),
+            ),
+        ]),
+      ),
+    );

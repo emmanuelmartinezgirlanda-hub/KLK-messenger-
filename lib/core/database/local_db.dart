@@ -45,6 +45,15 @@ class LocalDb {
     'ALTER TABLE chats ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0',
   ];
 
+  /// Versión 6: editar, destacar, silenciar, archivar y vista previa de enlaces.
+  static const _v6 = [
+    'ALTER TABLE messages ADD COLUMN edited_at INTEGER',
+    'ALTER TABLE messages ADD COLUMN starred INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE messages ADD COLUMN link_json TEXT',
+    'ALTER TABLE chats ADD COLUMN muted_until INTEGER',
+    'ALTER TABLE chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0',
+  ];
+
   /// Ruta del archivo (para la copia de seguridad).
   static Future<String> filePath() async => p.join(await klkDatabasesPath(), _file);
 
@@ -53,7 +62,7 @@ class LocalDb {
     final db = await openKlkDatabase(
       p.join(dir, _file),
       key: key,
-      version: 5,
+      version: 6,
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await db.execute('ALTER TABLE messages ADD COLUMN media_json TEXT');
         if (oldVersion < 3) await db.execute('ALTER TABLE chats ADD COLUMN avatar_path TEXT');
@@ -64,6 +73,11 @@ class LocalDb {
         }
         if (oldVersion < 5) {
           for (final sql in _v5) {
+            await db.execute(sql);
+          }
+        }
+        if (oldVersion < 6) {
+          for (final sql in _v6) {
             await db.execute(sql);
           }
         }
@@ -94,7 +108,7 @@ class LocalDb {
             media_json TEXT
           )''');
         await db.execute('CREATE INDEX messages_chat_idx ON messages(chat_id, created_at)');
-        for (final sql in [..._v4, ..._v5]) {
+        for (final sql in [..._v4, ..._v5, ..._v6]) {
           await db.execute(sql);
         }
       },
@@ -253,6 +267,28 @@ class LocalDb {
 
   Future<void> setBlocked(String chatId, bool blocked) =>
       _db.update('chats', {'blocked': blocked ? 1 : 0}, where: 'id = ?', whereArgs: [chatId]);
+
+  // ---------- v6 ----------
+
+  Future<void> setStarred(String messageId, bool starred) =>
+      _db.update('messages', {'starred': starred ? 1 : 0}, where: 'id = ?', whereArgs: [messageId]);
+
+  /// Mensajes destacados de todos los chats (los más nuevos primero).
+  Future<List<Message>> starredMessages() async {
+    final rows = await _db.query('messages', where: 'starred = 1 AND deleted = 0', orderBy: 'created_at DESC');
+    return rows.map(Message.fromRow).toList();
+  }
+
+  Future<void> setMuted(String chatId, DateTime? until) => _db.update(
+      'chats', {'muted_until': until?.millisecondsSinceEpoch}, where: 'id = ?', whereArgs: [chatId]);
+
+  Future<void> setArchived(String chatId, bool archived) =>
+      _db.update('chats', {'archived': archived ? 1 : 0}, where: 'id = ?', whereArgs: [chatId]);
+
+  /// Cambia el texto de un mensaje (editado) y, si es el último, la vista previa del chat.
+  Future<void> editMessage(String messageId, String body, DateTime at, {String? linkJson}) =>
+      _db.update('messages', {'body': body, 'edited_at': at.millisecondsSinceEpoch, 'link_json': linkJson},
+          where: 'id = ?', whereArgs: [messageId]);
 
   /// Mis ubicaciones en tiempo real que quedaron activas (p. ej. al cerrar la app).
   Future<List<Message>> myLiveLocations() async {

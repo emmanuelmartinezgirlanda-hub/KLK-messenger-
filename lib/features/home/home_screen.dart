@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/notify/alerts.dart';
+import '../chat/presentation/archived_screen.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_list_view.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../chat/presentation/new_chat_sheet.dart';
+import '../chat/presentation/starred_screen.dart';
 import '../communities/communities_view.dart';
 import '../groups/create_group_screen.dart';
 import '../hidden/hidden_chats_screen.dart';
@@ -72,6 +74,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         nav.push(MaterialPageRoute(builder: (_) => const CreateGroupScreen()));
       case 'hidden':
         nav.push(MaterialPageRoute(builder: (_) => const HiddenChatsScreen()));
+      case 'starred':
+        nav.push(MaterialPageRoute(builder: (_) => const StarredScreen()));
+      case 'archived':
+        nav.push(MaterialPageRoute(builder: (_) => const ArchivedScreen()));
+      case 'notes':
+        ref.read(appProvider).openNotes().then((id) {
+          if (mounted) nav.push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: id)));
+        });
       case 'themes':
         nav.push(MaterialPageRoute(builder: (_) => const ThemePickerScreen()));
       case 'settings':
@@ -136,6 +146,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onSelected: _menu,
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'group', child: Text('Nuevo grupo')),
+              PopupMenuItem(value: 'notes', child: Text('Notas para mí')),
+              PopupMenuItem(value: 'starred', child: Text('Mensajes destacados')),
+              PopupMenuItem(value: 'archived', child: Text('Archivados')),
               PopupMenuItem(value: 'hidden', child: Text('Chats ocultos')),
               PopupMenuItem(value: 'themes', child: Text('Temas y fondos')),
               PopupMenuItem(value: 'settings', child: Text('Ajustes')),

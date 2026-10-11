@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:klk/core/backup/backup_codec.dart';
 import 'package:klk/core/crypto/crypto_engine.dart';
+import 'package:klk/core/network/link_preview.dart';
 import 'package:klk/core/util/phone.dart';
 import 'package:klk/features/messaging/models.dart';
 import 'package:klk/features/messaging/stickers.dart';
@@ -16,6 +17,47 @@ void main() {
       expect(KlkTheme.decode(t.encode()).toJson(), t.toJson());
     }
     expect(KlkTheme.auto.isAuto, isTrue);
+  });
+
+  test('Vista previa de enlaces: Open Graph y <title>', () {
+    const html = '<html><head><title>Otra cosa</title>'
+        '<meta property="og:title" content="Licey gana 5-3 &amp; empata la serie">'
+        '<meta name="description" content="Resumen del juego">'
+        '<meta property="og:site_name" content="Listín Diario"></head></html>';
+    final p = LinkPreviewFetcher.parse(html, 'https://www.listindiario.com/x');
+    expect(p.title, 'Licey gana 5-3 & empata la serie');
+    expect(p.description, 'Resumen del juego');
+    expect(p.site, 'Listín Diario');
+    final q = LinkPreviewFetcher.parse('<title> Hola  mundo </title>', 'https://www.ejemplo.do/a');
+    expect(q.title, 'Hola mundo');
+    expect(q.site, 'ejemplo.do');
+  });
+
+  test('Primer enlace del texto', () {
+    expect(firstUrl('mira esto: https://klk.do/a?b=1. ¡Brutal!'), 'https://klk.do/a?b=1');
+    expect(firstUrl('sin enlaces'), isNull);
+  });
+
+  test('Payload con menciones, enlace y edición', () {
+    final p = Payload.decode(const Payload(
+      kind: 'edit',
+      target: 'm1',
+      text: 'hola @Ana',
+      mentions: ['a1'],
+      link: {'u': 'https://klk.do', 't': 'KLK'},
+    ).encode());
+    expect(p.kind, 'edit');
+    expect(p.target, 'm1');
+    expect(p.mentions, ['a1']);
+    expect(LinkPreview.fromJson(p.link!).title, 'KLK');
+  });
+
+  test('Chat silenciado y archivado se guardan en la base de datos', () {
+    final c = Chat(id: 'x', title: 'X', updatedAt: DateTime(2026), mutedUntil: DateTime(9999), archived: true);
+    final back = Chat.fromRow(c.toRow());
+    expect(back.muted, isTrue);
+    expect(back.archived, isTrue);
+    expect(Chat.fromRow(c.copyWith(clearMuted: true).toRow()).muted, isFalse);
   });
 
   test('Aviso de KLK desde JSON del servidor', () {

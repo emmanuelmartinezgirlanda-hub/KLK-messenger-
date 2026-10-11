@@ -540,6 +540,9 @@ class VoiceNotePlayer extends StatefulWidget {
 }
 
 class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
+  /// Velocidad de los audios (se recuerda para todos, como en WhatsApp).
+  static double _speed = 1.0;
+
   final _player = AudioPlayer();
   Duration _pos = Duration.zero;
   Duration? _dur;
@@ -580,7 +583,13 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
       _loaded = true;
       if (d != null) setState(() => _dur = d);
     }
+    await _player.setSpeed(_speed);
     await _player.play();
+  }
+
+  Future<void> _cycleSpeed() async {
+    setState(() => _speed = _speed == 1.0 ? 1.5 : (_speed == 1.5 ? 2.0 : 1.0));
+    await _player.setSpeed(_speed);
   }
 
   @override
@@ -619,7 +628,24 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
             ),
           ]),
         ),
-        Icon(Icons.mic, size: 18, color: widget.fg.withValues(alpha: 0.6)),
+        if (_playing || _pos > Duration.zero)
+          InkWell(
+            onTap: _cycleSpeed,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: widget.fg.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                _speed == 1.0 ? '1x' : (_speed == 1.5 ? '1.5x' : '2x'),
+                style: TextStyle(color: widget.fg, fontSize: 12.5, fontWeight: FontWeight.w800),
+              ),
+            ),
+          )
+        else
+          Icon(Icons.mic, size: 18, color: widget.fg.withValues(alpha: 0.6)),
       ]),
     );
   }

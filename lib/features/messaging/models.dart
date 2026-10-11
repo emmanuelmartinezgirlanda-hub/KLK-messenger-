@@ -52,6 +52,8 @@ class Chat {
   final String? birthday; // "MM-DD" que compartió el contacto
   final String? pinnedId; // mensaje fijado arriba del chat
   final bool blocked; // contacto bloqueado: no recibo nada suyo
+  final DateTime? mutedUntil; // silenciado hasta (sin sonido ni avisos)
+  final bool archived; // archivado: no sale en la lista principal
 
   const Chat({
     required this.id,
@@ -69,7 +71,15 @@ class Chat {
     this.birthday,
     this.pinnedId,
     this.blocked = false,
+    this.mutedUntil,
+    this.archived = false,
   });
+
+  /// ¿Está silenciado ahora mismo?
+  bool get muted => mutedUntil != null && mutedUntil!.isAfter(DateTime.now());
+
+  /// Mi chat de notas ("Notas para mí").
+  bool get isNotes => id == notesChatId;
 
   /// ¿Cumple años hoy?
   bool birthdayOn(DateTime day) =>
@@ -87,6 +97,9 @@ class Chat {
     bool? hidden,
     List<GroupMember>? members,
     bool? blocked,
+    DateTime? mutedUntil,
+    bool clearMuted = false,
+    bool? archived,
   }) =>
       Chat(
         id: id,
@@ -104,6 +117,8 @@ class Chat {
         birthday: birthday,
         pinnedId: pinnedId,
         blocked: blocked ?? this.blocked,
+        mutedUntil: clearMuted ? null : (mutedUntil ?? this.mutedUntil),
+        archived: archived ?? this.archived,
       );
 
   Map<String, Object?> toRow() => {
@@ -122,6 +137,8 @@ class Chat {
         'birthday': birthday,
         'pinned_id': pinnedId,
         'blocked': blocked ? 1 : 0,
+        'muted_until': mutedUntil?.millisecondsSinceEpoch,
+        'archived': archived ? 1 : 0,
       };
 
   factory Chat.fromRow(Map<String, Object?> r) => Chat(
@@ -144,8 +161,13 @@ class Chat {
         birthday: r['birthday'] as String?,
         pinnedId: r['pinned_id'] as String?,
         blocked: (r['blocked'] as int? ?? 0) == 1,
+        mutedUntil: r['muted_until'] == null ? null : DateTime.fromMillisecondsSinceEpoch(r['muted_until'] as int),
+        archived: (r['archived'] as int? ?? 0) == 1,
       );
 }
+
+/// Id del chat "Notas para mí" (solo existe en este móvil, nunca se envía).
+const notesChatId = 'klk-notes';
 
 class Message {
   final String id;
@@ -162,6 +184,9 @@ class Message {
   final Map<String, String> reactions; // quién -> emoji ("me" = yo)
   final bool deleted; // "Este mensaje se eliminó"
   final DateTime? expiresAt; // mensajes temporales
+  final DateTime? editedAt; // si se editó después de enviarlo
+  final bool starred; // destacado ⭐ (solo en mi móvil)
+  final LinkPreview? link; // vista previa del enlace del texto
 
   const Message({
     required this.id,
@@ -178,6 +203,9 @@ class Message {
     this.reactions = const {},
     this.deleted = false,
     this.expiresAt,
+    this.editedAt,
+    this.starred = false,
+    this.link,
   });
 
   bool get isMine => kind == MessageKind.outgoing;
@@ -203,6 +231,10 @@ class Message {
     Map<String, String>? reactions,
     bool? deleted,
     String? body,
+    DateTime? editedAt,
+    bool? starred,
+    LinkPreview? link,
+    bool clearLink = false,
   }) =>
       Message(
         id: id,
@@ -219,6 +251,9 @@ class Message {
         reactions: reactions ?? this.reactions,
         deleted: deleted ?? this.deleted,
         expiresAt: expiresAt,
+        editedAt: editedAt ?? this.editedAt,
+        starred: starred ?? this.starred,
+        link: clearLink ? null : (link ?? this.link),
       );
 
   Message withStatus(MessageStatus s) => copyWith(status: s);
@@ -238,6 +273,9 @@ class Message {
         'reactions_json': reactions.isEmpty ? null : jsonEncode(reactions),
         'deleted': deleted ? 1 : 0,
         'expires_at': expiresAt?.millisecondsSinceEpoch,
+        'edited_at': editedAt?.millisecondsSinceEpoch,
+        'starred': starred ? 1 : 0,
+        'link_json': link == null ? null : jsonEncode(link!.toJson()),
       };
 
   factory Message.fromRow(Map<String, Object?> r) => Message(
@@ -261,7 +299,56 @@ class Message {
             : (jsonDecode(r['reactions_json'] as String) as Map).map((k, v) => MapEntry(k as String, v as String)),
         deleted: (r['deleted'] as int? ?? 0) == 1,
         expiresAt: r['expires_at'] == null ? null : DateTime.fromMillisecondsSinceEpoch(r['expires_at'] as int),
+        editedAt: r['edited_at'] == null ? null : DateTime.fromMillisecondsSinceEpoch(r['edited_at'] as int),
+        starred: (r['starred'] as int? ?? 0) == 1,
+        link: r['link_json'] == null
+            ? null
+            : LinkPreview.fromJson((jsonDecode(r['link_json'] as String) as Map).cast<String, dynamic>()),
       );
+}
+
+/// Vista previa de un enlace (título y descripción). La genera quien envía
+/// el mensaje y viaja cifrada dentro de él: quien lo recibe no visita la web.
+class LinkPreview {
+  final String url;
+  final String title;
+  final String description;
+  final String site;
+  const LinkPreview({required this.url, this.title = '', this.description = '', this.site = ''});
+
+  bool get isEmpty => title.isEmpty && description.isEmpty;
+
+  Map<String, dynamic> toJson() => {
+        'u': url,
+        if (title.isNotEmpty) 't': title,
+        if (description.isNotEmpty) 'd': description,
+        if (site.isNotEmpty) 's': site,
+      };
+
+  factory LinkPreview.fromJson(Map<String, dynamic> j) {
+    String cut(Object? v, int n) {
+      final s = (v as String? ?? '').trim();
+      return s.length > n ? '${s.substring(0, n)}…' : s;
+    }
+
+    return LinkPreview(
+      url: cut(j['u'], 2000),
+      title: cut(j['t'], 200),
+      description: cut(j['d'], 300),
+      site: cut(j['s'], 80),
+    );
+  }
+}
+
+/// Primer enlace http(s) de un texto, o null.
+String? firstUrl(String text) {
+  final m = RegExp(r'https?://[^\s<>"]+', caseSensitive: false).firstMatch(text);
+  if (m == null) return null;
+  var u = m.group(0)!;
+  while (u.isNotEmpty && '.,;:!?)»”\''.contains(u[u.length - 1])) {
+    u = u.substring(0, u.length - 1);
+  }
+  return u;
 }
 
 /// Nombre que llevan los stickers propios (los demás usan el id del sticker del pack).
@@ -583,7 +670,7 @@ String disappearLabel(int? sec) => switch (sec) {
 class Payload {
   /// text | typing | recording | read | delivered | profile | call
   /// | reaction | delete | timer | group | status
-  /// | vote | pin | loc | shot
+  /// | vote | pin | loc | shot | edit
   final String kind;
   final String? id; // id del mensaje
   final String? text;
@@ -601,6 +688,8 @@ class Payload {
   final List<int>? options; // vote: opciones elegidas
   final Map<String, dynamic>? loc; // loc: {lat, lng} o {end: true}
   final String? birthday; // profile: "MM-DD"
+  final List<String>? mentions; // text en grupos: ids mencionados con @
+  final Map<String, dynamic>? link; // text: vista previa del enlace
 
   const Payload({
     required this.kind,
@@ -620,6 +709,8 @@ class Payload {
     this.options,
     this.loc,
     this.birthday,
+    this.mentions,
+    this.link,
   });
 
   List<int> encode() => utf8.encode(jsonEncode({
@@ -640,6 +731,8 @@ class Payload {
         if (options != null) 'o': options,
         if (loc != null) 'l': loc,
         if (birthday != null) 'bd': birthday,
+        if (mentions != null && mentions!.isNotEmpty) 'mn': mentions,
+        if (link != null) 'lp': link,
       }));
 
   factory Payload.decode(List<int> bytes) {
@@ -663,6 +756,8 @@ class Payload {
       options: (j['o'] as List?)?.map((e) => (e as num).toInt()).toList(),
       loc: map('l'),
       birthday: j['bd'] as String?,
+      mentions: (j['mn'] as List?)?.whereType<String>().toList(),
+      link: map('lp'),
     );
   }
 }

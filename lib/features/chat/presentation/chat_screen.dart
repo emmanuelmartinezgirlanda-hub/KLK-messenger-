@@ -27,6 +27,7 @@ import '../../contacts/contact_actions.dart';
 import '../../messaging/custom_stickers.dart';
 import 'media_bubbles.dart';
 import 'message_bubble.dart';
+import 'starred_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -112,7 +113,70 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Ojo: aquí no se llama a setState. Antes cada letra reconstruía el chat
   // entero (todos los mensajes) y en chats largos el teclado se quedaba colgado.
   // El botón enviar/micrófono escucha al controlador por su cuenta (_composer).
+  /// Lo que se escribe después de @ (para sugerir a quién mencionar), o null.
+  String? _mentionQuery;
+
+  String _memberName(GroupMember m) {
+    final c = _app.chatById(m.id);
+    final n = (c != null && !c.isGroup) ? c.title : m.name;
+    return n.trim().isEmpty ? prettyPhone(m.phone) : n.trim();
+  }
+
+  /// "@Ana" (solo la primera palabra del nombre, sin espacios).
+  String _mentionTag(GroupMember m) => '@${_memberName(m).split(RegExp(r'\s+')).first}';
+
+  void _updateMentionQuery(String v) {
+    final chat = _app.chatById(widget.chatId);
+    String? q;
+    if (chat != null && chat.isGroup && chat.members.isNotEmpty) {
+      final at = v.lastIndexOf('@');
+      if (at >= 0 && (at == 0 || v[at - 1] == ' ' || v[at - 1] == '\n')) {
+        final rest = v.substring(at + 1);
+        if (!rest.contains(' ') && !rest.contains('\n') && rest.length <= 20) q = rest;
+      }
+    }
+    if (q != _mentionQuery) setState(() => _mentionQuery = q);
+  }
+
+  void _insertMention(GroupMember m) {
+    final v = _input.text;
+    final at = v.lastIndexOf('@');
+    if (at < 0) return;
+    final t = '${v.substring(0, at)}${_mentionTag(m)} ';
+    _input.value = TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
+    setState(() => _mentionQuery = null);
+  }
+
+  Widget _mentionBar(ColorScheme cs) {
+    final chat = _app.chatById(widget.chatId);
+    final q = foldForSearch(_mentionQuery ?? '');
+    final list = (chat?.members ?? const <GroupMember>[])
+        .where((m) => q.isEmpty || foldForSearch(_memberName(m)).contains(q))
+        .take(5)
+        .toList();
+    if (list.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 6, offset: Offset(0, 2))],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        for (final m in list)
+          ListTile(
+            dense: true,
+            leading: ChatAvatar(id: m.id, title: _memberName(m), radius: 16),
+            title: Text(_memberName(m), style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: m.phone.isEmpty ? null : Text(prettyPhone(m.phone)),
+            onTap: () => _insertMention(m),
+          ),
+      ]),
+    );
+  }
+
   void _onChanged(String v) {
+    _updateMentionQuery(v);
     if (v.isEmpty) {
       _typingOff?.cancel();
       _app.setTyping(widget.chatId, false);
@@ -129,8 +193,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _input.clear();
     _typingOff?.cancel();
     final reply = _replyTo;
-    setState(() => _replyTo = null);
-    await _app.sendText(widget.chatId, text, at: at, replyTo: reply);
+    final chat = _app.chatById(widget.chatId);
+    final mentions = <String>[
+      if (chat != null && chat.isGroup)
+        for (final m in chat.members)
+          if (RegExp('${RegExp.escape(_mentionTag(m))}(?![^\\s.,!?])').hasMatch(text)) m.id,
+    ];
+    setState(() {
+      _replyTo = null;
+      _mentionQuery = null;
+    });
+    await _app.sendText(widget.chatId, text, at: at, replyTo: reply, mentions: mentions);
     if (at != null) _snack('Mensaje programado para el ${DateFormat.MMMd('es').add_jm().format(at)}');
   }
 
@@ -576,7 +649,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (!m.deleted)
             Padding(
@@ -607,6 +682,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 setState(() => _replyTo = m);
+              },
+            ),
+          if (!m.deleted && m.kind != MessageKind.system)
+            ListTile(
+              leading: Icon(m.starred ? Icons.star_rounded : Icons.star_outline_rounded,
+                  color: m.starred ? const Color(0xFFFFB627) : null),
+              title: Text(m.starred ? 'Quitar de destacados' : 'Destacar'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _app.toggleStar(m);
+                _snack(m.starred ? 'Quitado de destacados' : 'Guardado en destacados ⭐');
+              },
+            ),
+          if (_app.canEdit(m))
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Editar'),
+              subtitle: const Text('Durante 15 minutos después de enviarlo'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _editMessage(m);
               },
             ),
           if (!m.deleted && !(m.media?.viewOnce ?? false))
@@ -703,8 +799,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
           ),
         ]),
+        ),
       ),
     );
+  }
+
+  Future<void> _editMessage(Message m) async {
+    final ctrl = TextEditingController(text: m.body);
+    final text = await showDialog<String>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Editar mensaje'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          minLines: 1,
+          maxLines: 6,
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(d, ctrl.text), child: const Text('Guardar')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (text == null || text.trim().isEmpty || text.trim() == m.body) return;
+    if (!_app.canEdit(m)) {
+      _snack('Ya pasaron 15 minutos: no se puede editar');
+      return;
+    }
+    await _app.editMessage(m, text);
   }
 
   Future<void> _openViewOnce(Message m) async {
@@ -722,6 +847,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           final sec = await pickDisappearing(context, chat.disappearSec);
           if (sec != null) await _app.setDisappearing(widget.chatId, sec == 0 ? null : sec);
         }
+      case 'mute':
+        {
+          final d = await pickMuteDuration(context);
+          if (d == null) return;
+          await _app.setMuted(widget.chatId, duration: d == Duration.zero ? null : d);
+          _snack('Chat silenciado 🔕');
+        }
+      case 'unmute':
+        await _app.setMuted(widget.chatId, unmute: true);
+        _snack('Sonido activado 🔔');
+      case 'archive':
+        await _app.setArchived(widget.chatId, !chat.archived);
+        _snack(chat.archived ? 'Chat desarchivado' : 'Chat archivado');
+      case 'starred':
+        await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StarredScreen(chatId: widget.chatId)));
       case 'hide':
         {
           if (!chat.hidden && !await _app.hasPin) {
@@ -838,7 +978,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final title = chat?.title ?? '';
     final zone = chat == null ? null : zoneForPhone(chat.phone);
     final seen = (chat?.isGroup ?? true) ? null : presenceLabel(app.presence[widget.chatId], DateTime.now());
-    final status = recording
+    final status = (chat?.isNotes ?? false)
+        ? 'Mensajes para ti · solo en este móvil'
+        : recording
         ? 'grabando audio…'
         : typing
             ? 'escribiendo…'
@@ -878,7 +1020,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           : AppBar(
         titleSpacing: 0,
         actions: [
-          if (!(chat?.isGroup ?? false) && !blocked) ...[
+          if (!(chat?.isGroup ?? false) && !blocked && !(chat?.isNotes ?? false)) ...[
             IconButton(
               tooltip: 'Videollamada',
               icon: const Icon(Icons.videocam_outlined),
@@ -894,13 +1036,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onSelected: (a) => _chatMenu(a, chat),
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'search', child: Text('Buscar')),
+              const PopupMenuItem(value: 'starred', child: Text('Mensajes destacados')),
               if (chat?.isGroup ?? false) const PopupMenuItem(value: 'group', child: Text('Info del grupo')),
-              PopupMenuItem(
-                value: 'timer',
-                child: Text('Mensajes temporales · ${disappearLabel(chat?.disappearSec)}'),
-              ),
+              if (chat != null && !chat.isNotes)
+                PopupMenuItem(
+                  value: chat.muted ? 'unmute' : 'mute',
+                  child: Text(chat.muted ? 'Activar sonido' : 'Silenciar'),
+                ),
+              if (chat != null && !chat.isNotes)
+                PopupMenuItem(
+                  value: 'timer',
+                  child: Text('Mensajes temporales · ${disappearLabel(chat.disappearSec)}'),
+                ),
               const PopupMenuItem(value: 'wallpaper', child: Text('Fondo de pantalla')),
               if (chat != null)
+                PopupMenuItem(value: 'archive', child: Text(chat.archived ? 'Desarchivar chat' : 'Archivar chat')),
+              if (chat != null && !chat.isNotes)
                 PopupMenuItem(
                   value: 'rename',
                   child: Text(chat.isGroup
@@ -908,7 +1059,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       : (isUnsavedContact(chat) ? 'Añadir a contactos' : 'Editar contacto')),
                 ),
               PopupMenuItem(value: 'hide', child: Text((chat?.hidden ?? false) ? 'Mostrar en la lista' : 'Ocultar chat')),
-              if (!(chat?.isGroup ?? true)) ...[
+              if (!(chat?.isGroup ?? true) && !(chat?.isNotes ?? false)) ...[
                 PopupMenuItem(value: 'block', child: Text(blocked ? 'Desbloquear' : 'Bloquear')),
                 const PopupMenuItem(value: 'report', child: Text('Denunciar')),
               ],
@@ -1015,6 +1166,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: blocked
                 ? _blockedBar(cs)
                 : Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (_mentionQuery != null && !_recording) _mentionBar(cs),
                     if (_replyTo != null && !_recording) _replyBar(cs),
                     _recording
                         ? _recordingBar(cs)
