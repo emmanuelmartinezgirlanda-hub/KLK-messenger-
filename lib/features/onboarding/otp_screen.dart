@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/network/api_client.dart';
 import '../../core/util/phone.dart';
 import '../messaging/app_controller.dart';
 
@@ -33,10 +34,55 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       await ref.read(appProvider).verify(_code.text);
       // Al verificar, la app cambia de fase y muestra la pantalla principal.
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+    } on ApiException catch (e) {
+      if (e.code == 'pin_required' || e.code == 'bad_pin') {
+        if (mounted) setState(() => _busy = false);
+        await _askPin(e);
+        return;
+      }
+      if (mounted) setState(() => _error = e.toString());
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// La cuenta tiene PIN de seguridad: se pide antes de entrar.
+  Future<void> _askPin(ApiException first) async {
+    var info = first;
+    while (mounted) {
+      final left = (info.data['attemptsLeft'] as num?)?.toInt();
+      final pin = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _PinDialog(
+          wrong: info.code == 'bad_pin',
+          attemptsLeft: left,
+        ),
+      );
+      if (pin == null || !mounted) return;
+      setState(() {
+        _busy = true;
+        _error = null;
+      });
+      try {
+        await ref.read(appProvider).verifyPin(pin);
+        if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+        return;
+      } on ApiException catch (e) {
+        if (e.code == 'bad_pin' || e.code == 'pin_required') {
+          info = e;
+          continue;
+        }
+        if (mounted) setState(() => _error = e.toString());
+        return;
+      } catch (e) {
+        if (mounted) setState(() => _error = e.toString());
+        return;
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
     }
   }
 
@@ -96,6 +142,65 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+class _PinDialog extends StatefulWidget {
+  final bool wrong;
+  final int? attemptsLeft;
+  const _PinDialog({required this.wrong, this.attemptsLeft});
+
+  @override
+  State<_PinDialog> createState() => _PinDialogState();
+}
+
+class _PinDialogState extends State<_PinDialog> {
+  final _pin = TextEditingController();
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final left = widget.attemptsLeft;
+    return AlertDialog(
+      title: const Text('PIN de seguridad'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Esta cuenta está protegida con un PIN de 6 números. Escríbelo para entrar.'),
+        if (widget.wrong) ...[
+          const SizedBox(height: 8),
+          Text(
+            left == null ? 'PIN incorrecto.' : 'PIN incorrecto. Te quedan $left intentos.',
+            style: const TextStyle(color: Color(0xFFFF6B7A), fontWeight: FontWeight.w600),
+          ),
+        ],
+        const SizedBox(height: 12),
+        TextField(
+          controller: _pin,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          obscureText: true,
+          maxLength: 6,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 26, letterSpacing: 10),
+          onChanged: (_) => setState(() {}),
+        ),
+        const Text('¿Lo olvidaste? Podrás entrar sin PIN 7 días después de la última vez que se usó la cuenta.',
+            style: TextStyle(fontSize: 12.5)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: _pin.text.length == 6 ? () => Navigator.pop(context, _pin.text) : null,
+          child: const Text('Entrar'),
+        ),
+      ],
     );
   }
 }

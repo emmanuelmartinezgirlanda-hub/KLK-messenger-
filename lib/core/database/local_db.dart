@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:sqflite_sqlcipher/sqflite.dart';
@@ -54,6 +55,11 @@ class LocalDb {
     'ALTER TABLE chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0',
   ];
 
+  /// Versión 7: claves y sesiones del cifrado Signal.
+  static const _v7 = [
+    'CREATE TABLE IF NOT EXISTS signal_kv (k TEXT PRIMARY KEY, v BLOB NOT NULL)',
+  ];
+
   /// Ruta del archivo (para la copia de seguridad).
   static Future<String> filePath() async => p.join(await klkDatabasesPath(), _file);
 
@@ -62,7 +68,7 @@ class LocalDb {
     final db = await openKlkDatabase(
       p.join(dir, _file),
       key: key,
-      version: 6,
+      version: 7,
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await db.execute('ALTER TABLE messages ADD COLUMN media_json TEXT');
         if (oldVersion < 3) await db.execute('ALTER TABLE chats ADD COLUMN avatar_path TEXT');
@@ -78,6 +84,11 @@ class LocalDb {
         }
         if (oldVersion < 6) {
           for (final sql in _v6) {
+            await db.execute(sql);
+          }
+        }
+        if (oldVersion < 7) {
+          for (final sql in _v7) {
             await db.execute(sql);
           }
         }
@@ -108,7 +119,7 @@ class LocalDb {
             media_json TEXT
           )''');
         await db.execute('CREATE INDEX messages_chat_idx ON messages(chat_id, created_at)');
-        for (final sql in [..._v4, ..._v5, ..._v6]) {
+        for (final sql in [..._v4, ..._v5, ..._v6, ..._v7]) {
           await db.execute(sql);
         }
       },
@@ -267,6 +278,26 @@ class LocalDb {
 
   Future<void> setBlocked(String chatId, bool blocked) =>
       _db.update('chats', {'blocked': blocked ? 1 : 0}, where: 'id = ?', whereArgs: [chatId]);
+
+  // ---------- v7: claves de Signal ----------
+
+  Future<Uint8List?> kvGet(String k) async {
+    final r = await _db.query('signal_kv', columns: ['v'], where: 'k = ?', whereArgs: [k], limit: 1);
+    if (r.isEmpty) return null;
+    final v = r.first['v'];
+    return v is Uint8List ? v : Uint8List.fromList((v as List).cast<int>());
+  }
+
+  Future<void> kvPut(String k, List<int> v) =>
+      _db.insert('signal_kv', {'k': k, 'v': Uint8List.fromList(v)}, conflictAlgorithm: ConflictAlgorithm.replace);
+
+  Future<void> kvDelete(String k) => _db.delete('signal_kv', where: 'k = ?', whereArgs: [k]);
+
+  Future<List<String>> kvKeys(String prefix) async {
+    final r = await _db.query('signal_kv',
+        columns: ['k'], where: "k LIKE ? ESCAPE '\\'", whereArgs: ['${prefix.replaceAll('%', r'\%').replaceAll('_', r'\_')}%']);
+    return [for (final row in r) row['k'] as String];
+  }
 
   // ---------- v6 ----------
 

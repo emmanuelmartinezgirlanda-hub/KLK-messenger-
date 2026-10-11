@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart' show Sha256;
 import 'package:flutter/foundation.dart';
@@ -17,6 +18,7 @@ import 'package:web_socket_channel/io.dart';
 import '../../core/backup/backup_codec.dart';
 import '../../core/config.dart';
 import '../../core/crypto/crypto_engine.dart';
+import '../../core/crypto/signal_engine.dart';
 import '../../core/database/local_db.dart';
 import '../../core/media/media_store.dart';
 import '../../core/network/api_client.dart';
@@ -119,7 +121,12 @@ class AppController extends ChangeNotifier {
   static const _pinKey = 'klk.hidden.pin';
 
   LocalDb? _db;
-  CryptoEngine? _crypto;
+  CryptoEngine? _crypto; // cifrado viejo (KLK-v0), solo para contactos sin actualizar
+  SignalEngine? _signal; // Signal Protocol
+  /// Contactos con una versión vieja de KLK (sin Signal): se les escribe con el cifrado viejo.
+  final Map<String, DateTime> _legacyPeers = {};
+  /// Tras "pin_required": permiso de unos minutos para terminar el registro con el PIN.
+  String? pendingRegToken;
   ApiClient? _api;
   IOWebSocketChannel? _ws;
   Timer? _retry;
@@ -318,6 +325,11 @@ class AppController extends ChangeNotifier {
       if (news != null) _dismissedNews = (jsonDecode(news) as List).cast<String>().toSet();
     } catch (_) {}
     _crypto = await _loadCrypto();
+    try {
+      _signal = await SignalEngine.open(seed: base64Decode((await _store.identitySeed())!), kv: _DbSignalKv(_db!));
+    } catch (e) {
+      debugPrint('Signal: $e');
+    }
     if (session!.isDemo) {
       if ((await _db!.chats()).isEmpty) await seedDemo(_db!);
       unawaited(_loadAnnouncements());
@@ -376,7 +388,10 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> verify(String code) async {
+  /// Termina el registro con el PIN de seguridad (tras "pin_required").
+  Future<void> verifyPin(String pin) => verify('', pin: pin);
+
+  Future<void> verify(String code, {String? pin}) async {
     final phone = pendingPhone!;
     if (pendingServer.isEmpty) {
       if (code != KlkConfig.demoCode) {
@@ -386,13 +401,23 @@ class AppController extends ChangeNotifier {
     } else {
       final crypto = await _loadCrypto();
       final api = ApiClient(pendingServer);
-      final res = await api.verify(
-        phone: phone,
-        code: code,
-        deviceName: Platform.isIOS ? 'iPhone' : 'Android',
-        registrationId: Random.secure().nextInt(16380) + 1,
-        identityKey: crypto.identityPublic,
-      );
+      final ({String accountId, String token}) res;
+      try {
+        res = await api.verify(
+          phone: phone,
+          code: pin == null ? code : '',
+          regToken: pin == null ? '' : (pendingRegToken ?? ''),
+          pin: pin ?? '',
+          deviceName: Platform.isIOS ? 'iPhone' : (Platform.isAndroid ? 'Android' : 'PC'),
+          registrationId: Random.secure().nextInt(16380) + 1,
+          identityKey: crypto.identityPublic,
+        );
+      } on ApiException catch (e) {
+        final tok = e.data['regToken'];
+        if (tok is String && tok.isNotEmpty) pendingRegToken = tok;
+        rethrow;
+      }
+      pendingRegToken = null;
       final spk = await crypto.signedPreKey();
       await ApiClient(pendingServer, token: res.token).putSignedPreKey(spk.keyId, spk.publicKey, spk.signature);
       session = Session(phone: phone, server: pendingServer, accountId: res.accountId, token: res.token);
@@ -432,6 +457,7 @@ class AppController extends ChangeNotifier {
       }
       unawaited(_resumeDownloads());
       unawaited(_loadAnnouncements());
+      unawaited(_ensureSignalKeys());
     } catch (e) {
       debugPrint('WebSocket: $e');
       // ¿No conecta porque el dueño bloqueó la cuenta? (como mucho 1 vez por minuto)
@@ -498,7 +524,8 @@ class AppController extends ChangeNotifier {
     final from = f['from'] as String;
     final ephemeral = f['ephemeral'] == true;
     try {
-      final opened = await _crypto!.decrypt(base64Decode(f['content'] as String));
+      final opened = await _open(from, (f['type'] as num?)?.toInt() ?? 1, base64Decode(f['content'] as String));
+      if (opened == null) return;
       final p = Payload.decode(opened.plaintext);
       final identity = base64Encode(opened.senderIdentity);
       final db = _db!;
@@ -844,6 +871,99 @@ class AppController extends ChangeNotifier {
     return 'Alguien';
   }
 
+  // ---------- Cifrado Signal ----------
+
+  bool _isLegacyPeer(String accountId) {
+    final t = _legacyPeers[accountId];
+    return t != null && DateTime.now().difference(t) < const Duration(minutes: 10);
+  }
+
+  /// Cifra para un contacto: Signal Protocol si su app ya lo tiene; si no, el cifrado viejo.
+  Future<({int type, List<int> body})> _seal(String accountId, String identityKey, List<int> plain) async {
+    final sig = _signal;
+    if (sig != null && _api != null && !_isLegacyPeer(accountId)) {
+      if (!await sig.hasSession(accountId)) {
+        final b = await _api!.bundle(accountId);
+        if (b.isLegacy) {
+          _legacyPeers[accountId] = DateTime.now();
+        } else {
+          await sig.startSession(accountId, b);
+        }
+      }
+      if (!_isLegacyPeer(accountId)) return sig.encrypt(accountId, plain);
+    }
+    return (type: 1, body: await _crypto!.encrypt(plain, base64Decode(identityKey)));
+  }
+
+  /// Descifra un sobre. null = no se pudo (ya se avisó en el chat si hacía falta).
+  Future<({List<int> plaintext, List<int> senderIdentity})?> _open(String from, int type, List<int> body) async {
+    if (type == 1) {
+      _legacyPeers[from] = DateTime.now(); // su app es vieja: le contesto con el cifrado viejo
+      return _crypto!.decrypt(body);
+    }
+    final sig = _signal;
+    if (sig == null) return null;
+    try {
+      final r = await sig.decrypt(from, type, body);
+      _legacyPeers.remove(from);
+      return r;
+    } catch (e) {
+      final name = e.runtimeType.toString();
+      if (name.contains('Duplicate')) return null; // ya lo había recibido
+      debugPrint('No se pudo descifrar ($name): $e');
+      // Sesión rota (p. ej. alguien reinstaló): se empieza otra en el próximo mensaje.
+      await sig.resetSession(from);
+      if (await _db?.chat(from) != null) {
+        await _system(from, '⚠️ No se pudo leer un mensaje de este contacto. Pídele que te lo vuelva a enviar.');
+      }
+      return null;
+    }
+  }
+
+  /// Publica mi signed prekey y repone las claves de un solo uso cuando quedan pocas.
+  bool _ensuringKeys = false;
+  Future<void> _ensureSignalKeys() async {
+    final sig = _signal, api = _api;
+    if (sig == null || api == null || isDemo || _ensuringKeys) return;
+    _ensuringKeys = true;
+    try {
+      final spk = await sig.signedPreKey();
+      final flag = 'signal.spk.uploaded.${session?.accountId}';
+      if (spk.rotated || await _store.read(flag) != '${spk.keyId}') {
+        await api.putKeys(signedPreKey: (keyId: spk.keyId, publicKey: spk.publicKey, signature: spk.signature));
+        await _store.write(flag, '${spk.keyId}');
+      }
+      if (await api.preKeyCount() < 25) {
+        await api.putKeys(preKeys: await sig.newPreKeys(100));
+      }
+    } catch (e) {
+      debugPrint('Claves Signal: $e');
+    } finally {
+      _ensuringKeys = false;
+    }
+  }
+
+  /// Número de seguridad de un chat individual (60 cifras), o null.
+  String? safetyNumber(String chatId) {
+    final sig = _signal, chat = chatById(chatId), me = session;
+    final key = chat?.identityKey;
+    if (sig == null || chat == null || chat.isGroup || key == null || me == null) return null;
+    try {
+      return sig.safetyNumber(me.accountId, chat.id, base64Decode(key));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// ¿Este contacto ya usa el cifrado nuevo (Signal)?
+  bool usesSignal(String chatId) => !_isLegacyPeer(chatId);
+
+  // ---------- PIN de seguridad ----------
+
+  Future<bool> pinEnabled() async => _api == null ? false : _api!.pinEnabled();
+  Future<void> setRegistrationPin(String pin) => _api!.setPin(pin);
+  Future<void> clearRegistrationPin() => _api!.clearPin();
+
   // ---------- Envío ----------
 
   Future<void> _sendEncrypted(String chatId, Payload p,
@@ -857,13 +977,13 @@ class AppController extends ChangeNotifier {
 
   Future<void> _sendTo(String accountId, String identityKey, Payload p,
       {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
-    final sealed = await _crypto!.encrypt(p.encode(), base64Decode(identityKey));
+    final sealed = await _seal(accountId, identityKey, p.encode());
     final frame = jsonEncode({
       't': 'send',
       'ref': ref,
       'to': accountId,
       'messages': [
-        {'device': 1, 'type': 1, 'content': base64Encode(sealed)}
+        {'device': 1, 'type': sealed.type, 'content': base64Encode(sealed.body)}
       ],
       if (deliverAt != null) 'deliverAt': deliverAt.toUtc().toIso8601String(),
       if (ephemeral) 'ephemeral': true,
@@ -2001,6 +2121,9 @@ class AppController extends ChangeNotifier {
 
   /// Botón de pánico: borra la base de datos y todas las claves de este móvil.
   Future<void> panic() async {
+    _signal = null;
+    _legacyPeers.clear();
+    pendingRegToken = null;
     _retry?.cancel();
     _tick?.cancel();
     for (final s in _live.values) {
@@ -2123,4 +2246,19 @@ class AppController extends ChangeNotifier {
     _db?.close();
     super.dispose();
   }
+}
+
+
+/// Las claves de Signal se guardan en la base de datos cifrada (SQLCipher).
+class _DbSignalKv implements SignalKeyValue {
+  _DbSignalKv(this._db);
+  final LocalDb _db;
+  @override
+  Future<Uint8List?> get(String key) => _db.kvGet(key);
+  @override
+  Future<void> put(String key, List<int> value) => _db.kvPut(key, value);
+  @override
+  Future<void> delete(String key) => _db.kvDelete(key);
+  @override
+  Future<List<String>> keys(String prefix) => _db.kvKeys(prefix);
 }

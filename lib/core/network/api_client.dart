@@ -2,12 +2,17 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../crypto/signal_engine.dart';
+
 /// Error devuelto por el servidor de KLK, con un mensaje listo para mostrar.
 class ApiException implements Exception {
   final int status;
   final String code;
   final String message;
-  const ApiException(this.status, this.code, this.message);
+
+  /// Datos extra del error (p. ej. regToken y attemptsLeft al pedir el PIN).
+  final Map<String, dynamic> data;
+  const ApiException(this.status, this.code, this.message, [this.data = const {}]);
   @override
   String toString() => message;
 }
@@ -42,7 +47,7 @@ class ApiClient {
     }
     try {
       final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      throw ApiException(res.statusCode, j['code'] as String? ?? 'error', j['message'] as String? ?? 'Error del servidor');
+      throw ApiException(res.statusCode, j['code'] as String? ?? 'error', j['message'] as String? ?? 'Error del servidor', j);
     } on FormatException {
       throw ApiException(res.statusCode, 'error', 'Error del servidor (${res.statusCode})');
     }
@@ -53,16 +58,22 @@ class ApiClient {
 
   Future<void> requestCode(String phone) => _send('POST', '/v1/verification/request', {'phone': phone});
 
+  /// Registra este móvil. Si la cuenta tiene PIN, el servidor responde
+  /// `pin_required` con un `regToken`: se repite con [regToken] y [pin].
   Future<({String accountId, String token})> verify({
     required String phone,
-    required String code,
+    String code = '',
+    String regToken = '',
+    String pin = '',
     required String deviceName,
     required int registrationId,
     required List<int> identityKey,
   }) async {
     final j = await _send('POST', '/v1/verification/verify', {
       'phone': phone,
-      'code': code,
+      if (code.isNotEmpty) 'code': code,
+      if (regToken.isNotEmpty) 'regToken': regToken,
+      if (pin.isNotEmpty) 'pin': pin,
       'deviceName': deviceName,
       'registrationId': registrationId,
       'identityKey': base64Encode(identityKey),
@@ -160,4 +171,59 @@ class ApiClient {
     final j = await _send('GET', '/v1/announcements') as Map<String, dynamic>;
     return (j['announcements'] as List? ?? const []).cast<Map<String, dynamic>>();
   }
+
+  // ---------- Cifrado Signal ----------
+
+  /// Sube mi signed prekey y/o claves de un solo uso.
+  Future<void> putKeys({
+    ({int keyId, List<int> publicKey, List<int> signature})? signedPreKey,
+    List<({int keyId, List<int> publicKey})> preKeys = const [],
+  }) =>
+      _send('PUT', '/v1/keys', {
+        if (signedPreKey != null)
+          'signedPreKey': {
+            'keyId': signedPreKey.keyId,
+            'publicKey': base64Encode(signedPreKey.publicKey),
+            'signature': base64Encode(signedPreKey.signature),
+          },
+        'preKeys': [
+          for (final k in preKeys) {'keyId': k.keyId, 'publicKey': base64Encode(k.publicKey)}
+        ],
+      });
+
+  /// Cuántas claves de un solo uso me quedan en el servidor.
+  Future<int> preKeyCount() async {
+    final j = await _send('GET', '/v1/keys/count') as Map<String, dynamic>;
+    return (j['count'] as num?)?.toInt() ?? 0;
+  }
+
+  /// Claves de una cuenta para empezar una sesión cifrada (gasta una prekey).
+  Future<RemoteBundle> bundle(String accountId) async {
+    final j = await _send('GET', '/v1/keys/$accountId') as Map<String, dynamic>;
+    final devices = (j['devices'] as List).cast<Map<String, dynamic>>();
+    final d = devices.firstWhere((d) => d['deviceId'] == 1, orElse: () => devices.first);
+    final spk = (d['signedPreKey'] as Map).cast<String, dynamic>();
+    final pk = (d['preKey'] as Map?)?.cast<String, dynamic>();
+    return RemoteBundle(
+      registrationId: (d['registrationId'] as num).toInt(),
+      deviceId: (d['deviceId'] as num).toInt(),
+      identityKey: base64Decode(d['identityKey'] as String),
+      signedPreKeyId: (spk['keyId'] as num).toInt(),
+      signedPreKey: base64Decode(spk['publicKey'] as String),
+      signature: base64Decode(spk['signature'] as String),
+      preKeyId: (pk?['keyId'] as num?)?.toInt(),
+      preKey: pk == null ? null : base64Decode(pk['publicKey'] as String),
+    );
+  }
+
+  // ---------- PIN de registro ----------
+
+  Future<bool> pinEnabled() async {
+    final j = await _send('GET', '/v1/account/pin') as Map<String, dynamic>;
+    return j['enabled'] == true;
+  }
+
+  Future<void> setPin(String pin) => _send('PUT', '/v1/account/pin', {'pin': pin});
+
+  Future<void> clearPin() => _send('DELETE', '/v1/account/pin');
 }

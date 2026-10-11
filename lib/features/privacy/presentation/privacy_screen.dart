@@ -5,6 +5,7 @@ import '../domain/privacy_settings.dart';
 import '../../lock/app_lock.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
+import '../../security/security_pin_screen.dart';
 import '../../settings/blocked_screen.dart';
 import 'privacy_provider.dart';
 
@@ -96,6 +97,13 @@ class PrivacyScreen extends ConsumerWidget {
             onChanged: (v) => notifier.update(s.copyWith(allowStorySaving: v)),
           ),
           const _Section('Seguridad'),
+          ListTile(
+            leading: const Icon(Icons.pin_outlined),
+            title: const Text('PIN de seguridad'),
+            subtitle: const Text('Que nadie use tu número en otro móvil sin tu PIN'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SecurityPinScreen())),
+          ),
           SwitchListTile(
             secondary: const Icon(Icons.face_unlock_outlined),
             title: const Text('Bloquear KLK con Face ID'),

@@ -27,8 +27,13 @@ dependencies:
   http: ^1.2.2
   web_socket_channel: ^3.0.2
 
-  # Cifrado provisional (ver lib/core/crypto/README.md)
+  # Cifrado provisional (ver lib/core/crypto/README.md), solo para contactos sin actualizar
   cryptography: ^2.7.0
+  # Signal Protocol (X3DH + Double Ratchet), el cifrado de Signal y WhatsApp, en Dart puro
+  libsignal_protocol_dart:
+    git:
+      url: https://github.com/MixinNetwork/libsignal_protocol_dart.git
+      ref: 9c871c05629e60f23fed6e7cec863c8aaff696d9
 
   # Multimedia: fotos, vídeos, notas de voz, documentos y ubicación
   path_provider: ^2.1.4

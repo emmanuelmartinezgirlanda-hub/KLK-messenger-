@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:klk/core/backup/backup_codec.dart';
 import 'package:klk/core/crypto/crypto_engine.dart';
+import 'package:klk/core/crypto/signal_engine.dart';
 import 'package:klk/core/network/link_preview.dart';
 import 'package:klk/features/contacts/my_qr_screen.dart';
 import 'package:klk/core/util/phone.dart';
@@ -32,6 +33,64 @@ void main() {
     final q = LinkPreviewFetcher.parse('<title> Hola  mundo </title>', 'https://www.ejemplo.do/a');
     expect(q.title, 'Hola mundo');
     expect(q.site, 'ejemplo.do');
+  });
+
+  test('Signal: misma identidad que antes, sesión y mensajes en los dos sentidos', () async {
+    final seedA = List<int>.generate(32, (i) => i + 1);
+    final seedB = List<int>.generate(32, (i) => 200 - i);
+    final alice = await SignalEngine.open(seed: seedA, kv: MemorySignalKeyValue());
+    final bob = await SignalEngine.open(seed: seedB, kv: MemorySignalKeyValue());
+    // La clave de identidad no cambia al pasar al cifrado nuevo: la cuenta sigue igual.
+    expect(alice.identityPublic, (await ProvisionalCrypto.fromSeed(seedA)).identityPublic);
+
+    final spk = await bob.signedPreKey();
+    expect(spk.rotated, isTrue);
+    expect((await bob.signedPreKey()).rotated, isFalse);
+    final pks = await bob.newPreKeys(5);
+    expect(pks.length, 5);
+    final bundle = RemoteBundle(
+      registrationId: bob.registrationId,
+      deviceId: 1,
+      identityKey: bob.identityPublic,
+      signedPreKeyId: spk.keyId,
+      signedPreKey: spk.publicKey,
+      signature: spk.signature,
+      preKeyId: pks.first.keyId,
+      preKey: pks.first.publicKey,
+    );
+    expect(bundle.isLegacy, isFalse);
+    expect(await alice.hasSession('bob'), isFalse);
+    await alice.startSession('bob', bundle);
+    expect(await alice.hasSession('bob'), isTrue);
+
+    final m1 = await alice.encrypt('bob', utf8.encode('¡Klk, mi hermano!'));
+    expect(m1.type, SignalEngine.typePreKey);
+    final r1 = await bob.decrypt('alice', m1.type, m1.body);
+    expect(utf8.decode(r1.plaintext), '¡Klk, mi hermano!');
+    expect(r1.senderIdentity, alice.identityPublic);
+
+    final m2 = await bob.encrypt('alice', utf8.encode('Tó bien'));
+    expect(m2.type, SignalEngine.typeWhisper);
+    expect(utf8.decode((await alice.decrypt('bob', m2.type, m2.body)).plaintext), 'Tó bien');
+
+    // Cada mensaje sale distinto aunque el texto sea igual (claves nuevas cada vez).
+    final a = await alice.encrypt('bob', utf8.encode('hola'));
+    final b = await alice.encrypt('bob', utf8.encode('hola'));
+    expect(a.body, isNot(b.body));
+    expect(utf8.decode((await bob.decrypt('alice', b.type, b.body)).plaintext), 'hola');
+    expect(utf8.decode((await bob.decrypt('alice', a.type, a.body)).plaintext), 'hola'); // fuera de orden
+
+    // Los dos ven el mismo número de seguridad.
+    expect(alice.safetyNumber('alice', 'bob', bob.identityPublic),
+        bob.safetyNumber('bob', 'alice', alice.identityPublic));
+    expect(alice.safetyNumber('alice', 'bob', bob.identityPublic).length, 60);
+  });
+
+  test('Signal: una firma vacía es de una versión vieja', () {
+    final b = RemoteBundle(
+        registrationId: 1, deviceId: 1, identityKey: List.filled(33, 5), signedPreKeyId: 1,
+        signedPreKey: List.filled(33, 5), signature: List.filled(64, 0));
+    expect(b.isLegacy, isTrue);
   });
 
   test('Código QR de contacto: ida y vuelta', () {

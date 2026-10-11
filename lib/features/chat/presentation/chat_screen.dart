@@ -28,6 +28,7 @@ import '../../messaging/custom_stickers.dart';
 import 'media_bubbles.dart';
 import 'message_bubble.dart';
 import 'starred_screen.dart';
+import '../../security/safety_number_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -860,6 +861,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       case 'archive':
         await _app.setArchived(widget.chatId, !chat.archived);
         _snack(chat.archived ? 'Chat desarchivado' : 'Chat archivado');
+      case 'safety':
+        await Navigator.of(context).push(MaterialPageRoute(builder: (_) => SafetyNumberScreen(chatId: widget.chatId)));
       case 'starred':
         await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StarredScreen(chatId: widget.chatId)));
       case 'hide':
@@ -1037,6 +1040,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'search', child: Text('Buscar')),
               const PopupMenuItem(value: 'starred', child: Text('Mensajes destacados')),
+              if (chat != null && !chat.isGroup && !chat.isNotes)
+                const PopupMenuItem(value: 'safety', child: Text('Código de seguridad')),
               if (chat?.isGroup ?? false) const PopupMenuItem(value: 'group', child: Text('Info del grupo')),
               if (chat != null && !chat.isNotes)
                 PopupMenuItem(
