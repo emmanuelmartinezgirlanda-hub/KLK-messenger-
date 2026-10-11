@@ -1,13 +1,13 @@
 # Servidor de KLK messenger en Render (https://render.com): "New → Blueprint" y elige este repositorio.
-# El plan gratuito sirve para pruebas (el servidor se duerme tras 15 min sin uso
-# y la base de datos gratuita caduca a los 30 días).
+# Planes de pago: servidor Starter (7 $/mes, no se duerme) y base de datos
+# Basic 256 MB (6 $/mes, no caduca). El plan gratis borra la base de datos a los 30 días.
 services:
   - type: web
     name: klk-server
     runtime: docker
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
-    plan: free
+    plan: starter
     healthCheckPath: /healthz
     envVars:
       - key: DATABASE_URL
@@ -37,4 +37,4 @@ services:
 
 databases:
   - name: klk-db
-    plan: free
+    plan: basic-256mb
