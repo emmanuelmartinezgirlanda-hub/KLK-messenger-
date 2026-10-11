@@ -12,6 +12,7 @@ on:
       - "marketing/**"
       - ".github/workflows/voz.yml"
       - ".github/workflows/voz2.yml"
+      - ".github/workflows/recorte.yml"
       - ".github/workflows/ingles.yml"
   workflow_dispatch:
 
