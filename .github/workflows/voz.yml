@@ -8,6 +8,9 @@ on:
       - ".github/workflows/voz.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   voz:
     runs-on: ubuntu-latest
@@ -42,7 +45,12 @@ jobs:
             done < marketing/anuncio/guion.txt
           done
           ls -R out
-      - uses: actions/upload-artifact@v4
-        with:
-          name: voz
-          path: out
+      - name: Guardar en la rama marketing-voz
+        run: |
+          cd out
+          git init -q -b marketing-voz
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -qm "Voz del anuncio"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" marketing-voz
