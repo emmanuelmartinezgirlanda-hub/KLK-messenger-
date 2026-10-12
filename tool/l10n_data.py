@@ -438,6 +438,21 @@ jueves | Thursday | giovedì | jeudi | quinta
 viernes | Friday | venerdì | vendredi | sexta
 sábado | Saturday | sabato | samedi | sábado
 domingo | Sunday | domenica | dimanche | domingo
+Chat archivado | Chat archived | Chat archiviata | Discussion archivée | Conversa arquivada
+Deshacer | Undo | Annulla | Annuler | Desfazer
+Leído | Read | Letto | Lu | Lida
+Fijar | Pin | Fissa | Épingler | Fixar
+Archivar | Archive | Archivia | Archiver | Arquivar
+Fotos y vídeos de la galería | Photos and videos from gallery | Foto e video dalla galleria | Photos et vidéos de la galerie | Fotos e vídeos da galeria
+Elige todos los que quieras | Pick as many as you want | Scegline quanti vuoi | Choisissez-en autant que vous voulez | Escolha quantos quiser
+Como máximo 30 a la vez | Up to 30 at a time | Al massimo 30 alla volta | 30 au maximum à la fois | No máximo 30 de uma vez
+Preparando el vídeo {n} de {t}… | Preparing video {n} of {t}… | Preparo il video {n} di {t}… | Préparation de la vidéo {n} sur {t}… | Preparando o vídeo {n} de {t}…
+Preparando el vídeo… | Preparing the video… | Preparo il video… | Préparation de la vidéo… | Preparando o vídeo…
+Publicando {n} de {t}… | Posting {n} of {t}… | Pubblico {n} di {t}… | Publication {n} sur {t}… | Publicando {n} de {t}…
+Añadir más | Add more | Aggiungi altri | Ajouter plus | Adicionar mais
+Se publicarán {n} estados · los verán tus contactos durante 24 horas | {n} statuses will be posted · your contacts will see them for 24 hours | Verranno pubblicati {n} stati · i tuoi contatti li vedranno per 24 ore | {n} statuts seront publiés · vos contacts les verront pendant 24 heures | Serão publicados {n} status · seus contatos verão por 24 horas
+Vídeo de hasta 10 min · lo verán tus contactos durante 24 horas | Video up to 10 min · your contacts will see it for 24 hours | Video fino a 10 min · i tuoi contatti lo vedranno per 24 ore | Vidéo jusqu’à 10 min · vos contacts la verront pendant 24 heures | Vídeo de até 10 min · seus contatos verão por 24 horas
+Lo verán tus contactos durante 24 horas | Your contacts will see it for 24 hours | I tuoi contatti lo vedranno per 24 ore | Vos contacts le verront pendant 24 heures | Seus contatos verão por 24 horas
 """
 
 T = {}

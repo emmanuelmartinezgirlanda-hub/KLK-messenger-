@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 
 import '../../messaging/app_controller.dart';
@@ -132,7 +133,9 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
       ]);
     }
 
-    return ListView.builder(
+    // Solo un chat deslizado a la vez (como en WhatsApp)
+    return SlidableAutoCloseBehavior(
+      child: ListView.builder(
       padding: const EdgeInsets.only(bottom: 96),
       itemCount: top.length + (chats.isEmpty ? 1 : chats.length),
       itemBuilder: (context, i) {
@@ -157,6 +160,7 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
                   : null,
         );
       },
+      ),
     );
   }
 
@@ -270,7 +274,73 @@ class _ChatTile extends ConsumerWidget {
     final unread = chat.unread > 0;
     final typing = activity != null;
 
-    return ListTile(
+    final app = ref.read(appProvider);
+    final pinned = ref.watch(appProvider).isPinnedChat(chat.id);
+    final messenger = ScaffoldMessenger.of(context);
+
+    Future<void> toggleMute() async {
+      if (chat.muted) {
+        await app.setMuted(chat.id, unmute: true);
+        messenger.showSnackBar(SnackBar(content: Text(tr('Sonido activado 🔔'))));
+        return;
+      }
+      final d = await pickMuteDuration(context);
+      if (d == null) return;
+      await app.setMuted(chat.id, duration: d == Duration.zero ? null : d);
+      messenger.showSnackBar(SnackBar(content: Text(tr('Chat silenciado 🔕'))));
+    }
+
+    void archive() {
+      app.setArchived(chat.id, true);
+      messenger.showSnackBar(SnackBar(
+        content: Text(tr('Chat archivado')),
+        action: SnackBarAction(label: tr('Deshacer'), onPressed: () => app.setArchived(chat.id, false)),
+      ));
+    }
+
+    SlidableAction action(IconData icon, String label, Color bg, void Function() onTap) => SlidableAction(
+          onPressed: (_) => onTap(),
+          backgroundColor: bg,
+          foregroundColor: Colors.white,
+          icon: icon,
+          label: label,
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          spacing: 4,
+        );
+
+    // Deslizar a la izquierda: silenciar, archivar y borrar.
+    // Deslizar a la derecha: leído y fijar.
+    return Slidable(
+      key: ValueKey('slide-${chat.id}'),
+      groupTag: 'chats',
+      startActionPane: ActionPane(
+        motion: const BehindMotion(),
+        extentRatio: chat.unread > 0 ? 0.44 : 0.22,
+        children: [
+          if (chat.unread > 0)
+            action(Icons.mark_chat_read_rounded, tr('Leído'), const Color(0xFF2E7DF6), () => app.markChatRead(chat.id)),
+          action(pinned ? Icons.push_pin_outlined : Icons.push_pin_rounded, pinned ? tr('Desfijar') : tr('Fijar'),
+              const Color(0xFF1F7A4D), () => app.togglePinChat(chat.id)),
+        ],
+      ),
+      endActionPane: chat.isNotes
+          ? ActionPane(
+              motion: const BehindMotion(),
+              extentRatio: 0.22,
+              children: [action(Icons.archive_rounded, tr('Archivar'), const Color(0xFF2E7DF6), archive)],
+            )
+          : ActionPane(
+              motion: const BehindMotion(),
+              extentRatio: 0.66,
+              children: [
+                action(chat.muted ? Icons.notifications_active_rounded : Icons.notifications_off_rounded,
+                    chat.muted ? tr('Activar') : tr('Silenciar'), const Color(0xFF6B7280), toggleMute),
+                action(Icons.archive_rounded, tr('Archivar'), const Color(0xFF2E7DF6), archive),
+                action(Icons.delete_rounded, tr('Borrar'), const Color(0xFFE5484D),
+                    () => deleteContactFlow(context, app, chat)),
+              ],
+            ),
+      child: ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       minVerticalPadding: 10,
       leading: GestureDetector(
@@ -415,6 +485,7 @@ class _ChatTile extends ConsumerWidget {
           ]),
           ),
         ),
+      ),
       ),
     );
   }

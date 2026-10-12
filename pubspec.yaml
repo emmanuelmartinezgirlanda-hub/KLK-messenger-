@@ -72,6 +72,9 @@ dependencies:
   mobile_scanner: ">=7.0.0 <8.0.0"
 
   # Panel de emojis como el de WhatsApp
+  # Deslizar un chat para silenciar, archivar o borrar (como en WhatsApp)
+  flutter_slidable: ^3.1.2
+
   emoji_picker_flutter: ">=3.1.0 <5.0.0"
 
   # Utilidades
@@ -97,5 +100,5 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon/klk_icon.png"
   remove_alpha_ios: true
-  adaptive_icon_background: "#002D62"
+  adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/icon/klk_icon_foreground.png"
