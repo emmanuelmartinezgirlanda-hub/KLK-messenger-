@@ -1,6 +1,6 @@
-# Compila "Inglés Diario" para iPhone (IPA sin firmar) y lo publica en Releases con la etiqueta "ingles".
-# Enlace directo: https://github.com/<usuario>/<repo>/releases/download/ingles/Ingles-Diario.ipa
-name: Inglés Diario para iPhone
+# Compila "Speakazo" (app de inglés) para iPhone (IPA sin firmar) y lo publica en Releases con la etiqueta "speakazo".
+# Enlace directo: https://github.com/<usuario>/<repo>/releases/download/speakazo/Speakazo.ipa
+name: Speakazo para iPhone
 
 on:
   push:
@@ -58,16 +58,16 @@ jobs:
         run: |
           mkdir -p build/ipa/Payload
           cp -R build/ios/iphoneos/Runner.app build/ipa/Payload/
-          cd build/ipa && zip -qr Ingles-Diario.ipa Payload && ls -la
+          cd build/ipa && zip -qr Speakazo.ipa Payload && ls -la
 
       - name: Publicar en Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ingles
-          name: Inglés Diario para iPhone
+          tag_name: speakazo
+          name: Speakazo para iPhone
           body: |
             Instálalo con SideInstaller pegando este enlace:
-            https://github.com/${{ github.repository }}/releases/download/ingles/Ingles-Diario.ipa
-          files: ingles/build/ipa/Ingles-Diario.ipa
+            https://github.com/${{ github.repository }}/releases/download/speakazo/Speakazo.ipa
+          files: ingles/build/ipa/Speakazo.ipa
           make_latest: false
           overwrite_files: true

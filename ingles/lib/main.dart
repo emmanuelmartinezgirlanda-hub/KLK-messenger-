@@ -13,7 +13,7 @@ class InglesDiarioApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      title: 'Inglés Diario',
+      title: 'Speakazo',
       debugShowCheckedModeBanner: false,
       home: HomePage(),
     );
@@ -42,7 +42,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final dark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
-    final bg = dark ? const Color(0xFF10142A) : const Color(0xFFEDF0F6);
+    final bg = dark ? const Color(0xFF0F1226) : const Color(0xFFF1F2F7);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Scaffold(
