@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../messaging/models.dart';
 import '../../theming/domain/klk_theme.dart';
 import 'media_bubbles.dart';
+import '../../../core/l10n/l10n.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -29,6 +30,10 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onTranscribe;
   final bool transcribing;
 
+  /// Foto de quien grabó la nota de voz y si el otro ya la escuchó.
+  final Widget? voiceAvatar;
+  final bool voiceHeard;
+
   /// Texto buscado (se resalta).
   final String? highlight;
 
@@ -45,6 +50,8 @@ class MessageBubble extends StatelessWidget {
     this.onStopLive,
     this.onTranscribe,
     this.transcribing = false,
+    this.voiceAvatar,
+    this.voiceHeard = false,
     this.highlight,
   });
 
@@ -94,7 +101,7 @@ class MessageBubble extends StatelessWidget {
           const SizedBox(width: 3),
         ],
         if (message.editedAt != null && !message.deleted) ...[
-          Text('editado', style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 11, fontStyle: FontStyle.italic)),
+          Text(tr('editado'), style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 11, fontStyle: FontStyle.italic)),
           const SizedBox(width: 4),
         ],
         Text(time, style: TextStyle(color: fg.withValues(alpha: 0.65), fontSize: 11)),
@@ -111,7 +118,7 @@ class MessageBubble extends StatelessWidget {
         Icon(Icons.block, size: 16, color: fg.withValues(alpha: 0.6)),
         const SizedBox(width: 6),
         Flexible(
-          child: Text(mine ? 'Eliminaste este mensaje' : 'Este mensaje se eliminó',
+          child: Text(mine ? tr('Eliminaste este mensaje') : 'Este mensaje se eliminó',
               style: TextStyle(color: fg.withValues(alpha: 0.7), fontStyle: FontStyle.italic)),
         ),
         const SizedBox(width: 8),
@@ -140,6 +147,8 @@ class MessageBubble extends StatelessWidget {
               onStopLive: onStopLive,
               onTranscribe: onTranscribe,
               transcribing: transcribing,
+              voiceAvatar: voiceAvatar,
+              voiceHeard: voiceHeard,
             ),
           if (message.link != null && !message.link!.isEmpty) _LinkCard(link: message.link!, fg: fg, accent: cs.primary),
           Wrap(
@@ -164,7 +173,7 @@ class MessageBubble extends StatelessWidget {
                 Icon(Icons.translate, size: 14, color: fg.withValues(alpha: 0.6)),
                 const SizedBox(width: 6),
                 Flexible(
-                  child: Text(translating ? 'Traduciendo…' : translation!,
+                  child: Text(translating ? tr('Traduciendo…') : translation!,
                       style: TextStyle(color: fg.withValues(alpha: 0.85), fontSize: 14.5, fontStyle: FontStyle.italic)),
                 ),
               ]),

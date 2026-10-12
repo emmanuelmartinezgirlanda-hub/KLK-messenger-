@@ -347,6 +347,17 @@ class LocalDb {
     return rows.map(StatusPost.fromRow).toList();
   }
 
+  /// Borra un estado. Si se da [ownerId], solo si es de esa persona.
+  /// Devuelve su foto o vídeo para borrarlo del disco.
+  Future<String?> deleteStatus(String id, {String? ownerId}) async {
+    final where = ownerId == null ? 'id = ?' : 'id = ? AND owner_id = ?';
+    final args = ownerId == null ? [id] : [id, ownerId];
+    final rows = await _db.query('statuses', columns: ['media_path'], where: where, whereArgs: args);
+    if (rows.isEmpty) return null;
+    await _db.delete('statuses', where: where, whereArgs: args);
+    return rows.first['media_path'] as String?;
+  }
+
   Future<void> markStatusViewed(String id) =>
       _db.update('statuses', {'viewed': 1}, where: 'id = ?', whereArgs: [id]);
 

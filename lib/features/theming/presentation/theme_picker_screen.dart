@@ -5,6 +5,7 @@ import '../../chat/presentation/message_bubble.dart';
 import '../../messaging/models.dart';
 import '../domain/klk_theme.dart';
 import 'theme_provider.dart';
+import '../../../core/l10n/l10n.dart';
 
 class ThemePickerScreen extends ConsumerWidget {
   const ThemePickerScreen({super.key});
@@ -30,7 +31,7 @@ class ThemePickerScreen extends ConsumerWidget {
     final notifier = ref.read(themeProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Temas')),
+      appBar: AppBar(title: Text(tr('Temas'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -48,7 +49,7 @@ class ThemePickerScreen extends ConsumerWidget {
             ]),
           ),
           const SizedBox(height: 24),
-          Text('Predeterminados', style: Theme.of(context).textTheme.titleMedium),
+          Text(tr('Predeterminados'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -61,7 +62,7 @@ class ThemePickerScreen extends ConsumerWidget {
                 .toList(),
           ),
           const SizedBox(height: 24),
-          Text('Color de mis burbujas', style: Theme.of(context).textTheme.titleMedium),
+          Text(tr('Color de mis burbujas'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Wrap(
             spacing: 10,
@@ -79,14 +80,14 @@ class ThemePickerScreen extends ConsumerWidget {
                 .toList(),
           ),
           const SizedBox(height: 24),
-          Text('Redondeo de burbujas', style: Theme.of(context).textTheme.titleMedium),
+          Text(tr('Redondeo de burbujas'), style: Theme.of(context).textTheme.titleMedium),
           Slider(
             min: 4,
             max: 28,
             value: current.bubbleRadius,
             onChanged: (v) => notifier.apply(current.copyWith(id: 'custom', name: 'Personalizado', bubbleRadius: v)),
           ),
-          Text('Fuente', style: Theme.of(context).textTheme.titleMedium),
+          Text(tr('Fuente'), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,

@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/util/phone.dart';
 import '../messaging/app_controller.dart';
 import 'otp_screen.dart';
+import '../../core/l10n/l10n.dart';
 
 class WelcomeScreen extends ConsumerStatefulWidget {
   const WelcomeScreen({super.key});
@@ -70,7 +71,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               style: text.bodyLarge?.copyWith(color: cs.onSurface.withValues(alpha: 0.7), height: 1.45),
             ),
             const SizedBox(height: 40),
-            Text('Tu número de teléfono', style: text.labelLarge),
+            Text(tr('Tu número de teléfono'), style: text.labelLarge),
             const SizedBox(height: 8),
             Row(children: [
               DropdownButtonHideUnderline(
@@ -121,21 +122,21 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               ),
               child: _busy
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Enviarme el código', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  : Text(tr('Enviarme el código'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 16),
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
-              title: Text('Opciones avanzadas', style: text.bodyMedium),
+              title: Text(tr('Opciones avanzadas'), style: text.bodyMedium),
               children: [
                 TextField(
                   controller: _server,
                   keyboardType: TextInputType.url,
                   autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Servidor',
+                  decoration: InputDecoration(
+                    labelText: tr('Servidor'),
                     hintText: 'https://api.tudominio.com',
-                    helperText: 'Déjalo vacío para probar KLK en modo demo (código 123456).',
+                    helperText: tr('Déjalo vacío para probar KLK en modo demo (código 123456).'),
                     helperMaxLines: 2,
                   ),
                 ),

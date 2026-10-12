@@ -7,6 +7,7 @@ import '../../messaging/models.dart';
 import '../../theming/domain/klk_theme.dart';
 import 'chat_screen.dart';
 import 'message_bubble.dart';
+import '../../../core/l10n/l10n.dart';
 
 /// Mensajes destacados ⭐ (de todos los chats, o solo de [chatId]).
 class StarredScreen extends ConsumerStatefulWidget {
@@ -39,7 +40,7 @@ class _StarredScreenState extends ConsumerState<StarredScreen> {
     final items = _items;
     final bg = Theme.of(context).extension<BubbleStyle>()?.chatBg ?? cs.surface;
     return Scaffold(
-      appBar: AppBar(title: const Text('Mensajes destacados')),
+      appBar: AppBar(title: Text(tr('Mensajes destacados'))),
       backgroundColor: bg,
       body: items == null
           ? const Center(child: CircularProgressIndicator())
@@ -50,10 +51,10 @@ class _StarredScreenState extends ConsumerState<StarredScreen> {
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       const Icon(Icons.star_outline_rounded, size: 64, color: Color(0xFFFFB627)),
                       const SizedBox(height: 14),
-                      const Text('Todavía no tienes destacados',
+                      Text(tr('Todavía no tienes destacados'),
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 8),
-                      Text('Deja pulsado un mensaje y toca «Destacar» para guardarlo aquí.',
+                      Text(tr('Deja pulsado un mensaje y toca «Destacar» para guardarlo aquí.'),
                           textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
                     ]),
                   ),

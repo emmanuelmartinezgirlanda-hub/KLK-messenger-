@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/security/secure_store.dart';
 import 'domain/klk_theme.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Fondos de chat dominicanos, dibujados en el propio móvil (sin fotos de terceros).
 ///
@@ -354,20 +355,20 @@ class _WallpaperPickerState extends ConsumerState<_WallpaperPicker> {
           const SizedBox(height: 10),
           FilledButton.icon(
             icon: const Icon(Icons.photo_library_outlined),
-            label: Text(photo == null ? 'Elegir de la galería' : 'Cambiar foto'),
+            label: Text(photo == null ? tr('Elegir de la galería') : tr('Cambiar foto')),
             onPressed: () async {
               try {
                 final ok = await ref.read(wallpaperPhotoProvider.notifier).pickFromGallery();
                 if (ok && mounted) setState(() => _sel = 'foto');
               } catch (_) {
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('No se pudo abrir la galería. Revisa el permiso de Fotos en Ajustes → KLK.')));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(tr('No se pudo abrir la galería. Revisa el permiso de Fotos en Ajustes → KLK.'))));
               }
             },
           ),
           const SizedBox(height: 8),
-          Text('La foto se queda en tu móvil; no se envía a nadie.',
+          Text(tr('La foto se queda en tu móvil; no se envía a nadie.'),
               style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ]);
     }
@@ -398,7 +399,7 @@ class _WallpaperPickerState extends ConsumerState<_WallpaperPicker> {
         child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Fondo de los chats', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text(tr('Fondo de los chats'), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
           // Vista previa en vivo
           ClipRRect(
@@ -432,7 +433,7 @@ class _WallpaperPickerState extends ConsumerState<_WallpaperPicker> {
           const SizedBox(height: 10),
           SizedBox(height: 230, child: _grid()),
           Row(children: [
-            const Text('Atenuación'),
+            Text(tr('Atenuación')),
             Expanded(
               child: Slider(
                 value: _dim,
@@ -454,7 +455,7 @@ class _WallpaperPickerState extends ConsumerState<_WallpaperPicker> {
               nav.pop();
               messenger.showSnackBar(SnackBar(content: Text('Fondo: ${wallpaperName(_sel)}')));
             },
-            child: const Text('Fijar fondo'),
+            child: Text(tr('Fijar fondo')),
           ),
         ]),
       ),

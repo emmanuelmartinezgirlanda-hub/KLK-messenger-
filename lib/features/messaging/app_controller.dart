@@ -697,6 +697,16 @@ class AppController extends ChangeNotifier {
           }
         case 'status':
           await _receiveStatus(p, from: from, name: direct?.title ?? prettyPhone(p.senderPhone ?? ''));
+        case 'unstatus':
+          {
+            // Su autor borró un estado: solo puede borrar los suyos
+            final gone = await db.deleteStatus(p.target ?? '', ownerId: from);
+            if (gone != null) {
+              try {
+                await File(gone).delete();
+              } catch (_) {}
+            }
+          }
         case 'profile':
           await _receiveProfile(p, from: from);
         case 'call':
@@ -1836,6 +1846,28 @@ class AppController extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Publicar estado: $e');
+    }
+  }
+
+  /// Borra un estado mío aquí y en los móviles de mis contactos.
+  Future<void> deleteStatus(StatusPost post) async {
+    if (!post.isMine) return;
+    final path = await _db!.deleteStatus(post.id, ownerId: 'me');
+    if (path != null) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+    }
+    await _reloadChats();
+    if (isDemo) return;
+    try {
+      final payload = Payload(kind: 'unstatus', target: post.id, senderPhone: session!.phone);
+      for (final c in chats.where((c) => !c.isGroup && !c.blocked && c.identityKey != null)) {
+        await _sendTo(c.id, c.identityKey!, payload, ref: 'x-${_uuid.v4()}');
+        await Future.delayed(const Duration(milliseconds: 60));
+      }
+    } catch (e) {
+      debugPrint('Borrar estado: $e');
     }
   }
 

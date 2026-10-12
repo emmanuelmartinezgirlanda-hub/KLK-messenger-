@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../messaging/app_controller.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Chats ocultos: protegidos con un PIN propio de KLK.
 /// La primera vez se crea el PIN; después se pide para entrar.
@@ -85,13 +86,13 @@ class _HiddenChatsScreenState extends ConsumerState<HiddenChatsScreen> {
     if (_unlocked) {
       final hidden = ref.watch(appProvider).hiddenChats;
       return Scaffold(
-        appBar: AppBar(title: const Text('Chats ocultos')),
+        appBar: AppBar(title: Text(tr('Chats ocultos'))),
         body: hidden.isEmpty
-            ? const Center(
+            ? Center(
                 child: Padding(
                   padding: EdgeInsets.all(32),
                   child: Text(
-                    'No tienes chats ocultos.\nMantén pulsado un chat en la lista y toca «Ocultar chat».',
+                    tr('No tienes chats ocultos.\nMantén pulsado un chat en la lista y toca «Ocultar chat».'),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -103,7 +104,7 @@ class _HiddenChatsScreenState extends ConsumerState<HiddenChatsScreen> {
                     title: Text(c.title, style: const TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Text(c.lastText, maxLines: 1, overflow: TextOverflow.ellipsis),
                     trailing: IconButton(
-                      tooltip: 'Mostrar en la lista',
+                      tooltip: tr('Mostrar en la lista'),
                       icon: const Icon(Icons.visibility_outlined),
                       onPressed: () => ref.read(appProvider).setHidden(c.id, false),
                     ),
@@ -127,9 +128,9 @@ class _HiddenChatsScreenState extends ConsumerState<HiddenChatsScreen> {
           const SizedBox(height: 12),
           Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
           if (creating)
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(32, 6, 32, 0),
-              child: Text('De 4 a 6 cifras. Es distinto del código de tu iPhone.', textAlign: TextAlign.center),
+              child: Text(tr('De 4 a 6 cifras. Es distinto del código de tu iPhone.'), textAlign: TextAlign.center),
             ),
           const SizedBox(height: 24),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -188,7 +189,7 @@ class _HiddenChatsScreenState extends ConsumerState<HiddenChatsScreen> {
               child: FilledButton(
                 onPressed: _entry.length >= 4 ? _confirmNewPin : null,
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-                child: Text(_firstEntry == null ? 'Siguiente' : 'Guardar PIN'),
+                child: Text(_firstEntry == null ? tr('Siguiente') : tr('Guardar PIN')),
               ),
             )
           else

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../core/l10n/l10n.dart';
 
 /// Las rutas guardadas son absolutas, pero en iOS la carpeta de la app puede
 /// cambiar (actualizaciones, restaurar una copia en otro iPhone). MediaStore
@@ -657,11 +658,11 @@ String formatBytes(int bytes) {
 
 /// Duración legible de los mensajes temporales.
 String disappearLabel(int? sec) => switch (sec) {
-      null => 'Desactivados',
-      86400 => '24 horas',
-      604800 => '7 días',
-      7776000 => '90 días',
-      _ => '${((sec ?? 0) / 3600).round()} horas',
+      null => tr('Desactivados'),
+      86400 => tr('24 horas'),
+      604800 => tr('7 días'),
+      7776000 => tr('90 días'),
+      _ => '${((sec ?? 0) / 3600).round()} ${tr('horas')}',
     };
 
 /// Contenido que viaja CIFRADO dentro de cada sobre.
@@ -670,7 +671,7 @@ String disappearLabel(int? sec) => switch (sec) {
 class Payload {
   /// text | typing | recording | read | delivered | profile | call
   /// | reaction | delete | timer | group | status
-  /// | vote | pin | loc | shot | edit
+  /// | vote | pin | loc | shot | edit | unstatus
   final String kind;
   final String? id; // id del mensaje
   final String? text;
@@ -841,7 +842,7 @@ class Presence {
 /// Texto de la cabecera del chat: "en línea", "últ. vez hoy a las 14:05"…
 String? presenceLabel(Presence? p, DateTime now) {
   if (p == null) return null;
-  if (p.onlineNow(now)) return 'en línea';
+  if (p.onlineNow(now)) return tr('en línea');
   final seen = p.lastSeen?.toLocal();
   if (seen == null) return null;
   String two(int n) => n.toString().padLeft(2, '0');
@@ -849,11 +850,11 @@ String? presenceLabel(Presence? p, DateTime now) {
   final today = DateTime(now.year, now.month, now.day);
   final day = DateTime(seen.year, seen.month, seen.day);
   final diff = today.difference(day).inDays;
-  if (diff <= 0) return 'últ. vez hoy a las $hm';
-  if (diff == 1) return 'últ. vez ayer a las $hm';
+  if (diff <= 0) return tr('últ. vez hoy a las {t}').replaceAll('{t}', hm);
+  if (diff == 1) return tr('últ. vez ayer a las {t}').replaceAll('{t}', hm);
   if (diff < 7) {
     const days = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
-    return 'últ. vez el ${days[seen.weekday - 1]} a las $hm';
+    return tr('últ. vez el {d} a las {t}').replaceAll('{d}', tr(days[seen.weekday - 1])).replaceAll('{t}', hm);
   }
-  return 'últ. vez el ${two(seen.day)}/${two(seen.month)}/${seen.year}';
+  return tr('últ. vez el {d}').replaceAll('{d}', '${two(seen.day)}/${two(seen.month)}/${seen.year}');
 }

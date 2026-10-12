@@ -6,6 +6,7 @@ import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Crear grupo: elegir participantes entre mis chats y ponerle nombre.
 class CreateGroupScreen extends ConsumerStatefulWidget {
@@ -51,7 +52,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Nuevo grupo', style: TextStyle(fontWeight: FontWeight.w700)),
+          Text(tr('Nuevo grupo'), style: TextStyle(fontWeight: FontWeight.w700)),
           Text('${_selected.length} de ${contacts.length} seleccionados',
               style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6))),
         ]),
@@ -68,7 +69,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 maxLength: 50,
                 textCapitalization: TextCapitalization.sentences,
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(hintText: 'Nombre del grupo', counterText: ''),
+                decoration: InputDecoration(hintText: tr('Nombre del grupo'), counterText: ''),
               ),
             ),
           ]),
@@ -110,10 +111,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         const Divider(height: 1),
         Expanded(
           child: contacts.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
                     padding: EdgeInsets.all(32),
-                    child: Text('Primero escribe a alguien en KLK para poder añadirle a un grupo.',
+                    child: Text(tr('Primero escribe a alguien en KLK para poder añadirle a un grupo.'),
                         textAlign: TextAlign.center),
                   ),
                 )
@@ -136,7 +137,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         icon: _saving
             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
             : const Icon(Icons.check),
-        label: const Text('Crear grupo'),
+        label: Text(tr('Crear grupo')),
       ),
     );
   }

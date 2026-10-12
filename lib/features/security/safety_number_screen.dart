@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../messaging/app_controller.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Código de seguridad de un chat: los dos móviles ven los mismos 60 números.
 /// Si coinciden al compararlos en persona, nadie está espiando en medio.
@@ -22,7 +23,7 @@ class SafetyNumberScreen extends ConsumerWidget {
     ];
     final signal = app.usesSignal(chatId);
     return Scaffold(
-      appBar: AppBar(title: const Text('Código de seguridad')),
+      appBar: AppBar(title: Text(tr('Código de seguridad'))),
       body: ListView(padding: const EdgeInsets.all(24), children: [
         Icon(Icons.lock_outline, size: 56, color: cs.primary),
         const SizedBox(height: 12),
@@ -38,7 +39,7 @@ class SafetyNumberScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 24),
         if (groups.isEmpty)
-          const Text('Todavía no hay código: escríbele primero.', textAlign: TextAlign.center)
+          Text(tr('Todavía no hay código: escríbele primero.'), textAlign: TextAlign.center)
         else
           Container(
             padding: const EdgeInsets.all(18),
@@ -73,10 +74,10 @@ class SafetyNumberScreen extends ConsumerWidget {
           TextButton.icon(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: groups.join(' ')));
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código copiado')));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Código copiado'))));
             },
             icon: const Icon(Icons.copy),
-            label: const Text('Copiar el código'),
+            label: Text(tr('Copiar el código')),
           ),
         ],
       ]),

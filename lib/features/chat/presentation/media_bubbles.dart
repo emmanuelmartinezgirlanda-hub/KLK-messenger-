@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +12,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../messaging/models.dart';
 import '../../messaging/stickers.dart';
+import '../../../core/l10n/l10n.dart';
 
 /// Contenido multimedia dentro de una burbuja.
 class MediaContent extends StatelessWidget {
@@ -21,6 +24,8 @@ class MediaContent extends StatelessWidget {
   final VoidCallback? onStopLive; // dejar de compartir mi ubicación
   final VoidCallback? onTranscribe; // nota de voz a texto
   final bool transcribing;
+  final Widget? voiceAvatar; // foto de quien grabó la nota de voz
+  final bool voiceHeard; // el otro ya escuchó mi nota de voz (micro azul)
   const MediaContent({
     super.key,
     required this.message,
@@ -31,6 +36,8 @@ class MediaContent extends StatelessWidget {
     this.onStopLive,
     this.onTranscribe,
     this.transcribing = false,
+    this.voiceAvatar,
+    this.voiceHeard = false,
   });
 
   @override
@@ -55,7 +62,16 @@ class MediaContent extends StatelessWidget {
       MediaType.image => _ImageThumb(path: path!),
       MediaType.video => _VideoThumb(path: path!, durationMs: media.durationMs),
       MediaType.audio => Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          VoiceNotePlayer(path: path!, fg: fg, durationMs: media.durationMs),
+          VoiceNotePlayer(
+            path: path!,
+            fg: fg,
+            durationMs: media.durationMs,
+            seed: media.attachmentId ?? message.id,
+            messageId: message.id,
+            mine: message.isMine,
+            heard: voiceHeard,
+            avatar: voiceAvatar,
+          ),
           _Transcript(media: media, fg: fg, onTranscribe: onTranscribe, working: transcribing),
         ]),
       MediaType.file => _FileTile(media: media, fg: fg),
@@ -128,13 +144,13 @@ class ViewOnceViewer extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
-          title: const Text('Ver una vez', style: TextStyle(fontSize: 16)),
+          title: Text(tr('Ver una vez'), style: TextStyle(fontSize: 16)),
         ),
         body: Center(child: InteractiveViewer(child: Image.file(File(media.localPath!)))),
-        bottomNavigationBar: const SafeArea(
+        bottomNavigationBar: SafeArea(
           child: Padding(
             padding: EdgeInsets.all(16),
-            child: Text('Al cerrar, se borrará de este móvil para siempre.',
+            child: Text(tr('Al cerrar, se borrará de este móvil para siempre.'),
                 textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
           ),
         ),
@@ -184,7 +200,7 @@ class _TripCard extends StatelessWidget {
                 style: TextStyle(color: fg.withValues(alpha: 0.75), fontSize: 13),
               ),
             const SizedBox(height: 6),
-            Text('¿Necesitan que les lleve algo?', style: TextStyle(color: fg.withValues(alpha: 0.85), fontSize: 13)),
+            Text(tr('¿Necesitan que les lleve algo?'), style: TextStyle(color: fg.withValues(alpha: 0.85), fontSize: 13)),
           ]),
         ),
       ]),
@@ -218,7 +234,7 @@ class _Transcript extends StatelessWidget {
       icon: working
           ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: fg))
           : const Icon(Icons.subtitles_outlined, size: 16),
-      label: Text(working ? 'Pasando a texto…' : 'Pasar a texto', style: const TextStyle(fontSize: 12.5)),
+      label: Text(working ? tr('Pasando a texto…') : tr('Pasar a texto'), style: const TextStyle(fontSize: 12.5)),
     );
   }
 }
@@ -245,7 +261,7 @@ class PollCard extends StatelessWidget {
         Row(children: [
           Icon(Icons.poll_outlined, size: 18, color: fg.withValues(alpha: 0.7)),
           const SizedBox(width: 6),
-          Text(media.pollMulti ? 'Encuesta · varias respuestas' : 'Encuesta',
+          Text(media.pollMulti ? tr('Encuesta · varias respuestas') : 'Encuesta',
               style: TextStyle(color: fg.withValues(alpha: 0.7), fontSize: 12)),
         ]),
         const SizedBox(height: 4),
@@ -285,7 +301,7 @@ class PollCard extends StatelessWidget {
           ),
         Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: Text(voters == 0 ? 'Nadie ha votado todavía' : '$voters ${voters == 1 ? 'persona ha votado' : 'personas han votado'}',
+          child: Text(voters == 0 ? tr('Nadie ha votado todavía') : '$voters ${voters == 1 ? tr('persona ha votado') : 'personas han votado'}',
               style: TextStyle(color: fg.withValues(alpha: 0.6), fontSize: 12)),
         ),
       ]),
@@ -362,7 +378,7 @@ class _LiveCard extends StatelessWidget {
                   const Icon(Icons.circle, size: 9, color: Color(0xFF1F7A4D)),
                   const SizedBox(width: 5),
                 ],
-                Text('Ubicación en tiempo real', style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
+                Text(tr('Ubicación en tiempo real'), style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
               ]),
               Text(status, style: TextStyle(color: fg.withValues(alpha: 0.7), fontSize: 12.5)),
               if (active && updated != null)
@@ -374,7 +390,7 @@ class _LiveCard extends StatelessWidget {
                   child: TextButton(
                     style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF6B7A), padding: EdgeInsets.zero),
                     onPressed: onStop,
-                    child: const Text('Dejar de compartir'),
+                    child: Text(tr('Dejar de compartir')),
                   ),
                 ),
             ]),
@@ -465,7 +481,7 @@ class _VideoThumb extends StatelessWidget {
               child: Row(children: [
                 const Icon(Icons.videocam, size: 16, color: Colors.white70),
                 const SizedBox(width: 4),
-                Text(durationMs == null ? 'Vídeo' : formatDuration(durationMs!),
+                Text(durationMs == null ? tr('Vídeo') : formatDuration(durationMs!),
                     style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ]),
             ),
@@ -533,11 +549,29 @@ class VoiceNotePlayer extends StatefulWidget {
   final String path;
   final Color fg;
   final int? durationMs;
-  const VoiceNotePlayer({super.key, required this.path, required this.fg, this.durationMs});
+  final String seed; // para dibujar siempre la misma onda para este audio
+  final String messageId;
+  final bool mine;
+  final bool heard; // mi audio ya lo escuchó el otro
+  final Widget? avatar;
+  const VoiceNotePlayer({
+    super.key,
+    required this.path,
+    required this.fg,
+    this.durationMs,
+    this.seed = '',
+    this.messageId = '',
+    this.mine = false,
+    this.heard = false,
+    this.avatar,
+  });
 
   @override
   State<VoiceNotePlayer> createState() => _VoiceNotePlayerState();
 }
+
+/// Notas de voz recibidas que ya escuché (micro azul en vez de verde).
+final _heardHere = <String>{};
 
 class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
   /// Velocidad de los audios (se recuerda para todos, como en WhatsApp).
@@ -548,7 +582,9 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
   Duration? _dur;
   bool _playing = false;
   bool _loaded = false;
+  double? _dragging; // 0..1 mientras se arrastra el punto
   final List<StreamSubscription<dynamic>> _subs = [];
+  late final List<double> _wave = voiceWave(widget.seed.isEmpty ? widget.path : widget.seed, 34);
 
   @override
   void initState() {
@@ -573,18 +609,29 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
     super.dispose();
   }
 
+  Future<void> _ensureLoaded() async {
+    if (_loaded) return;
+    final d = await _player.setFilePath(widget.path);
+    _loaded = true;
+    if (d != null && mounted) setState(() => _dur = d);
+  }
+
   Future<void> _toggle() async {
     if (_playing) {
       await _player.pause();
       return;
     }
-    if (!_loaded) {
-      final d = await _player.setFilePath(widget.path);
-      _loaded = true;
-      if (d != null) setState(() => _dur = d);
-    }
+    await _ensureLoaded();
+    if (!widget.mine && widget.messageId.isNotEmpty) _heardHere.add(widget.messageId);
     await _player.setSpeed(_speed);
     await _player.play();
+  }
+
+  Future<void> _seekTo(double f) async {
+    final total = _dur ?? Duration.zero;
+    if (total == Duration.zero) return;
+    await _ensureLoaded();
+    await _player.seek(Duration(milliseconds: (f.clamp(0.0, 1.0) * total.inMilliseconds).round()));
   }
 
   Future<void> _cycleSpeed() async {
@@ -594,61 +641,165 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
 
   @override
   Widget build(BuildContext context) {
+    final fg = widget.fg;
     final total = _dur ?? Duration.zero;
-    final progress = total.inMilliseconds == 0 ? 0.0 : (_pos.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
-    return SizedBox(
-      width: 230,
-      child: Row(children: [
-        IconButton(
-          onPressed: _toggle,
-          icon: Icon(_playing ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 40, color: widget.fg),
-          padding: EdgeInsets.zero,
-        ),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 3,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape: SliderComponentShape.noOverlay,
-              ),
-              child: Slider(
-                value: progress,
-                activeColor: widget.fg,
-                inactiveColor: widget.fg.withValues(alpha: 0.3),
-                onChanged: total == Duration.zero
-                    ? null
-                    : (v) => _player.seek(Duration(milliseconds: (v * total.inMilliseconds).round())),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              formatDuration((_playing || _pos > Duration.zero ? _pos : total).inMilliseconds),
-              style: TextStyle(color: widget.fg.withValues(alpha: 0.7), fontSize: 11.5),
-            ),
-          ]),
-        ),
-        if (_playing || _pos > Duration.zero)
-          InkWell(
+    final progress = _dragging ??
+        (total.inMilliseconds == 0 ? 0.0 : (_pos.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0));
+    final started = _playing || _pos > Duration.zero;
+    final heard = widget.mine ? widget.heard : _heardHere.contains(widget.messageId);
+    // Micro verde = audio nuevo sin escuchar; azul = ya escuchado (como en WhatsApp)
+    final micColor = heard ? const Color(0xFF53A6FF) : (widget.mine ? fg.withValues(alpha: 0.55) : const Color(0xFF25D366));
+    const dot = Color(0xFF53A6FF);
+
+    Widget left;
+    if (started) {
+      left = SizedBox(
+        width: 52,
+        height: 52,
+        child: Center(
+          child: InkWell(
             onTap: _cycleSpeed,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: widget.fg.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(color: fg.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(14)),
               child: Text(
-                _speed == 1.0 ? '1x' : (_speed == 1.5 ? '1.5x' : '2x'),
-                style: TextStyle(color: widget.fg, fontSize: 12.5, fontWeight: FontWeight.w800),
+                _speed == 1.0 ? '1×' : (_speed == 1.5 ? '1,5×' : '2×'),
+                style: TextStyle(color: fg, fontSize: 13, fontWeight: FontWeight.w800),
               ),
             ),
-          )
-        else
-          Icon(Icons.mic, size: 18, color: widget.fg.withValues(alpha: 0.6)),
-      ]),
+          ),
+        ),
+      );
+    } else {
+      left = SizedBox(
+        width: 52,
+        height: 52,
+        child: Stack(clipBehavior: Clip.none, children: [
+          Positioned.fill(
+            child: widget.avatar ??
+                CircleAvatar(
+                  backgroundColor: fg.withValues(alpha: 0.18),
+                  child: Icon(Icons.person_rounded, color: fg.withValues(alpha: 0.8), size: 30),
+                ),
+          ),
+          Positioned(
+            right: -5,
+            bottom: -3,
+            child: Icon(Icons.mic_rounded, size: 22, color: micColor, shadows: const [Shadow(blurRadius: 3, color: Colors.black26)]),
+          ),
+        ]),
+      );
+    }
+
+    return SizedBox(
+      width: 268,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          left,
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 40,
+            height: 44,
+            child: IconButton(
+              tooltip: _playing ? tr('Pausa') : 'Reproducir',
+              onPressed: _toggle,
+              padding: EdgeInsets.zero,
+              icon: Icon(_playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 40, color: fg.withValues(alpha: 0.75)),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              LayoutBuilder(builder: (context, c) {
+                double frac(Offset o) => (o.dx / c.maxWidth).clamp(0.0, 1.0);
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapUp: (d) => _seekTo(frac(d.localPosition)),
+                  onHorizontalDragStart: (d) => setState(() => _dragging = frac(d.localPosition)),
+                  onHorizontalDragUpdate: (d) => setState(() => _dragging = frac(d.localPosition)),
+                  onHorizontalDragEnd: (_) {
+                    final f = _dragging;
+                    setState(() => _dragging = null);
+                    if (f != null) _seekTo(f);
+                  },
+                  child: SizedBox(
+                    height: 34,
+                    width: c.maxWidth,
+                    child: CustomPaint(
+                      painter: _WavePainter(
+                        wave: _wave,
+                        progress: progress,
+                        played: fg.withValues(alpha: 0.85),
+                        rest: fg.withValues(alpha: 0.32),
+                        dot: dot,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  formatDuration((started ? _pos : total).inMilliseconds),
+                  style: TextStyle(color: fg.withValues(alpha: 0.65), fontSize: 12.5, fontFeatures: const [FontFeature.tabularFigures()]),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
     );
   }
+}
+
+/// Onda de una nota de voz: siempre la misma para el mismo audio, con
+/// subidas y bajadas suaves como una voz real.
+List<double> voiceWave(String seed, int n) {
+  var h = 0x811C9DC5;
+  for (final c in seed.codeUnits) {
+    h = ((h ^ c) * 0x01000193) & 0x7FFFFFFF;
+  }
+  double next() {
+    h = (h * 1103515245 + 12345) & 0x7FFFFFFF;
+    return h / 0x7FFFFFFF;
+  }
+  final raw = List<double>.generate(n, (i) {
+    final phrase = 0.55 + 0.45 * (0.5 + 0.5 * math.sin(i / n * math.pi * (2 + next())));
+    return (0.18 + 0.82 * next()) * phrase;
+  });
+  return [
+    for (var i = 0; i < n; i++)
+      ((raw[i] * 2 + (i > 0 ? raw[i - 1] : raw[i]) + (i < n - 1 ? raw[i + 1] : raw[i])) / 4).clamp(0.12, 1.0),
+  ];
+}
+
+class _WavePainter extends CustomPainter {
+  final List<double> wave;
+  final double progress;
+  final Color played, rest, dot;
+  _WavePainter({required this.wave, required this.progress, required this.played, required this.rest, required this.dot});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = wave.length;
+    final step = size.width / n;
+    final bar = (step * 0.55).clamp(1.5, 3.5);
+    final mid = size.height / 2;
+    final p = Paint()..strokeCap = StrokeCap.round..strokeWidth = bar;
+    for (var i = 0; i < n; i++) {
+      final x = step * i + step / 2;
+      final h = (size.height - 6) * wave[i];
+      p.color = (i + 0.5) / n <= progress ? played : rest;
+      canvas.drawLine(Offset(x, mid - h / 2), Offset(x, mid + h / 2), p);
+    }
+    final dx = (size.width * progress).clamp(6.0, size.width - 6.0);
+    canvas.drawCircle(Offset(dx, mid), 7.5, Paint()..color = dot);
+  }
+
+  @override
+  bool shouldRepaint(_WavePainter old) => old.progress != progress || old.played != played || old.rest != rest;
 }
 
 // ---------- Documento ----------
@@ -719,7 +870,7 @@ class _LocationCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Ubicación', style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
+                Text(tr('Ubicación'), style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
                 Text('${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)} · Toca para abrir el mapa',
                     style: TextStyle(color: fg.withValues(alpha: 0.7), fontSize: 12)),
               ]),

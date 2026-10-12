@@ -12,6 +12,7 @@ import 'package:video_player/video_player.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
+import '../../core/l10n/l10n.dart';
 
 const statusColors = [
   0xFF002D62, // azul Quisqueya
@@ -25,9 +26,9 @@ const statusColors = [
 
 String _ago(DateTime t) {
   final d = DateTime.now().difference(t);
-  if (d.inMinutes < 1) return 'ahora';
-  if (d.inMinutes < 60) return 'hace ${d.inMinutes} min';
-  return 'hace ${d.inHours} h';
+  if (d.inMinutes < 1) return tr('ahora');
+  if (d.inMinutes < 60) return tr('hace {n} min').replaceAll('{n}', '${d.inMinutes}');
+  return tr('hace {n} h').replaceAll('{n}', '${d.inHours}');
 }
 
 /// Pestaña "Estados": el mío arriba y luego los de mis contactos.
@@ -69,7 +70,7 @@ class StatusesView extends ConsumerWidget {
         leading: Stack(clipBehavior: Clip.none, children: [
           _Ring(
             active: mine.isNotEmpty,
-            child: ChatAvatar(id: 'me', title: app.profile.name.isEmpty ? 'Tú' : app.profile.name,
+            child: ChatAvatar(id: 'me', title: app.profile.name.isEmpty ? tr('Tú') : app.profile.name,
                 photoPath: app.profile.photoPath, radius: 24),
           ),
           if (mine.isEmpty)
@@ -80,32 +81,149 @@ class StatusesView extends ConsumerWidget {
                   child: Icon(Icons.add, size: 16, color: cs.onSecondary)),
             ),
         ]),
-        title: const Text('Mi estado', style: TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(mine.isEmpty ? 'Toca para compartir algo por 24 horas' : _ago(mine.last.createdAt)),
+        title: Text(tr('Mi estado'), style: TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(mine.isEmpty ? tr('Toca para compartir algo por 24 horas') : _ago(mine.last.createdAt)),
         onTap: () => mine.isEmpty
             ? showStatusComposer(context)
             : Navigator.of(context).push(MaterialPageRoute(
                 fullscreenDialog: true, builder: (_) => StatusViewer(posts: mine, title: 'Mi estado'))),
-        trailing: IconButton(
-          tooltip: 'Nuevo estado',
-          icon: const Icon(Icons.edit_outlined),
-          onPressed: () => showStatusComposer(context),
-        ),
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (mine.isNotEmpty)
+            IconButton(
+              tooltip: tr('Mis estados'),
+              icon: const Icon(Icons.more_horiz_rounded),
+              onPressed: () => showMyStatuses(context),
+            ),
+          IconButton(
+            tooltip: tr('Nuevo estado'),
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => showStatusComposer(context),
+          ),
+        ]),
       ),
-      if (unseen.isNotEmpty) const _Section('RECIENTES'),
+      if (unseen.isNotEmpty) _Section(tr('RECIENTES')),
       for (final e in unseen) ownerTile(e, ring: true),
-      if (seen.isNotEmpty) const _Section('VISTOS'),
+      if (seen.isNotEmpty) _Section(tr('VISTOS')),
       for (final e in seen) ownerTile(e, ring: false),
       if (byOwner.isEmpty)
         Padding(
           padding: const EdgeInsets.all(32),
           child: Text(
-            'Aquí verás los estados de tus contactos. Duran 24 horas y luego desaparecen.',
+            tr('Aquí verás los estados de tus contactos. Duran 24 horas y luego desaparecen.'),
             textAlign: TextAlign.center,
             style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6)),
           ),
         ),
     ]);
+  }
+}
+
+/// Pregunta antes de borrar un estado mío. Devuelve true si se borró.
+Future<bool> confirmDeleteStatus(BuildContext context, WidgetRef ref, StatusPost post) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(tr('¿Borrar este estado?')),
+      content: Text(tr('Se borrará también de los móviles de tus contactos.')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFCE1126), foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(tr('Borrar')),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return false;
+  await ref.read(appProvider).deleteStatus(post);
+  return true;
+}
+
+/// Lista de mis estados de hoy, con opción de verlos o borrarlos uno a uno.
+Future<void> showMyStatuses(BuildContext context) => showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => const _MyStatusesSheet(),
+    );
+
+class _MyStatusesSheet extends ConsumerWidget {
+  const _MyStatusesSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mine = ref.watch(appProvider).statuses.where((s) => s.isMine).toList().reversed.toList();
+    final cs = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.7),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Text(tr('Mis estados'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          ),
+          if (mine.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(tr('No tienes estados publicados.'), style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
+            ),
+          Flexible(
+            child: ListView(shrinkWrap: true, children: [
+              for (final s in mine)
+                ListTile(
+                  leading: _StatusThumb(post: s),
+                  title: Text(s.text.isNotEmpty ? s.text : (s.isVideo ? tr('Vídeo') : tr('Foto')),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(_ago(s.createdAt)),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      fullscreenDialog: true, builder: (_) => StatusViewer(posts: [s], title: 'Mi estado'))),
+                  trailing: IconButton(
+                    tooltip: tr('Borrar'),
+                    icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFCE1126)),
+                    onPressed: () async {
+                      final done = await confirmDeleteStatus(context, ref, s);
+                      if (done && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Estado borrado'))));
+                        if (mine.length == 1) Navigator.of(context).pop();
+                      }
+                    },
+                  ),
+                ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _StatusThumb extends StatelessWidget {
+  final StatusPost post;
+  const _StatusThumb({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final path = post.mediaPath;
+    final hasImage = path != null && !post.isVideo && File(path).existsSync();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: hasImage
+            ? Image.file(File(path), fit: BoxFit.cover, cacheWidth: 144)
+            : ColoredBox(
+                color: path != null ? Colors.black : Color(post.color),
+                child: Center(
+                  child: path != null
+                      ? const Icon(Icons.play_arrow_rounded, color: Colors.white)
+                      : Text(post.text.isEmpty ? '' : post.text.characters.first,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 20)),
+                ),
+              ),
+      ),
+    );
   }
 }
 
@@ -189,24 +307,24 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
             leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('Foto de la galería'),
+            title: Text(tr('Foto de la galería')),
             onTap: () => Navigator.pop(ctx, 'photo'),
           ),
           ListTile(
             leading: const Icon(Icons.video_library_outlined),
-            title: const Text('Vídeo de la galería'),
-            subtitle: const Text('Hasta 10 minutos'),
+            title: Text(tr('Vídeo de la galería')),
+            subtitle: Text(tr('Hasta 10 minutos')),
             onTap: () => Navigator.pop(ctx, 'video'),
           ),
           ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Hacer una foto'),
+            title: Text(tr('Hacer una foto')),
             onTap: () => Navigator.pop(ctx, 'camera'),
           ),
           ListTile(
             leading: const Icon(Icons.videocam_outlined),
-            title: const Text('Grabar un vídeo'),
-            subtitle: const Text('Hasta 10 minutos'),
+            title: Text(tr('Grabar un vídeo')),
+            subtitle: Text(tr('Hasta 10 minutos')),
             onTap: () => Navigator.pop(ctx, 'record'),
           ),
         ]),
@@ -242,7 +360,7 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
           if (mounted) setState(() => _preparing = false);
         }
         if (await File(path).length() > _maxUploadBytes) {
-          _say('Ese vídeo pesa demasiado aun comprimido (máx. 64 MB). Prueba con uno más corto.');
+          _say(tr('Ese vídeo pesa demasiado aun comprimido (máx. 64 MB). Prueba con uno más corto.'));
           return;
         }
       }
@@ -252,7 +370,7 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
         _isVideo = video;
       });
     } catch (_) {
-      _say('KLK no tiene permiso para tus fotos o la cámara. Actívalo en Ajustes del iPhone → KLK.');
+      _say(tr('KLK no tiene permiso para tus fotos o la cámara. Actívalo en Ajustes del iPhone → KLK.'));
     }
   }
 
@@ -273,10 +391,10 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(tooltip: 'Foto o vídeo', icon: const Icon(Icons.perm_media_outlined), onPressed: _pickMedia),
+          IconButton(tooltip: tr('Foto o vídeo'), icon: const Icon(Icons.perm_media_outlined), onPressed: _pickMedia),
           if (media == null)
             IconButton(
-              tooltip: 'Color de fondo',
+              tooltip: tr('Color de fondo'),
               icon: const Icon(Icons.palette_outlined),
               onPressed: () => setState(() => _color = statusColors[(statusColors.indexOf(_color) + 1) % statusColors.length]),
             ),
@@ -316,8 +434,8 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
                         onChanged: (_) => setState(() {}),
                         style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w700),
                         cursorColor: Colors.white,
-                        decoration: const InputDecoration(
-                          hintText: 'Escribe algo…',
+                        decoration: InputDecoration(
+                          hintText: tr('Escribe algo…'),
                           hintStyle: TextStyle(color: Colors.white54),
                           border: InputBorder.none,
                           counterStyle: TextStyle(color: Colors.white54),
@@ -333,8 +451,8 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
                 controller: _text,
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  hintText: 'Añade un texto…',
+                decoration: InputDecoration(
+                  hintText: tr('Añade un texto…'),
                   hintStyle: TextStyle(color: Colors.white54),
                   filled: true,
                   fillColor: Colors.white12,
@@ -406,9 +524,9 @@ class _StatusVideoState extends State<StatusVideo> {
   @override
   Widget build(BuildContext context) {
     if (_failed) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.all(24),
-        child: Text('No se pudo reproducir este vídeo', style: TextStyle(color: Colors.white70)),
+        child: Text(tr('No se pudo reproducir este vídeo'), style: TextStyle(color: Colors.white70)),
       );
     }
     if (!_c.value.isInitialized) {
@@ -588,14 +706,30 @@ class _StatusViewerState extends ConsumerState<StatusViewer> {
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   if (isVideo) const Padding(padding: EdgeInsets.only(right: 4), child: Icon(Icons.videocam_outlined)),
                   if (!post.isMine && !post.allowSave)
-                    const Tooltip(message: 'Su autor no permite guardarlo', child: Icon(Icons.lock_outline)),
+                    Tooltip(message: tr('Su autor no permite guardarlo'), child: Icon(Icons.lock_outline)),
                   // Descargar: solo si su autor lo permite (Privacidad → Estados) o si es mío
                   if ((post.isMine || post.allowSave) && hasFile)
                     IconButton(
-                      tooltip: 'Guardar',
+                      tooltip: tr('Guardar'),
                       icon: const Icon(Icons.download_rounded),
                       onPressed: () => Share.shareXFiles([XFile(post.mediaPath!)],
                           text: post.isMine ? null : 'Estado de ${widget.title}'),
+                    ),
+                  if (post.isMine)
+                    IconButton(
+                      tooltip: tr('Borrar estado'),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      onPressed: () async {
+                        _pause();
+                        final done = await confirmDeleteStatus(context, ref, post);
+                        if (!mounted) return;
+                        if (done) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Estado borrado'))));
+                          Navigator.of(context).pop();
+                        } else {
+                          _resume();
+                        }
+                      },
                     ),
                   IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
                 ]),

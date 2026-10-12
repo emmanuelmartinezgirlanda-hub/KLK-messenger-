@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
 import '../../core/util/phone.dart';
 import '../messaging/app_controller.dart';
+import '../../core/l10n/l10n.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
   final String phone;
@@ -92,13 +93,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Verifica tu número')),
+      appBar: AppBar(title: Text(tr('Verifica tu número'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
             Text.rich(TextSpan(children: [
-              const TextSpan(text: 'Escribe el código de 6 cifras que enviamos al '),
+              TextSpan(text: tr('Escribe el código de 6 cifras que enviamos al ')),
               TextSpan(text: prettyPhone(widget.phone), style: const TextStyle(fontWeight: FontWeight.w700)),
               const TextSpan(text: '.'),
             ]), style: const TextStyle(fontSize: 16, height: 1.4)),
@@ -123,7 +124,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             ),
             const SizedBox(height: 12),
             if (demo)
-              Text('Modo demo: el código es 123456', style: TextStyle(color: cs.secondary, fontWeight: FontWeight.w600)),
+              Text(tr('Modo demo: el código es 123456'), style: TextStyle(color: cs.secondary, fontWeight: FontWeight.w600)),
             if (_error != null) ...[
               const SizedBox(height: 8),
               Text(_error!, style: const TextStyle(color: Color(0xFFFF6B7A))),
@@ -137,7 +138,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               ),
               child: _busy
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Entrar a KLK', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  : Text(tr('Entrar a KLK'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -169,9 +170,9 @@ class _PinDialogState extends State<_PinDialog> {
   Widget build(BuildContext context) {
     final left = widget.attemptsLeft;
     return AlertDialog(
-      title: const Text('PIN de seguridad'),
+      title: Text(tr('PIN de seguridad')),
       content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Esta cuenta está protegida con un PIN de 6 números. Escríbelo para entrar.'),
+        Text(tr('Esta cuenta está protegida con un PIN de 6 números. Escríbelo para entrar.')),
         if (widget.wrong) ...[
           const SizedBox(height: 8),
           Text(
@@ -191,14 +192,14 @@ class _PinDialogState extends State<_PinDialog> {
           style: const TextStyle(fontSize: 26, letterSpacing: 10),
           onChanged: (_) => setState(() {}),
         ),
-        const Text('¿Lo olvidaste? Podrás entrar sin PIN 7 días después de la última vez que se usó la cuenta.',
+        Text(tr('¿Lo olvidaste? Podrás entrar sin PIN 7 días después de la última vez que se usó la cuenta.'),
             style: TextStyle(fontSize: 12.5)),
       ]),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancelar'))),
         FilledButton(
           onPressed: _pin.text.length == 6 ? () => Navigator.pop(context, _pin.text) : null,
-          child: const Text('Entrar'),
+          child: Text(tr('Entrar')),
         ),
       ],
     );

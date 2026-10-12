@@ -5,20 +5,22 @@ import 'package:intl/intl.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import 'chat_avatar.dart';
+import '../../contacts/contact_info_screen.dart';
 import 'archived_screen.dart';
 import 'chat_screen.dart';
 import 'chat_sheets.dart';
 import '../../contacts/contact_actions.dart';
 import 'new_chat_sheet.dart';
+import '../../../core/l10n/l10n.dart';
 
 
 String chatTime(DateTime t) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  if (!t.isBefore(today)) return DateFormat.jm('es').format(t);
-  if (!t.isBefore(today.subtract(const Duration(days: 1)))) return 'Ayer';
-  if (!t.isBefore(today.subtract(const Duration(days: 6)))) return DateFormat.E('es').format(t);
-  return DateFormat.yMd('es').format(t);
+  if (!t.isBefore(today)) return DateFormat.jm(currentLanguageCode()).format(t);
+  if (!t.isBefore(today.subtract(const Duration(days: 1)))) return tr('Ayer');
+  if (!t.isBefore(today.subtract(const Duration(days: 6)))) return DateFormat.E(currentLanguageCode()).format(t);
+  return DateFormat.yMd(currentLanguageCode()).format(t);
 }
 
 enum _Filter { all, unread, groups }
@@ -63,13 +65,13 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
           onChanged: (_) => setState(() {}),
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-            hintText: 'Buscar',
+            hintText: tr('Buscar'),
             isDense: true,
             prefixIcon: const Icon(Icons.search, size: 22),
             suffixIcon: _search.text.isEmpty
                 ? null
                 : IconButton(
-                    tooltip: 'Borrar',
+                    tooltip: tr('Borrar'),
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => setState(_search.clear),
                   ),
@@ -83,9 +85,9 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           children: [
-            _chip('Todos', _Filter.all),
-            _chip(unreadCount > 0 ? 'No leídos $unreadCount' : 'No leídos', _Filter.unread),
-            _chip('Grupos', _Filter.groups),
+            _chip(tr('Todos'), _Filter.all),
+            _chip(unreadCount > 0 ? '${tr('No leídos')} $unreadCount' : tr('No leídos'), _Filter.unread),
+            _chip(tr('Grupos'), _Filter.groups),
           ],
         ),
       ),
@@ -93,7 +95,7 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
         ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 30),
           leading: Icon(Icons.archive_outlined, color: cs.onSurface.withValues(alpha: 0.7)),
-          title: const Text('Archivados', style: TextStyle(fontWeight: FontWeight.w600)),
+          title: Text(tr('Archivados'), style: TextStyle(fontWeight: FontWeight.w600)),
           trailing: Text('${app.archivedChats.length}',
               style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700)),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ArchivedScreen())),
@@ -115,15 +117,15 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
           child: Column(children: [
             Icon(Icons.forum_outlined, size: 56, color: cs.primary),
             const SizedBox(height: 16),
-            const Text('Todavía no tienes chats', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text(tr('Todavía no tienes chats'), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
-            Text('Escríbele a alguien por su número de teléfono.',
+            Text(tr('Escríbele a alguien por su número de teléfono.'),
                 textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: () => showNewChatSheet(context),
               icon: const Icon(Icons.add_comment_outlined),
-              label: const Text('Nuevo chat'),
+              label: Text(tr('Nuevo chat')),
             ),
           ]),
         ),
@@ -149,9 +151,9 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
         return _ChatTile(
           chat: c,
           activity: app.isRecording(c.id)
-              ? 'grabando audio…'
+              ? tr('grabando audio…')
               : app.isTyping(c.id)
-                  ? 'escribiendo…'
+                  ? tr('escribiendo…')
                   : null,
         );
       },
@@ -200,7 +202,7 @@ class _AnnouncementCard extends StatelessWidget {
           ]),
         ),
         IconButton(
-          tooltip: 'Cerrar aviso',
+          tooltip: tr('Cerrar aviso'),
           visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.close, size: 20),
           onPressed: onClose,
@@ -235,7 +237,7 @@ class _BirthdayCard extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Hoy cumple $who', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-            Text('Mándale un sticker o un audio, que le va a gustar',
+            Text(tr('Mándale un sticker o un audio, que le va a gustar'),
                 style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.7))),
           ]),
         ),
@@ -249,7 +251,7 @@ class _BirthdayCard extends StatelessWidget {
               ),
             ));
           },
-          child: const Text('Felicitar'),
+          child: Text(tr('Felicitar')),
         ),
       ]),
     );
@@ -271,7 +273,15 @@ class _ChatTile extends ConsumerWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       minVerticalPadding: 10,
-      leading: ChatAvatar(id: chat.id, title: chat.title, photoPath: chat.avatarPath, radius: 27),
+      leading: GestureDetector(
+        onTap: () async {
+          final action = await showAvatarQuickView(context, chat);
+          if (action == null || !context.mounted) return;
+          Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ChatScreen(chatId: chat.id, startAction: action == 'chat' ? null : action)));
+        },
+        child: ChatAvatar(id: chat.id, title: chat.title, photoPath: chat.avatarPath, radius: 27),
+      ),
       title: Row(children: [
         Expanded(
           child: Text(chat.title,
@@ -319,7 +329,7 @@ class _ChatTile extends ConsumerWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             ListTile(
               leading: Icon(ref.read(appProvider).isPinnedChat(chat.id) ? Icons.push_pin : Icons.push_pin_outlined),
-              title: Text(ref.read(appProvider).isPinnedChat(chat.id) ? 'Desfijar chat' : 'Fijar chat arriba'),
+              title: Text(ref.read(appProvider).isPinnedChat(chat.id) ? tr('Desfijar chat') : tr('Fijar chat arriba')),
               onTap: () {
                 Navigator.pop(ctx);
                 ref.read(appProvider).togglePinChat(chat.id);
@@ -327,7 +337,7 @@ class _ChatTile extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.archive_outlined),
-              title: const Text('Archivar chat'),
+              title: Text(tr('Archivar chat')),
               onTap: () {
                 Navigator.pop(ctx);
                 ref.read(appProvider).setArchived(chat.id, true);
@@ -343,7 +353,7 @@ class _ChatTile extends ConsumerWidget {
             if (!chat.isNotes)
               ListTile(
                 leading: Icon(chat.muted ? Icons.notifications_active_outlined : Icons.notifications_off_outlined),
-                title: Text(chat.muted ? 'Activar sonido' : 'Silenciar'),
+                title: Text(chat.muted ? tr('Activar sonido') : tr('Silenciar')),
                 onTap: () async {
                   Navigator.pop(ctx);
                   final app = ref.read(appProvider);
@@ -358,7 +368,7 @@ class _ChatTile extends ConsumerWidget {
             if (chat.unread > 0)
               ListTile(
                 leading: const Icon(Icons.mark_chat_read_outlined),
-                title: const Text('Marcar como leído'),
+                title: Text(tr('Marcar como leído')),
                 onTap: () {
                   Navigator.pop(ctx);
                   ref.read(appProvider).markChatRead(chat.id);
@@ -378,7 +388,7 @@ class _ChatTile extends ConsumerWidget {
             if (!chat.isNotes)
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Color(0xFFCE1126)),
-              title: Text(chat.isGroup ? 'Eliminar grupo' : 'Eliminar contacto',
+              title: Text(chat.isGroup ? tr('Eliminar grupo') : 'Eliminar contacto',
                   style: const TextStyle(color: Color(0xFFCE1126))),
               onTap: () async {
                 Navigator.pop(ctx);
@@ -387,15 +397,15 @@ class _ChatTile extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.lock_outline),
-              title: const Text('Ocultar chat'),
-              subtitle: const Text('Solo se verá en Ajustes → Chats ocultos, con tu PIN'),
+              title: Text(tr('Ocultar chat')),
+              subtitle: Text(tr('Solo se verá en Ajustes → Chats ocultos, con tu PIN')),
               onTap: () async {
                 Navigator.pop(ctx);
                 final app = ref.read(appProvider);
                 if (!await app.hasPin) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Primero crea tu PIN en Ajustes → Chats ocultos')));
+                        SnackBar(content: Text(tr('Primero crea tu PIN en Ajustes → Chats ocultos'))));
                   }
                   return;
                 }

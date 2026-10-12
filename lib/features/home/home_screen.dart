@@ -19,6 +19,7 @@ import '../status/status_views.dart';
 import '../theming/presentation/theme_picker_screen.dart';
 import '../topup/recharge_sheet.dart';
 import 'tabs_provider.dart';
+import '../../core/l10n/l10n.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -63,7 +64,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ]),
       action: SnackBarAction(
-        label: 'Ver',
+        label: tr('Ver'),
         onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: chat.id))),
       ),
     ));
@@ -119,11 +120,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Flexible(
             child: _tab == 0
                 ? Row(mainAxisSize: MainAxisSize.min, children: [
-                    Image.asset('assets/brand/klk_header.png', height: 38, semanticLabel: 'KLK'),
+                    Image.asset('assets/brand/klk_header.png', height: 38, semanticLabel: tr('KLK')),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        'messenger',
+                        tr('messenger'),
                         maxLines: 1,
                         overflow: TextOverflow.fade,
                         softWrap: false,
@@ -136,31 +137,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           const SizedBox(width: 8),
           if (app.isDemo)
-            const _Pill(text: 'Demo')
+            _Pill(text: tr('Demo'))
           else if (!app.online)
-            const _Pill(text: 'Conectando…'),
+            _Pill(text: tr('Conectando…')),
         ]),
         actions: [
           IconButton(
-            tooltip: 'Cámara',
+            tooltip: tr('Cámara'),
             icon: const Icon(Icons.photo_camera_outlined),
             onPressed: () => showStatusComposer(context),
           ),
           PopupMenuButton<String>(
-            tooltip: 'Más opciones',
+            tooltip: tr('Más opciones'),
             icon: const Icon(Icons.more_vert),
             onSelected: _menu,
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'group', child: Text('Nuevo grupo')),
-              PopupMenuItem(value: 'qr', child: Text('Mi código QR')),
-              PopupMenuItem(value: 'scan', child: Text('Escanear código QR')),
-              PopupMenuItem(value: 'notes', child: Text('Notas para mí')),
-              PopupMenuItem(value: 'recharge', child: Text('Recargar un móvil de RD')),
-              PopupMenuItem(value: 'starred', child: Text('Mensajes destacados')),
-              PopupMenuItem(value: 'archived', child: Text('Archivados')),
-              PopupMenuItem(value: 'hidden', child: Text('Chats ocultos')),
-              PopupMenuItem(value: 'themes', child: Text('Temas y fondos')),
-              PopupMenuItem(value: 'settings', child: Text('Ajustes')),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'group', child: Text(tr('Nuevo grupo'))),
+              PopupMenuItem(value: 'qr', child: Text(tr('Mi código QR'))),
+              PopupMenuItem(value: 'scan', child: Text(tr('Escanear código QR'))),
+              PopupMenuItem(value: 'notes', child: Text(tr('Notas para mí'))),
+              PopupMenuItem(value: 'recharge', child: Text(tr('Recargar un móvil de RD'))),
+              PopupMenuItem(value: 'starred', child: Text(tr('Mensajes destacados'))),
+              PopupMenuItem(value: 'archived', child: Text(tr('Archivados'))),
+              PopupMenuItem(value: 'hidden', child: Text(tr('Chats ocultos'))),
+              PopupMenuItem(value: 'themes', child: Text(tr('Temas y fondos'))),
+              PopupMenuItem(value: 'settings', child: Text(tr('Ajustes'))),
             ],
           ),
           const SizedBox(width: 4),
@@ -172,12 +173,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       floatingActionButton: switch (_tab) {
         0 => FloatingActionButton(
-            tooltip: 'Nuevo chat',
+            tooltip: tr('Nuevo chat'),
             onPressed: () => showNewChatSheet(context),
             child: const Icon(Icons.add_comment_rounded),
           ),
         1 => FloatingActionButton(
-            tooltip: 'Nuevo estado',
+            tooltip: tr('Nuevo estado'),
             onPressed: () => showStatusComposer(context),
             child: const Icon(Icons.photo_camera_rounded),
           ),
@@ -204,14 +205,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 label: Text('$unreadChats'),
                 child: const Icon(Icons.chat),
               ),
-              label: 'Chats',
+              label: tr('Chats'),
             ),
-            const NavigationDestination(
-                icon: Icon(Icons.donut_large_outlined), selectedIcon: Icon(Icons.donut_large), label: 'Estados'),
-            const NavigationDestination(
-                icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'Comunidades'),
-            const NavigationDestination(
-                icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Ajustes'),
+            NavigationDestination(
+                icon: Icon(Icons.donut_large_outlined), selectedIcon: Icon(Icons.donut_large), label: tr('Estados')),
+            NavigationDestination(
+                icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: tr('Comunidades')),
+            NavigationDestination(
+                icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: tr('Ajustes')),
             ].indexed)
               if (visible.contains(k)) d,
           ],
@@ -250,7 +251,7 @@ class _BannedScreen extends ConsumerWidget {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(Icons.gpp_bad_outlined, size: 72, color: cs.secondary),
             const SizedBox(height: 20),
-            const Text('Tu cuenta está bloqueada',
+            Text(tr('Tu cuenta está bloqueada'),
                 textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
             const SizedBox(height: 10),
             Text(
@@ -262,7 +263,7 @@ class _BannedScreen extends ConsumerWidget {
             const SizedBox(height: 28),
             OutlinedButton(
               onPressed: () => ref.read(appProvider).panic(),
-              child: const Text('Borrar los datos de este móvil'),
+              child: Text(tr('Borrar los datos de este móvil')),
             ),
           ]),
         ),

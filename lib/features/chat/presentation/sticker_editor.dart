@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:klk_native/klk_native.dart';
+import '../../../core/l10n/l10n.dart';
 
 enum _Shape { square, circle, free }
 
@@ -72,18 +73,18 @@ class _StickerEditorState extends State<StickerEditor> {
     final t = await showDialog<String>(
       context: context,
       builder: (d) => AlertDialog(
-        title: const Text('Texto del sticker'),
+        title: Text(tr('Texto del sticker')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           maxLength: 30,
           textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(hintText: '¡KLK!, ¡Tamo activo!…'),
+          decoration: InputDecoration(hintText: tr('¡KLK!, ¡Tamo activo!…')),
         ),
         actions: [
-          if (_text.isNotEmpty) TextButton(onPressed: () => Navigator.pop(d, ''), child: const Text('Quitar')),
-          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(d, ctrl.text), child: const Text('Poner')),
+          if (_text.isNotEmpty) TextButton(onPressed: () => Navigator.pop(d, ''), child: Text(tr('Quitar'))),
+          TextButton(onPressed: () => Navigator.pop(d), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(d, ctrl.text), child: Text(tr('Poner'))),
         ],
       ),
     );
@@ -103,7 +104,7 @@ class _StickerEditorState extends State<StickerEditor> {
       if (!mounted || data == null) return;
       Navigator.pop<Uint8List>(context, data.buffer.asUint8List());
     } catch (_) {
-      _snack('No se pudo crear el sticker');
+      _snack(tr('No se pudo crear el sticker'));
       if (mounted) setState(() => _saving = false);
     }
   }
@@ -200,7 +201,7 @@ class _StickerEditorState extends State<StickerEditor> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Crear sticker'),
+        title: Text(tr('Crear sticker')),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -208,7 +209,7 @@ class _StickerEditorState extends State<StickerEditor> {
               onPressed: _saving || _cutting ? null : _done,
               child: _saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Listo'),
+                  : Text(tr('Listo')),
             ),
           ),
         ],
@@ -241,7 +242,7 @@ class _StickerEditorState extends State<StickerEditor> {
               ),
             ),
           ),
-          Text('Mueve y pellizca la foto para encuadrarla',
+          Text(tr('Mueve y pellizca la foto para encuadrarla'),
               style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6))),
           const SizedBox(height: 10),
           SingleChildScrollView(
@@ -253,7 +254,7 @@ class _StickerEditorState extends State<StickerEditor> {
                   padding: const EdgeInsets.only(right: 8),
                   child: FilterChip(
                     avatar: const Icon(Icons.content_cut, size: 18),
-                    label: Text(_lifted ? 'Con fondo' : 'Quitar fondo'),
+                    label: Text(_lifted ? tr('Con fondo') : tr('Quitar fondo')),
                     selected: _lifted,
                     onSelected: _cutting ? null : (_) => _cut(),
                   ),
@@ -273,7 +274,7 @@ class _StickerEditorState extends State<StickerEditor> {
                   ),
                 ),
               FilterChip(
-                label: const Text('Borde blanco'),
+                label: Text(tr('Borde blanco')),
                 selected: _outline,
                 onSelected: (v) => setState(() => _outline = v),
               ),
@@ -286,11 +287,11 @@ class _StickerEditorState extends State<StickerEditor> {
               OutlinedButton.icon(
                 onPressed: _editText,
                 icon: const Icon(Icons.text_fields),
-                label: Text(_text.isEmpty ? 'Poner texto' : 'Cambiar texto'),
+                label: Text(_text.isEmpty ? tr('Poner texto') : tr('Cambiar texto')),
               ),
               if (_text.isNotEmpty) ...[
                 IconButton(
-                  tooltip: _textTop ? 'Texto abajo' : 'Texto arriba',
+                  tooltip: _textTop ? tr('Texto abajo') : 'Texto arriba',
                   onPressed: () => setState(() => _textTop = !_textTop),
                   icon: Icon(_textTop ? Icons.vertical_align_bottom : Icons.vertical_align_top),
                 ),

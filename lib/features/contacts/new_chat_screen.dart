@@ -8,6 +8,7 @@ import '../groups/create_group_screen.dart';
 import '../messaging/app_controller.dart';
 import 'device_contacts.dart';
 import 'new_contact_screen.dart';
+import '../../core/l10n/l10n.dart';
 
 /// "Nuevo chat": buscador, accesos rápidos, contactos que usan KLK e invitar al resto.
 class NewChatScreen extends ConsumerStatefulWidget {
@@ -88,7 +89,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Nuevo chat', style: TextStyle(fontWeight: FontWeight.w700)),
+          Text(tr('Nuevo chat'), style: TextStyle(fontWeight: FontWeight.w700)),
           if (!_loading && _permission)
             Text('${_contacts.where((c) => c.onKlk).length} contactos en KLK',
                 style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6))),
@@ -103,7 +104,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
               controller: _search,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: 'Buscar nombre o número',
+                hintText: tr('Buscar nombre o número'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: q.isEmpty
                     ? null
@@ -152,7 +153,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
               padding: const EdgeInsets.all(24),
               child: Column(children: [
                 Text(_error!, textAlign: TextAlign.center),
-                TextButton(onPressed: _load, child: const Text('Reintentar')),
+                TextButton(onPressed: _load, child: Text(tr('Reintentar'))),
               ]),
             )
           else ...[
@@ -185,7 +186,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
                 trailing: OutlinedButton(
                   onPressed: () => DeviceContacts.invite(c.phone),
                   style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-                  child: const Text('Invitar'),
+                  child: Text(tr('Invitar')),
                 ),
               ),
             if (q.isNotEmpty && onKlk.isEmpty && invite.isEmpty)
@@ -198,7 +199,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
                     onPressed: () => Navigator.of(context)
                         .push(MaterialPageRoute(builder: (_) => NewContactScreen(initialQuery: _search.text))),
                     icon: const Icon(Icons.person_add_alt_1),
-                    label: const Text('Añadir como contacto nuevo'),
+                    label: Text(tr('Añadir como contacto nuevo')),
                   ),
                 ]),
               ),
@@ -253,7 +254,7 @@ class _PermissionCard extends StatelessWidget {
       child: Column(children: [
         Icon(Icons.contacts, size: 44, color: cs.primary),
         const SizedBox(height: 12),
-        const Text('Encuentra a tu gente en KLK',
+        Text(tr('Encuentra a tu gente en KLK'),
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
         const SizedBox(height: 6),
         Text(
@@ -263,9 +264,9 @@ class _PermissionCard extends StatelessWidget {
           style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
         ),
         const SizedBox(height: 14),
-        FilledButton(onPressed: onRetry, child: const Text('Permitir acceso')),
+        FilledButton(onPressed: onRetry, child: Text(tr('Permitir acceso'))),
         const SizedBox(height: 4),
-        Text('Si no aparece el aviso: Ajustes del iPhone → KLK → Contactos',
+        Text(tr('Si no aparece el aviso: Ajustes del iPhone → KLK → Contactos'),
             style: TextStyle(fontSize: 11.5, color: cs.onSurface.withValues(alpha: 0.5)), textAlign: TextAlign.center),
       ]),
     );

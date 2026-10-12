@@ -12,6 +12,7 @@ import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../messaging/app_controller.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Enlace de mi contacto: https://servidor/c/18095551234?n=Emmanuel
 /// Si lo abre alguien sin KLK, la página le explica cómo descargarla.
@@ -47,11 +48,11 @@ class MyQrScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mi código QR'),
+        title: Text(tr('Mi código QR')),
         centerTitle: true,
         actions: [
           IconButton(
-            tooltip: 'Compartir',
+            tooltip: tr('Compartir'),
             icon: const Icon(Icons.ios_share),
             onPressed: link.isEmpty
                 ? null
@@ -73,7 +74,7 @@ class MyQrScreen extends ConsumerWidget {
               child: Column(children: [
                 Text(name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 2),
-                Text('Contacto de KLK messenger',
+                Text(tr('Contacto de KLK messenger'),
                     style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
                 const SizedBox(height: 18),
                 Container(
@@ -113,7 +114,7 @@ class MyQrScreen extends ConsumerWidget {
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), shape: const StadiumBorder()),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const QrScannerScreen())),
             icon: const Icon(Icons.qr_code_scanner),
-            label: const Text('Escanear', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            label: Text(tr('Escanear'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -123,7 +124,7 @@ class MyQrScreen extends ConsumerWidget {
                 : () => Share.share('¡Klk! Escríbeme por KLK messenger 🇩🇴\n$link',
                     subject: 'Mi contacto de KLK messenger'),
             icon: const Icon(Icons.share_outlined),
-            label: const Text('Compartir mi enlace'),
+            label: Text(tr('Compartir mi enlace')),
           ),
         ]),
       ),
@@ -160,7 +161,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
         _lastBad = raw;
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('Ese código no es de KLK messenger')));
+          ..showSnackBar(SnackBar(content: Text(tr('Ese código no es de KLK messenger'))));
       }
       return;
     }
@@ -179,7 +180,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('No se pudo añadir. Revisa tu conexión.')));
+          .showSnackBar(SnackBar(content: Text(tr('No se pudo añadir. Revisa tu conexión.'))));
       setState(() => _busy = false);
       unawaited(_ctrl.start());
     }
@@ -190,12 +191,12 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Escanear código'),
+        title: Text(tr('Escanear código')),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            tooltip: 'Linterna',
+            tooltip: tr('Linterna'),
             color: Colors.white,
             icon: const Icon(Icons.flashlight_on_outlined),
             onPressed: () => _ctrl.toggleTorch(),
@@ -206,10 +207,10 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
         MobileScanner(
           controller: _ctrl,
           onDetect: _onDetect,
-          errorBuilder: (context, error) => const Center(
+          errorBuilder: (context, error) => Center(
             child: Padding(
               padding: EdgeInsets.all(32),
-              child: Text('KLK no puede usar la cámara. Actívala en Ajustes del móvil → KLK messenger.',
+              child: Text(tr('KLK no puede usar la cámara. Actívala en Ajustes del móvil → KLK messenger.'),
                   textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 16)),
             ),
           ),

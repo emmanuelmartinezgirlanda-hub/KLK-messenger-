@@ -42,6 +42,7 @@ class SecureStore {
 
   Future<String?> read(String key) => _storage.read(key: key);
   Future<void> write(String key, String value) => _storage.write(key: key, value: value);
+  Future<void> delete(String key) => _storage.delete(key: key);
 
   /// Clave maestra de SQLCipher (256 bits). Se genera la primera vez.
   Future<String> databaseKey() async {

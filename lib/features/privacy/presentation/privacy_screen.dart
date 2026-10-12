@@ -8,6 +8,7 @@ import '../../messaging/models.dart';
 import '../../security/security_pin_screen.dart';
 import '../../settings/blocked_screen.dart';
 import 'privacy_provider.dart';
+import '../../../core/l10n/l10n.dart';
 
 class PrivacyScreen extends ConsumerWidget {
   const PrivacyScreen({super.key});
@@ -18,13 +19,13 @@ class PrivacyScreen extends ConsumerWidget {
     final notifier = ref.read(privacyProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Privacidad')),
+      appBar: AppBar(title: Text(tr('Privacidad'))),
       body: ListView(
         children: [
           const _Section('Presencia'),
           ListTile(
             leading: const Icon(Icons.access_time),
-            title: const Text('Última conexión'),
+            title: Text(tr('Última conexión')),
             subtitle: Text(_audienceLabel(s.lastSeen)),
             trailing: DropdownButton<Audience>(
               value: s.lastSeen,
@@ -37,7 +38,7 @@ class PrivacyScreen extends ConsumerWidget {
           ),
           SwitchListTile(
             secondary: const Icon(Icons.ac_unit),
-            title: const Text('Congelar mi última conexión'),
+            title: Text(tr('Congelar mi última conexión')),
             subtitle: Text(s.frozenLastSeen == null
                 ? 'Los demás verán siempre la misma hora, entres cuando entres'
                 : 'Congelada: ${presenceLabel(Presence(online: false, lastSeen: s.frozenLastSeen, at: DateTime.now()), DateTime.now()) ?? ''}'),
@@ -49,72 +50,72 @@ class PrivacyScreen extends ConsumerWidget {
           ),
           SwitchListTile(
             secondary: const Icon(Icons.circle_outlined),
-            title: const Text('Ocultar "en línea"'),
-            subtitle: const Text('Nadie verá cuándo tienes KLK abierto'),
+            title: Text(tr('Ocultar "en línea"')),
+            subtitle: Text(tr('Nadie verá cuándo tienes KLK abierto')),
             value: s.hideOnline,
             onChanged: (v) => notifier.update(s.copyWith(hideOnline: v)),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.done_all),
-            title: const Text('Ocultar confirmaciones de lectura'),
-            subtitle: const Text('Si lo activas, tampoco verás las de los demás.'),
+            title: Text(tr('Ocultar confirmaciones de lectura')),
+            subtitle: Text(tr('Si lo activas, tampoco verás las de los demás.')),
             value: s.hideReadReceipts,
             onChanged: (v) => notifier.update(s.copyWith(hideReadReceipts: v)),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.done),
-            title: const Text('Ocultar el check de entregado'),
-            subtitle: const Text('Quien te escribe solo verá un check gris, como si no te hubiera llegado'),
+            title: Text(tr('Ocultar el check de entregado')),
+            subtitle: Text(tr('Quien te escribe solo verá un check gris, como si no te hubiera llegado')),
             value: s.hideDelivered,
             onChanged: (v) => notifier.update(s.copyWith(hideDelivered: v)),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.keyboard),
-            title: const Text('Ocultar "escribiendo..."'),
+            title: Text(tr('Ocultar "escribiendo..."')),
             value: s.hideTyping,
             onChanged: (v) => notifier.update(s.copyWith(hideTyping: v)),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.mic_none),
-            title: const Text('Ocultar "grabando audio..."'),
+            title: Text(tr('Ocultar "grabando audio..."')),
             value: s.hideRecording,
             onChanged: (v) => notifier.update(s.copyWith(hideRecording: v)),
           ),
           const _Section('Llamadas'),
           SwitchListTile(
             secondary: const Icon(Icons.phone_callback_outlined),
-            title: const Text('Confirmar antes de llamar'),
-            subtitle: const Text('Pregunta antes de empezar una llamada, para no llamar sin querer'),
+            title: Text(tr('Confirmar antes de llamar')),
+            subtitle: Text(tr('Pregunta antes de empezar una llamada, para no llamar sin querer')),
             value: s.confirmCalls,
             onChanged: (v) => notifier.update(s.copyWith(confirmCalls: v)),
           ),
           const _Section('Estados'),
           SwitchListTile(
             secondary: const Icon(Icons.download_outlined),
-            title: const Text('Permitir que guarden mis estados'),
-            subtitle: const Text('Te avisaremos cuando alguien guarde uno.'),
+            title: Text(tr('Permitir que guarden mis estados')),
+            subtitle: Text(tr('Te avisaremos cuando alguien guarde uno.')),
             value: s.allowStorySaving,
             onChanged: (v) => notifier.update(s.copyWith(allowStorySaving: v)),
           ),
           const _Section('Seguridad'),
           ListTile(
             leading: const Icon(Icons.pin_outlined),
-            title: const Text('PIN de seguridad'),
-            subtitle: const Text('Que nadie use tu número en otro móvil sin tu PIN'),
+            title: Text(tr('PIN de seguridad')),
+            subtitle: Text(tr('Que nadie use tu número en otro móvil sin tu PIN')),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SecurityPinScreen())),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.face_unlock_outlined),
-            title: const Text('Bloquear KLK con Face ID'),
-            subtitle: const Text('Al abrir KLK, o al volver tras 30 segundos fuera'),
+            title: Text(tr('Bloquear KLK con Face ID')),
+            subtitle: Text(tr('Al abrir KLK, o al volver tras 30 segundos fuera')),
             value: s.appLock,
             onChanged: (v) async {
               if (v) {
                 final messenger = ScaffoldMessenger.of(context);
                 if (!await AppLockService.available()) {
-                  messenger.showSnackBar(const SnackBar(
-                      content: Text('Configura Face ID o un código en tu iPhone para poder bloquear KLK.')));
+                  messenger.showSnackBar(SnackBar(
+                      content: Text(tr('Configura Face ID o un código en tu iPhone para poder bloquear KLK.'))));
                   return;
                 }
                 // Confirmo que funciona antes de activarlo, para no quedarte fuera.
@@ -125,10 +126,10 @@ class PrivacyScreen extends ConsumerWidget {
           ),
           ListTile(
             leading: const Icon(Icons.block),
-            title: const Text('Contactos bloqueados'),
+            title: Text(tr('Contactos bloqueados')),
             subtitle: Consumer(builder: (_, ref, __) {
               final n = ref.watch(appProvider).blockedChats.length;
-              return Text(n == 0 ? 'Ninguno' : '$n bloqueado${n == 1 ? '' : 's'}');
+              return Text(n == 0 ? tr('Ninguno') : '$n bloqueado${n == 1 ? '' : 's'}');
             }),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BlockedScreen())),
