@@ -142,11 +142,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             _Pill(text: tr('Conectando…')),
         ]),
         actions: [
-          IconButton(
-            tooltip: tr('Cámara'),
-            icon: const Icon(Icons.photo_camera_outlined),
-            onPressed: () => showStatusComposer(context),
-          ),
+          if (_tab == 0) ...[
+            // Como en WhatsApp: cámara en círculo gris y "+" en círculo rojo
+            _RoundAction(
+              tooltip: tr('Cámara'),
+              icon: Icons.photo_camera_rounded,
+              background: light ? const Color(0xFFE9EAEE) : const Color(0xFF2B2D31),
+              foreground: light ? const Color(0xFF1C1D21) : Colors.white,
+              onTap: () => showStatusComposer(context),
+            ),
+            const SizedBox(width: 10),
+            _RoundAction(
+              tooltip: tr('Nuevo chat'),
+              icon: Icons.add_rounded,
+              background: const Color(0xFFE5243B),
+              foreground: Colors.white,
+              onTap: () => showNewChatSheet(context),
+            ),
+            const SizedBox(width: 2),
+          ] else
+            IconButton(
+              tooltip: tr('Cámara'),
+              icon: const Icon(Icons.photo_camera_outlined),
+              onPressed: () => showStatusComposer(context),
+            ),
           PopupMenuButton<String>(
             tooltip: tr('Más opciones'),
             icon: const Icon(Icons.more_vert),
@@ -172,11 +191,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: const [ChatListView(), StatusesView(), CommunitiesView(), SettingsView()],
       ),
       floatingActionButton: switch (_tab) {
-        0 => FloatingActionButton(
-            tooltip: tr('Nuevo chat'),
-            onPressed: () => showNewChatSheet(context),
-            child: const Icon(Icons.add_comment_rounded),
-          ),
         1 => FloatingActionButton(
             tooltip: tr('Nuevo estado'),
             onPressed: () => showStatusComposer(context),
@@ -270,4 +284,34 @@ class _BannedScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Botón redondo de la cabecera (cámara y "+").
+class _RoundAction extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final Color background;
+  final Color foreground;
+  final VoidCallback onTap;
+  const _RoundAction({
+    required this.tooltip,
+    required this.icon,
+    required this.background,
+    required this.foreground,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: tooltip,
+        child: Material(
+          color: background,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(width: 42, height: 42, child: Icon(icon, color: foreground, size: 25)),
+          ),
+        ),
+      );
 }

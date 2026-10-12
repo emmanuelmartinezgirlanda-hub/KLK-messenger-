@@ -3,7 +3,7 @@ name: Comprobar código
 
 on:
   push:
-    branches: [main]
+    branches: [main, mejoras-klk-3]
     paths:
       - "lib/**"
       - "test/**"
