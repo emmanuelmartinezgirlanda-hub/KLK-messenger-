@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/brand/klk_logo.dart';
+import '../../core/l10n/l10n.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../contacts/my_qr_screen.dart';
@@ -23,6 +24,41 @@ import '../../core/translate/translator.dart';
 
 class SettingsView extends ConsumerWidget {
   const SettingsView({super.key});
+
+  static Future<void> _pickLanguage(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(languageProvider);
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        Widget option(String? code, String title, {String? subtitle}) {
+          final selected = current == code;
+          return ListTile(
+            title: Text(title, style: TextStyle(fontWeight: selected ? FontWeight.w700 : null)),
+            subtitle: subtitle == null ? null : Text(subtitle),
+            trailing: selected ? Icon(Icons.check_circle_rounded, color: Theme.of(ctx).colorScheme.primary) : null,
+            onTap: () => Navigator.pop(ctx, code ?? 'auto'),
+          );
+        }
+
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Text(tr('Idioma de la app'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              ),
+              option(null, tr('Automático'),
+                  subtitle: '${tr('El mismo que tu móvil')} · ${supportedLanguages[deviceLanguage()]}'),
+              for (final e in supportedLanguages.entries) option(e.key, e.value),
+            ]),
+          ),
+        );
+      },
+    );
+    if (picked == null) return;
+    await ref.read(languageProvider.notifier).choose(picked == 'auto' ? null : picked);
+  }
 
   static String _tabsLabel(HiddenTabs t) {
     final off = [if (t.status) 'Estados', if (t.communities) 'Comunidades'];
@@ -46,23 +82,32 @@ class SettingsView extends ConsumerWidget {
             elevation: 0,
             child: ListTile(
               leading: Icon(Icons.login_rounded, color: cs.primary),
-              title: const Text('Usar KLK de verdad', style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: const Text('Sal del modo demo y entra con tu número de móvil'),
+              title: Text(tr('Usar KLK de verdad'), style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(tr('Sal del modo demo y entra con tu número de móvil')),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _leaveDemo(context, ref),
             ),
           ),
         const Divider(),
         ListTile(
+          leading: const Icon(Icons.language_rounded),
+          title: Text(tr('Idioma de la app')),
+          subtitle: Text(ref.watch(languageProvider) == null
+              ? '${tr('Automático')} · ${supportedLanguages[deviceLanguage()]}'
+              : supportedLanguages[ref.watch(languageProvider)]!),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _pickLanguage(context, ref),
+        ),
+        ListTile(
           leading: const Icon(Icons.notifications_outlined),
-          title: const Text('Notificaciones'),
-          subtitle: const Text('Sonido, avisos y vibración'),
+          title: Text(tr('Notificaciones')),
+          subtitle: Text(tr('Sonido, avisos y vibración')),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
         ),
         ListTile(
           leading: const Icon(Icons.translate),
-          title: const Text('Traductor'),
+          title: Text(tr('Traductor')),
           subtitle: Text(ref.watch(translatorProvider).auto
               ? 'Automático · a ${ref.watch(translatorProvider).myLanguageName.toLowerCase()}'
               : 'Traduce mensajes en otros idiomas'),
@@ -71,28 +116,28 @@ class SettingsView extends ConsumerWidget {
         ),
         ListTile(
           leading: const Icon(Icons.shield_outlined),
-          title: const Text('Privacidad'),
-          subtitle: const Text('Última conexión, lecturas, escribiendo…'),
+          title: Text(tr('Privacidad')),
+          subtitle: Text(tr('Última conexión, lecturas, escribiendo…')),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PrivacyScreen())),
         ),
         ListTile(
           leading: const Icon(Icons.palette_outlined),
-          title: const Text('Temas'),
+          title: Text(tr('Temas')),
           subtitle: Text('${theme.name} · colores, burbujas y fuente'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ThemePickerScreen())),
         ),
         ListTile(
           leading: const Icon(Icons.wallpaper_outlined),
-          title: const Text('Fondo de los chats'),
+          title: Text(tr('Fondo de los chats')),
           subtitle: Text('${wallpaperName(ref.watch(wallpaperProvider))} · ilustraciones, colores o tu foto'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => showWallpaperPicker(context),
         ),
         ListTile(
           leading: const Icon(Icons.view_week_outlined),
-          title: const Text('Pestañas'),
+          title: Text(tr('Pestañas')),
           subtitle: Text(_tabsLabel(ref.watch(hiddenTabsProvider))),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => showDialog<void>(
@@ -101,57 +146,57 @@ class SettingsView extends ConsumerWidget {
               final t = ref.watch(hiddenTabsProvider);
               final n = ref.read(hiddenTabsProvider.notifier);
               return AlertDialog(
-                title: const Text('Pestañas que ves abajo'),
+                title: Text(tr('Pestañas que ves abajo')),
                 contentPadding: const EdgeInsets.only(top: 12),
                 content: Column(mainAxisSize: MainAxisSize.min, children: [
                   SwitchListTile(
-                    title: const Text('Estados'),
+                    title: Text(tr('Estados')),
                     value: !t.status,
                     onChanged: (v) => n.set(HiddenTabs(status: !v, communities: t.communities)),
                   ),
                   SwitchListTile(
-                    title: const Text('Comunidades'),
+                    title: Text(tr('Comunidades')),
                     value: !t.communities,
                     onChanged: (v) => n.set(HiddenTabs(status: t.status, communities: !v)),
                   ),
                 ]),
-                actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Listo'))],
+                actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Listo')))],
               );
             }),
           ),
         ),
         ListTile(
           leading: const Icon(Icons.lock_outline),
-          title: const Text('Chats ocultos'),
-          subtitle: Text(app.hiddenChats.isEmpty ? 'Protegidos con tu PIN' : '${app.hiddenChats.length} ocultos · protegidos con tu PIN'),
+          title: Text(tr('Chats ocultos')),
+          subtitle: Text(app.hiddenChats.isEmpty ? tr('Protegidos con tu PIN') : '${app.hiddenChats.length} ocultos · protegidos con tu PIN'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HiddenChatsScreen())),
         ),
         ListTile(
           leading: const Icon(Icons.cloud_upload_outlined),
-          title: const Text('Copia de seguridad'),
-          subtitle: const Text('Cifrada con tu contraseña · Archivos o iCloud'),
+          title: Text(tr('Copia de seguridad')),
+          subtitle: Text(tr('Cifrada con tu contraseña · Archivos o iCloud')),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupScreen())),
         ),
         if (s != null && !s.isDemo)
           ListTile(
             leading: const Icon(Icons.dns_outlined),
-            title: const Text('Servidor'),
+            title: Text(tr('Servidor')),
             subtitle: Text(s.server),
           ),
         const Divider(),
         ListTile(
           leading: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF6B7A)),
-          title: const Text('Botón de pánico', style: TextStyle(color: Color(0xFFFF6B7A))),
-          subtitle: const Text('Borra todos los chats y claves de este móvil'),
+          title: Text(tr('Botón de pánico'), style: TextStyle(color: Color(0xFFFF6B7A))),
+          subtitle: Text(tr('Borra todos los chats y claves de este móvil')),
           onTap: () => _confirmPanic(context, ref),
         ),
         const SizedBox(height: 24),
         const Center(child: KlkLogo(height: 120)),
         const SizedBox(height: 12),
         Center(
-          child: Text('KLK messenger 0.1.0 · Tu gente, donde tú estés.',
+          child: Text(tr('KLK messenger 0.1.0 · Tu gente, donde tú estés.'),
               style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
         ),
         const SizedBox(height: 24),
@@ -163,11 +208,11 @@ class SettingsView extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('¿Salir del modo demo?'),
-        content: const Text('Se borran los chats de ejemplo y vuelves a la pantalla de inicio para entrar con tu número.'),
+        title: Text(tr('¿Salir del modo demo?')),
+        content: Text(tr('Se borran los chats de ejemplo y vuelves a la pantalla de inicio para entrar con tu número.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Salir')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Salir'))),
         ],
       ),
     );
@@ -178,15 +223,15 @@ class SettingsView extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('¿Borrar todo?'),
-        content: const Text(
-            'Se borrarán todos tus chats y claves de este móvil. No se puede deshacer y tendrás que registrarte otra vez.'),
+        title: Text(tr('¿Borrar todo?')),
+        content: Text(
+            tr('Se borrarán todos tus chats y claves de este móvil. No se puede deshacer y tendrás que registrarte otra vez.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFFCE1126)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Borrar todo'),
+            child: Text(tr('Borrar todo')),
           ),
         ],
       ),
@@ -213,7 +258,7 @@ class _ProfileHeader extends ConsumerWidget {
         GestureDetector(
           onTap: () => _changePhoto(context, ref),
           child: Stack(children: [
-            ChatAvatar(id: 'me', title: name.isEmpty ? 'Tú' : name, photoPath: app.profile.photoPath, radius: 36),
+            ChatAvatar(id: 'me', title: name.isEmpty ? tr('Tú') : name, photoPath: app.profile.photoPath, radius: 36),
             Positioned(
               right: 0,
               bottom: 0,
@@ -229,12 +274,12 @@ class _ProfileHeader extends ConsumerWidget {
         const SizedBox(width: 16),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name.isEmpty ? 'Ponte un nombre' : name,
+            Text(name.isEmpty ? tr('Ponte un nombre') : name,
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
                     color: name.isEmpty ? cs.onSurface.withValues(alpha: 0.5) : null)),
             const SizedBox(height: 2),
             Text(s == null ? '' : prettyPhone(s.phone), style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65))),
-            Text(app.isDemo ? 'Modo demo · sin servidor' : (app.online ? 'Conectado' : 'Sin conexión'),
+            Text(app.isDemo ? tr('Modo demo · sin servidor') : (app.online ? tr('Conectado') : tr('Sin conexión')),
                 style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
             InkWell(
               onTap: () => _editBirthday(context, ref),
@@ -251,12 +296,12 @@ class _ProfileHeader extends ConsumerWidget {
           ]),
         ),
         IconButton(
-          tooltip: 'Mi código QR',
+          tooltip: tr('Mi código QR'),
           icon: Icon(Icons.qr_code_2, color: cs.primary),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyQrScreen())),
         ),
         IconButton(
-          tooltip: 'Cambiar nombre',
+          tooltip: tr('Cambiar nombre'),
           icon: const Icon(Icons.edit_outlined),
           onPressed: () => _editName(context, ref, name),
         ),
@@ -273,18 +318,18 @@ class _ProfileHeader extends ConsumerWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
             leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('Elegir de la galería'),
+            title: Text(tr('Elegir de la galería')),
             onTap: () => Navigator.pop(ctx, 'gallery'),
           ),
           ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Hacer una foto'),
+            title: Text(tr('Hacer una foto')),
             onTap: () => Navigator.pop(ctx, 'camera'),
           ),
           if (hasPhoto)
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A)),
-              title: const Text('Quitar foto', style: TextStyle(color: Color(0xFFFF6B7A))),
+              title: Text(tr('Quitar foto'), style: TextStyle(color: Color(0xFFFF6B7A))),
               onTap: () => Navigator.pop(ctx, 'remove'),
             ),
         ]),
@@ -306,8 +351,8 @@ class _ProfileHeader extends ConsumerWidget {
       if (x != null) await app.updateProfile(photoSourcePath: x.path);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('KLK no tiene permiso para tus fotos o la cámara. Actívalo en Ajustes del iPhone → KLK.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr('KLK no tiene permiso para tus fotos o la cámara. Actívalo en Ajustes del iPhone → KLK.'))));
       }
     }
   }
@@ -353,10 +398,10 @@ class _ProfileHeader extends ConsumerWidget {
         final remove = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('¿Quitar tu cumpleaños?'),
+            title: Text(tr('¿Quitar tu cumpleaños?')),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
-              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Quitar')),
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('No'))),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Quitar'))),
             ],
           ),
         );
@@ -381,18 +426,18 @@ class _ProfileHeader extends ConsumerWidget {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Tu nombre'),
+        title: Text(tr('Tu nombre')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           maxLength: 40,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(hintText: 'Como te verán tus contactos'),
+          decoration: InputDecoration(hintText: tr('Como te verán tus contactos')),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('Guardar')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text(tr('Guardar'))),
         ],
       ),
     );

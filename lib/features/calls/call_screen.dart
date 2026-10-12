@@ -6,6 +6,7 @@ import '../chat/presentation/chat_avatar.dart';
 import '../messaging/models.dart';
 import 'call_controller.dart';
 import 'video_filters.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Pantalla de llamada: entrante, saliente y en curso (voz o vídeo).
 class CallScreen extends ConsumerWidget {
@@ -82,10 +83,10 @@ class CallScreen extends ConsumerWidget {
                       fontFeatures: [FontFeature.tabularFigures()],
                       shadows: [Shadow(blurRadius: 8, color: Colors.black54)])),
               const SizedBox(height: 6),
-              Row(mainAxisSize: MainAxisSize.min, children: const [
+              Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.lock, size: 13, color: Colors.white54),
                 SizedBox(width: 4),
-                Text('Cifrada de punta a punta', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                Text(tr('Cifrada de punta a punta'), style: TextStyle(color: Colors.white54, fontSize: 12)),
               ]),
               const Spacer(),
               Padding(
@@ -134,7 +135,7 @@ class _ActiveControls extends StatelessWidget {
       Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         _RoundButton(
           icon: call.muted ? Icons.mic_off : Icons.mic,
-          label: call.muted ? 'Activar' : 'Silenciar',
+          label: call.muted ? tr('Activar') : 'Silenciar',
           active: call.muted,
           onTap: ended ? null : call.toggleMute,
         ),
@@ -161,7 +162,7 @@ class _ActiveControls extends StatelessWidget {
       const SizedBox(height: 28),
       _RoundButton(
         icon: Icons.call_end,
-        label: ended ? '' : 'Colgar',
+        label: ended ? '' : tr('Colgar'),
         color: const Color(0xFFE53935),
         size: 72,
         onTap: ended ? null : call.hangUp,

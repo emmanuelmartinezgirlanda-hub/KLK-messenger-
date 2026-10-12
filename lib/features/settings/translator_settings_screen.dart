@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
 
 import '../../core/translate/translator.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Ajustes → Traductor: traducción automática y el idioma al que traducir.
 class TranslatorSettingsScreen extends ConsumerWidget {
@@ -13,19 +14,19 @@ class TranslatorSettingsScreen extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final muted = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
     return Scaffold(
-      appBar: AppBar(title: const Text('Traductor')),
+      appBar: AppBar(title: Text(tr('Traductor'))),
       body: ListView(children: [
         SwitchListTile(
           secondary: const Icon(Icons.auto_awesome_outlined),
-          title: const Text('Traducir automáticamente'),
+          title: Text(tr('Traducir automáticamente')),
           subtitle: Text('Si alguien te escribe en otro idioma, verás debajo la traducción al '
               '${t.myLanguageName.toLowerCase()}'),
           value: t.auto,
           onChanged: (v) => ref.read(translatorProvider).setAuto(v),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text('Mi idioma', style: TextStyle(fontWeight: FontWeight.w700)),
+          child: Text(tr('Mi idioma'), style: TextStyle(fontWeight: FontWeight.w700)),
         ),
         RadioGroupCompat(
           selected: t.myLanguage.bcpCode,

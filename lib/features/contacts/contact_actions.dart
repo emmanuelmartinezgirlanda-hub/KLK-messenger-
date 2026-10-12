@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/util/phone.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
+import '../../core/l10n/l10n.dart';
 
 /// ¿El chat todavía no tiene un nombre puesto por mí? (solo se ve el número)
 bool isUnsavedContact(Chat chat) =>
@@ -14,7 +15,7 @@ Future<void> editContactName(BuildContext context, AppController app, Chat chat)
   final name = await showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text(chat.isGroup ? 'Nombre del grupo (solo para ti)' : (isUnsavedContact(chat) ? 'Añadir a contactos' : 'Editar contacto')),
+      title: Text(chat.isGroup ? tr('Nombre del grupo (solo para ti)') : (isUnsavedContact(chat) ? tr('Añadir a contactos') : tr('Editar contacto'))),
       content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (!chat.isGroup && chat.phone.isNotEmpty)
           Padding(
@@ -26,13 +27,13 @@ Future<void> editContactName(BuildContext context, AppController app, Chat chat)
           autofocus: true,
           maxLength: 40,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Nombre', hintText: 'Ej.: Primo Juan'),
+          decoration: InputDecoration(labelText: tr('Nombre'), hintText: tr('Ej.: Primo Juan')),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
       ]),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('Guardar')),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Cancelar'))),
+        FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text(tr('Guardar'))),
       ],
     ),
   );
@@ -55,11 +56,11 @@ Future<bool> deleteContactFlow(BuildContext context, AppController app, Chat cha
           : 'Se borrarán el contacto, el chat y todos sus mensajes de este móvil. '
               'No se le avisa. Si te vuelve a escribir, aparecerá como contacto nuevo.'),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: const Color(0xFFCE1126)),
           onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Eliminar'),
+          child: Text(tr('Eliminar')),
         ),
       ],
     ),

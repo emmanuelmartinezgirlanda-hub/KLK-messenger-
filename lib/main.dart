@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/brand/klk_brand.dart';
+import 'core/l10n/l10n.dart';
 import 'core/brand/klk_logo.dart';
 import 'core/media/media_store.dart';
 import 'core/notify/alerts.dart';
@@ -18,7 +19,8 @@ import 'features/theming/presentation/theme_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('es');
+  await initializeDateFormatting();
+  setCurrentLanguage(deviceLanguage());
   await MediaStore.init();
   runApp(const ProviderScope(child: KlkApp()));
 }
@@ -61,6 +63,12 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// El usuario cambió el idioma del móvil: si KLK está en automático, lo sigue.
+  @override
+  void didChangeLocales(List<Locale>? locales) {
+    if (mounted) setState(() {});
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
@@ -82,6 +90,8 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final theme = ref.watch(themeProvider);
     final phase = ref.watch(appProvider.select((a) => a.phase));
+    final lang = ref.watch(languageProvider) ?? deviceLanguage();
+    setCurrentLanguage(lang);
 
     return MaterialApp(
       navigatorKey: ref.watch(navigatorKeyProvider),
@@ -90,14 +100,15 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
       theme: theme.isAuto ? KlkTheme.klkClaro.toThemeData() : theme.toThemeData(),
       darkTheme: theme.isAuto ? KlkTheme.klkOscuro.toThemeData() : null,
       themeMode: theme.isAuto ? ThemeMode.system : ThemeMode.light,
-      locale: const Locale('es'),
-      supportedLocales: const [Locale('es'), Locale('en')],
+      locale: Locale(lang),
+      supportedLocales: [for (final code in supportedLanguages.keys) Locale(code)],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => Stack(children: [
+      // Al cambiar de idioma se vuelve a construir toda la app con los textos nuevos
+      builder: (context, child) => Stack(key: ValueKey(lang), children: [
         if (child != null) child,
         if (_locked && phase == AppPhase.ready) LockScreen(onUnlocked: () => setState(() => _locked = false)),
       ]),

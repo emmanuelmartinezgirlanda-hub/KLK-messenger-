@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/backup/backup_codec.dart';
 import '../messaging/app_controller.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Copia de seguridad cifrada con contraseña: crear y restaurar.
 ///
@@ -38,19 +39,19 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: Text(create ? 'Elige una contraseña' : 'Contraseña de la copia'),
+          title: Text(create ? tr('Elige una contraseña') : tr('Contraseña de la copia')),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             if (create)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(bottom: 12),
-                child: Text('Apúntala en un sitio seguro: si la olvidas, nadie podrá abrir la copia. Ni siquiera KLK.'),
+                child: Text(tr('Apúntala en un sitio seguro: si la olvidas, nadie podrá abrir la copia. Ni siquiera KLK.')),
               ),
             TextField(
               controller: a,
               autofocus: true,
               obscureText: hide,
               decoration: InputDecoration(
-                labelText: 'Contraseña',
+                labelText: tr('Contraseña'),
                 errorText: error,
                 suffixIcon: IconButton(
                   icon: Icon(hide ? Icons.visibility : Icons.visibility_off),
@@ -62,11 +63,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               TextField(
                 controller: b,
                 obscureText: hide,
-                decoration: const InputDecoration(labelText: 'Repítela'),
+                decoration: InputDecoration(labelText: tr('Repítela')),
               ),
           ]),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Cancelar'))),
             FilledButton(
               onPressed: () {
                 if (create && a.text.length < BackupCodec.minPasswordLength) {
@@ -79,7 +80,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                 }
                 Navigator.pop(ctx, a.text);
               },
-              child: Text(create ? 'Crear copia' : 'Restaurar'),
+              child: Text(create ? tr('Crear copia') : tr('Restaurar')),
             ),
           ],
         ),
@@ -118,11 +119,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('¿Restaurar una copia?'),
-        content: const Text('Los chats de la copia sustituirán a los que hay ahora en este móvil.'),
+        title: Text(tr('¿Restaurar una copia?')),
+        content: Text(tr('Los chats de la copia sustituirán a los que hay ahora en este móvil.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Elegir archivo')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Elegir archivo'))),
         ],
       ),
     );
@@ -139,7 +140,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     try {
       await ref.read(appProvider).importBackup(path, password);
       _set('¡Listo! Tus chats están de vuelta.');
-      _snack('Copia restaurada');
+      _snack(tr('Copia restaurada'));
     } on BackupException catch (e) {
       _set(e.message);
     } catch (e) {
@@ -153,11 +154,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Copia de seguridad')),
+      appBar: AppBar(title: Text(tr('Copia de seguridad'))),
       body: ListView(padding: const EdgeInsets.all(20), children: [
         Icon(Icons.cloud_done_outlined, size: 56, color: cs.secondary),
         const SizedBox(height: 12),
-        const Text('Guarda tus chats cifrados', textAlign: TextAlign.center,
+        Text(tr('Guarda tus chats cifrados'), textAlign: TextAlign.center,
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
         Text(
@@ -171,13 +172,13 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         FilledButton.icon(
           onPressed: _busy ? null : _create,
           icon: const Icon(Icons.lock_outline),
-          label: const Text('Crear copia cifrada'),
+          label: Text(tr('Crear copia cifrada')),
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
           onPressed: _busy ? null : _restore,
           icon: const Icon(Icons.restore),
-          label: const Text('Restaurar una copia'),
+          label: Text(tr('Restaurar una copia')),
         ),
         const SizedBox(height: 20),
         if (_busy) const Center(child: CircularProgressIndicator()),

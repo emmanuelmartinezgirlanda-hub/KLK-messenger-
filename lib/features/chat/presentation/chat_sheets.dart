@@ -11,6 +11,7 @@ import '../../messaging/custom_stickers.dart';
 import '../../messaging/stickers.dart';
 import 'chat_avatar.dart';
 import 'sticker_editor.dart';
+import '../../../core/l10n/l10n.dart';
 
 /// Hojas inferiores del chat: stickers, viaje, reenviar, temporales,
 /// información del grupo y servicios de dinero.
@@ -21,48 +22,130 @@ Future<String?> pickSticker(BuildContext context, {int initialPack = 0}) => show
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (ctx) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(ctx).height * 0.6,
-          child: DefaultTabController(
-            length: stickerPacks.length + 1,
-            // La pestaña 0 es "Míos"; los packs van después
-            initialIndex: (initialPack + 1).clamp(0, stickerPacks.length).toInt(),
-            child: Column(children: [
+      builder: (ctx) => _StickerPicker(initialPack: initialPack),
+    );
+
+String _fold(String s) => s
+    .toLowerCase()
+    .replaceAll(RegExp('[áà]'), 'a')
+    .replaceAll(RegExp('[éè]'), 'e')
+    .replaceAll(RegExp('[íì]'), 'i')
+    .replaceAll(RegExp('[óò]'), 'o')
+    .replaceAll(RegExp('[úùü]'), 'u')
+    .replaceAll(RegExp("[¡!¿?'’,.]"), '');
+
+class _StickerPicker extends StatefulWidget {
+  final int initialPack;
+  const _StickerPicker({required this.initialPack});
+
+  @override
+  State<_StickerPicker> createState() => _StickerPickerState();
+}
+
+class _StickerPickerState extends State<_StickerPicker> {
+  final _search = TextEditingController();
+  String _q = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Widget _grid(List<KlkSticker> list) => GridView.builder(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, mainAxisSpacing: 4, crossAxisSpacing: 4),
+        itemCount: list.length,
+        itemBuilder: (ctx, i) {
+          final st = list[i];
+          return InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => Navigator.pop(context, st.id),
+            child: Tooltip(
+              message: st.label,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Image.asset(st.asset, semanticLabel: st.label, cacheWidth: 256),
+              ),
+            ),
+          );
+        },
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final q = _fold(_q.trim());
+    final found = q.isEmpty ? const <KlkSticker>[] : klkStickers.where((s) => _fold(s.label).contains(q) || s.id.contains(q)).toList();
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.72,
+        child: DefaultTabController(
+          length: stickerPacks.length + 1,
+          // La pestaña 0 es "Míos"; los packs van después
+          initialIndex: (widget.initialPack + 1).clamp(0, stickerPacks.length).toInt(),
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+              child: TextField(
+                controller: _search,
+                onChanged: (v) => setState(() => _q = v),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: tr('Busca: klk, jartura, mangú…'),
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _q.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: tr('Borrar'),
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => setState(() {
+                            _search.clear();
+                            _q = '';
+                          }),
+                        ),
+                  filled: true,
+                  fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
+                ),
+              ),
+            ),
+            if (q.isNotEmpty)
+              Expanded(
+                child: found.isEmpty
+                    ? Center(
+                        child: Text('No hay stickers con «${_q.trim()}»',
+                            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))))
+                    : _grid(found),
+              )
+            else ...[
               TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
+                dividerColor: Colors.transparent,
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicator: BoxDecoration(color: cs.primary.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(20)),
+                labelColor: cs.primary,
+                labelStyle: const TextStyle(fontWeight: FontWeight.w700),
                 tabs: [
-                  const Tab(text: '⭐ Míos'),
-                  for (final p in stickerPacks) Tab(text: '${p.icon} ${p.name}'),
+                  Tab(height: 38, text: tr('⭐ Míos')),
+                  for (final p in stickerPacks) Tab(height: 38, text: '${p.icon} ${p.name}'),
                 ],
               ),
               Expanded(
                 child: TabBarView(children: [
                   const _MyStickers(),
-                  for (final pack in stickerPacks)
-                    GridView.count(
-                      crossAxisCount: 3,
-                      padding: const EdgeInsets.all(12),
-                      children: [
-                        for (final st in pack.stickers)
-                          InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => Navigator.pop(ctx, st.id),
-                            child: Padding(
-                              padding: const EdgeInsets.all(6),
-                              child: Image.asset(st.asset, semanticLabel: st.label),
-                            ),
-                          ),
-                      ],
-                    ),
+                  for (final pack in stickerPacks) _grid(pack.stickers),
                 ]),
               ),
-            ]),
-          ),
+            ],
+          ]),
         ),
       ),
     );
+  }
+}
 
 /// Pestaña "Míos": crear un sticker desde una foto, usarlo o borrarlo.
 class _MyStickers extends StatefulWidget {
@@ -93,18 +176,18 @@ class _MyStickersState extends State<_MyStickers> {
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Text('Crear sticker', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            child: Text(tr('Crear sticker'), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
           ),
           ListTile(
             leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('Elegir una foto'),
+            title: Text(tr('Elegir una foto')),
             onTap: () => Navigator.pop(ctx, ImageSource.gallery),
           ),
           ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Hacer una foto'),
+            title: Text(tr('Hacer una foto')),
             onTap: () => Navigator.pop(ctx, ImageSource.camera),
           ),
         ]),
@@ -124,7 +207,7 @@ class _MyStickersState extends State<_MyStickers> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No se pudo crear el sticker. Revisa el permiso de Fotos en Ajustes → KLK.')));
+            SnackBar(content: Text(tr('No se pudo crear el sticker. Revisa el permiso de Fotos en Ajustes → KLK.'))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -135,10 +218,10 @@ class _MyStickersState extends State<_MyStickers> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('¿Borrar este sticker?'),
+        title: Text(tr('¿Borrar este sticker?')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Borrar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('No'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Borrar'))),
         ],
       ),
     );
@@ -169,7 +252,7 @@ class _MyStickersState extends State<_MyStickers> {
                   : Column(mainAxisSize: MainAxisSize.min, children: [
                       Icon(Icons.add_photo_alternate_outlined, size: 34, color: cs.secondary),
                       const SizedBox(height: 6),
-                      const Text('Crear sticker', textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5)),
+                      Text(tr('Crear sticker'), textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5)),
                     ]),
             ),
           ),
@@ -181,7 +264,7 @@ class _MyStickersState extends State<_MyStickers> {
             onLongPress: () => _delete(path),
             child: Padding(
               padding: const EdgeInsets.all(6),
-              child: Image.file(File(path), fit: BoxFit.contain, semanticLabel: 'Mi sticker'),
+              child: Image.file(File(path), fit: BoxFit.contain, semanticLabel: tr('Mi sticker')),
             ),
           ),
       ],
@@ -209,7 +292,7 @@ Future<(String, List<String>, bool)?> pickPoll(BuildContext context) {
           padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.viewInsetsOf(ctx).bottom + 20),
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Text('📊 Nueva encuesta', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              Text(tr('📊 Nueva encuesta'), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
               TextField(
                 controller: question,
@@ -217,8 +300,8 @@ Future<(String, List<String>, bool)?> pickPoll(BuildContext context) {
                 maxLength: 140,
                 textCapitalization: TextCapitalization.sentences,
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                    labelText: 'Pregunta', hintText: '¿Quién va al sancocho del sábado?', border: OutlineInputBorder()),
+                decoration: InputDecoration(
+                    labelText: tr('Pregunta'), hintText: tr('¿Quién va al sancocho del sábado?'), border: OutlineInputBorder()),
               ),
               for (var i = 0; i < options.length; i++)
                 Padding(
@@ -245,11 +328,11 @@ Future<(String, List<String>, bool)?> pickPoll(BuildContext context) {
                 TextButton.icon(
                   onPressed: () => setState(() => options.add(TextEditingController())),
                   icon: const Icon(Icons.add),
-                  label: const Text('Añadir opción'),
+                  label: Text(tr('Añadir opción')),
                 ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Permitir varias respuestas'),
+                title: Text(tr('Permitir varias respuestas')),
                 value: multi,
                 onChanged: (v) => setState(() => multi = v),
               ),
@@ -257,7 +340,7 @@ Future<(String, List<String>, bool)?> pickPoll(BuildContext context) {
                 onPressed: ok
                     ? () => Navigator.pop(ctx, (question.text.trim(), [for (final o in options) o.text.trim()], multi))
                     : null,
-                child: const Text('Enviar encuesta'),
+                child: Text(tr('Enviar encuesta')),
               ),
             ]),
           ),
@@ -273,8 +356,8 @@ Future<Duration?> pickLiveDuration(BuildContext context) => showModalBottomSheet
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const ListTile(
-            title: Text('Ubicación en tiempo real', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+          ListTile(
+            title: Text(tr('Ubicación en tiempo real'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
             subtitle: Text('Tu gente verá dónde estás mientras KLK esté abierta. '
                 'Puedes dejar de compartir cuando quieras. Va cifrada de punta a punta.'),
           ),
@@ -304,7 +387,7 @@ Future<(String, bool, bool)?> pickReport(BuildContext context, String name) {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             ListTile(
               title: Text('Denunciar a $name', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-              subtitle: const Text('KLK no puede leer tus chats. Solo recibimos lo que tú decidas enviar aquí.'),
+              subtitle: Text(tr('KLK no puede leer tus chats. Solo recibimos lo que tú decidas enviar aquí.')),
             ),
             for (final (id, label) in const [
               ('spam', 'Spam o publicidad'),
@@ -320,20 +403,20 @@ Future<(String, bool, bool)?> pickReport(BuildContext context, String name) {
             CheckboxListTile(
               value: include,
               onChanged: (v) => setState(() => include = v ?? false),
-              title: const Text('Adjuntar los últimos 5 mensajes que te envió'),
-              subtitle: const Text('Ayuda a revisar la denuncia. Nada más sale de tu móvil.'),
+              title: Text(tr('Adjuntar los últimos 5 mensajes que te envió')),
+              subtitle: Text(tr('Ayuda a revisar la denuncia. Nada más sale de tu móvil.')),
             ),
             CheckboxListTile(
               value: block,
               onChanged: (v) => setState(() => block = v ?? false),
-              title: const Text('Bloquear también'),
+              title: Text(tr('Bloquear también')),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: const Color(0xFFCE1126)),
                 onPressed: () => Navigator.pop(ctx, (reason, include, block)),
-                child: const Text('Enviar denuncia'),
+                child: Text(tr('Enviar denuncia')),
               ),
             ),
           ]),
@@ -346,7 +429,7 @@ Future<(String, bool, bool)?> pickReport(BuildContext context, String name) {
 /// Formulario "Bajando pa' RD". Devuelve el adjunto de viaje.
 Future<MessageMedia?> pickTrip(BuildContext context) async {
   final from = TextEditingController();
-  final to = TextEditingController(text: 'Santo Domingo');
+  final to = TextEditingController(text: tr('Santo Domingo'));
   DateTime? date;
   return showModalBottomSheet<MessageMedia>(
     context: context,
@@ -358,24 +441,24 @@ Future<MessageMedia?> pickTrip(BuildContext context) async {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text("✈️ Bajando pa' RD", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
-          const Text('Avisa a tu gente de tu viaje, por si necesitan que lleves o traigas algo.'),
+          Text(tr('Avisa a tu gente de tu viaje, por si necesitan que lleves o traigas algo.')),
           const SizedBox(height: 16),
           TextField(
             controller: from,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Salgo desde', hintText: 'Madrid, Nueva York, Dublín…',
+            decoration: InputDecoration(labelText: tr('Salgo desde'), hintText: tr('Madrid, Nueva York, Dublín…'),
                 border: OutlineInputBorder()),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: to,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Voy a', border: OutlineInputBorder()),
+            decoration: InputDecoration(labelText: tr('Voy a'), border: OutlineInputBorder()),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             icon: const Icon(Icons.event),
-            label: Text(date == null ? 'Elegir fecha de llegada' : DateFormat.yMMMMd('es').format(date!)),
+            label: Text(date == null ? tr('Elegir fecha de llegada') : DateFormat.yMMMMd('es').format(date!)),
             onPressed: () async {
               final now = DateTime.now();
               final d = await showDatePicker(
@@ -396,7 +479,7 @@ Future<MessageMedia?> pickTrip(BuildContext context) async {
                         tripTo: to.text.trim().isEmpty ? 'RD' : to.text.trim(),
                       ),
                     ),
-            child: const Text('Avisar en el chat'),
+            child: Text(tr('Avisar en el chat')),
           ),
         ]),
       ),
@@ -416,7 +499,7 @@ Future<List<String>?> pickForwardTargets(BuildContext context, List<Chat> chats)
         child: SizedBox(
           height: MediaQuery.sizeOf(ctx).height * 0.7,
           child: Column(children: [
-            const Text('Reenviar a…', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text(tr('Reenviar a…'), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
             Expanded(
               child: ListView(children: [
                 for (final c in chats)
@@ -433,7 +516,7 @@ Future<List<String>?> pickForwardTargets(BuildContext context, List<Chat> chats)
               child: FilledButton.icon(
                 onPressed: selected.isEmpty ? null : () => Navigator.pop(ctx, selected.toList()),
                 icon: const Icon(Icons.send),
-                label: Text(selected.isEmpty ? 'Elige al menos un chat' : 'Reenviar a ${selected.length}'),
+                label: Text(selected.isEmpty ? tr('Elige al menos un chat') : 'Reenviar a ${selected.length}'),
               ),
             ),
           ]),
@@ -449,9 +532,9 @@ Future<int?> pickDisappearing(BuildContext context, int? current) => showModalBo
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const ListTile(
-            title: Text('Mensajes temporales', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
-            subtitle: Text('Los mensajes nuevos de este chat se borrarán solos para todos pasado este tiempo.'),
+          ListTile(
+            title: Text(tr('Mensajes temporales'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+            subtitle: Text(tr('Los mensajes nuevos de este chat se borrarán solos para todos pasado este tiempo.')),
           ),
           for (final (label, sec) in const [
             ('Desactivados', 0),
@@ -484,7 +567,7 @@ Future<void> showGroupInfo(BuildContext context, Chat chat) => showModalBottomSh
             const Divider(height: 24),
             Expanded(
               child: ListView(children: [
-                const ListTile(leading: CircleAvatar(child: Text('TÚ')), title: Text('Tú')),
+                ListTile(leading: CircleAvatar(child: Text(tr('TÚ'))), title: Text(tr('Tú'))),
                 for (final m in chat.members)
                   ListTile(
                     leading: ChatAvatar(id: m.id, title: m.name.isEmpty ? m.phone : m.name, radius: 20),
@@ -508,7 +591,7 @@ Future<void> showMoneyInfo(BuildContext context, {required bool recharge}) => sh
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(recharge ? Icons.phone_iphone : Icons.payments_outlined, size: 48, color: const Color(0xFF1F7A4D)),
             const SizedBox(height: 12),
-            Text(recharge ? 'Recargas a RD' : 'Enviar dinero a RD',
+            Text(recharge ? tr('Recargas a RD') : 'Enviar dinero a RD',
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             Text(
@@ -525,7 +608,7 @@ Future<void> showMoneyInfo(BuildContext context, {required bool recharge}) => sh
               style: TextStyle(fontSize: 12.5, color: Colors.grey),
             ),
             const SizedBox(height: 16),
-            FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Entendido')),
+            FilledButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Entendido'))),
           ]),
         ),
       ),
@@ -537,14 +620,14 @@ Future<Duration?> pickMuteDuration(BuildContext context) => showModalBottomSheet
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(20, 0, 20, 4),
-            child: Text('Silenciar notificaciones',
+            child: Text(tr('Silenciar notificaciones'),
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Text('No sonará ni te avisará. Si te mencionan con @ en un grupo, sí te avisa.'),
+            child: Text(tr('No sonará ni te avisará. Si te mencionan con @ en un grupo, sí te avisa.')),
           ),
           for (final (label, d) in const [
             ('8 horas', Duration(hours: 8)),

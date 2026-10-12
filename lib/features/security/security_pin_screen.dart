@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_client.dart';
 import '../messaging/app_controller.dart';
+import '../../core/l10n/l10n.dart';
 
 /// PIN de seguridad (verificación en dos pasos): si alguien consigue tu SIM,
 /// no puede registrar tu número en otro móvil sin este PIN.
@@ -47,11 +48,11 @@ class _SecurityPinScreenState extends ConsumerState<SecurityPinScreen> {
     final second = await _pinDialog('Repite el PIN', 'Escríbelo otra vez para confirmarlo.');
     if (second == null) return null;
     if (first != second) {
-      _snack('Los dos PIN no coinciden. Prueba otra vez.');
+      _snack(tr('Los dos PIN no coinciden. Prueba otra vez.'));
       return null;
     }
     if (RegExp(r'^(\d)\1{5}$').hasMatch(first) || first == '123456' || first == '654321') {
-      _snack('Ese PIN es muy fácil de adivinar. Elige otro.');
+      _snack(tr('Ese PIN es muy fácil de adivinar. Elige otro.'));
       return null;
     }
     return first;
@@ -80,10 +81,10 @@ class _SecurityPinScreenState extends ConsumerState<SecurityPinScreen> {
             ),
           ]),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancelar')),
+            TextButton(onPressed: () => Navigator.pop(d), child: Text(tr('Cancelar'))),
             FilledButton(
               onPressed: ctrl.text.length == 6 ? () => Navigator.pop(d, ctrl.text) : null,
-              child: const Text('Siguiente'),
+              child: Text(tr('Siguiente')),
             ),
           ],
         ),
@@ -98,11 +99,11 @@ class _SecurityPinScreenState extends ConsumerState<SecurityPinScreen> {
     try {
       await ref.read(appProvider).setRegistrationPin(pin);
       if (mounted) setState(() => _enabled = true);
-      _snack('PIN guardado 🔒');
+      _snack(tr('PIN guardado 🔒'));
     } on ApiException catch (e) {
       _snack(e.message);
     } catch (_) {
-      _snack('No se pudo guardar. Revisa tu conexión.');
+      _snack(tr('No se pudo guardar. Revisa tu conexión.'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -112,11 +113,11 @@ class _SecurityPinScreenState extends ConsumerState<SecurityPinScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
-        title: const Text('¿Quitar el PIN?'),
-        content: const Text('Sin PIN, cualquiera que consiga tu SIM podría entrar en tu cuenta en otro móvil.'),
+        title: Text(tr('¿Quitar el PIN?')),
+        content: Text(tr('Sin PIN, cualquiera que consiga tu SIM podría entrar en tu cuenta en otro móvil.')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(d, true), child: const Text('Quitar')),
+          TextButton(onPressed: () => Navigator.pop(d, false), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(tr('Quitar'))),
         ],
       ),
     );
@@ -125,9 +126,9 @@ class _SecurityPinScreenState extends ConsumerState<SecurityPinScreen> {
     try {
       await ref.read(appProvider).clearRegistrationPin();
       if (mounted) setState(() => _enabled = false);
-      _snack('PIN quitado');
+      _snack(tr('PIN quitado'));
     } catch (_) {
-      _snack('No se pudo quitar. Revisa tu conexión.');
+      _snack(tr('No se pudo quitar. Revisa tu conexión.'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -139,21 +140,21 @@ class _SecurityPinScreenState extends ConsumerState<SecurityPinScreen> {
     final app = ref.watch(appProvider);
     final on = _enabled;
     return Scaffold(
-      appBar: AppBar(title: const Text('PIN de seguridad')),
+      appBar: AppBar(title: Text(tr('PIN de seguridad'))),
       body: ListView(padding: const EdgeInsets.all(24), children: [
         Icon(on == true ? Icons.verified_user : Icons.shield_outlined, size: 72, color: cs.primary),
         const SizedBox(height: 16),
-        Text(on == true ? 'Tu cuenta está protegida' : 'Protege tu cuenta con un PIN',
+        Text(on == true ? tr('Tu cuenta está protegida') : 'Protege tu cuenta con un PIN',
             textAlign: TextAlign.center, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
         const SizedBox(height: 10),
         Text(
-          'Si alguien consigue tu SIM o tu código SMS, no podrá entrar en tu KLK en otro móvil sin este PIN de 6 números.',
+          tr('Si alguien consigue tu SIM o tu código SMS, no podrá entrar en tu KLK en otro móvil sin este PIN de 6 números.'),
           textAlign: TextAlign.center,
           style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7), fontSize: 15),
         ),
         const SizedBox(height: 28),
         if (app.isDemo)
-          const Text('En el modo demo no hay PIN. Entra con tu número para activarlo.', textAlign: TextAlign.center)
+          Text(tr('En el modo demo no hay PIN. Entra con tu número para activarlo.'), textAlign: TextAlign.center)
         else if (on == null && _error == null)
           const Center(child: CircularProgressIndicator())
         else if (_error != null)
@@ -163,19 +164,19 @@ class _SecurityPinScreenState extends ConsumerState<SecurityPinScreen> {
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), shape: const StadiumBorder()),
             onPressed: _busy ? null : _set,
             icon: const Icon(Icons.pin_outlined),
-            label: Text(on! ? 'Cambiar el PIN' : 'Activar el PIN'),
+            label: Text(on! ? tr('Cambiar el PIN') : tr('Activar el PIN')),
           ),
           if (on) ...[
             const SizedBox(height: 10),
             OutlinedButton(
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48), shape: const StadiumBorder()),
               onPressed: _busy ? null : _clear,
-              child: const Text('Quitar el PIN'),
+              child: Text(tr('Quitar el PIN')),
             ),
           ],
           const SizedBox(height: 20),
           Text(
-            'Si lo olvidas, podrás entrar sin PIN cuando pasen 7 días sin usar la cuenta.',
+            tr('Si lo olvidas, podrás entrar sin PIN cuando pasen 7 días sin usar la cuenta.'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6)),
           ),

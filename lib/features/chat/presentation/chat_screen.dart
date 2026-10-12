@@ -25,6 +25,8 @@ import '../../theming/wallpapers.dart';
 import 'chat_avatar.dart';
 import 'chat_sheets.dart';
 import '../../contacts/contact_actions.dart';
+import '../../contacts/contact_info_screen.dart';
+import '../../../core/l10n/l10n.dart';
 import '../../messaging/custom_stickers.dart';
 import 'media_bubbles.dart';
 import 'message_bubble.dart';
@@ -36,7 +38,10 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// Texto ya escrito al abrir (p. ej. "¡Feliz cumpleaños!").
   final String? initialText;
-  const ChatScreen({super.key, required this.chatId, this.initialText});
+
+  /// Algo que hacer nada más abrir: 'call', 'video' o 'info'.
+  final String? startAction;
+  const ChatScreen({super.key, required this.chatId, this.initialText, this.startAction});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -82,6 +87,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
     // ¿Está en línea? Se pregunta al abrir y cada 20 s mientras el chat está abierto.
     WidgetsBinding.instance.addPostFrameCallback((_) => _app.watchPresence(widget.chatId));
+    final start = widget.startAction;
+    if (start != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final chat = _app.chatById(widget.chatId);
+        if (start == 'info') {
+          _openInfo(chat);
+        } else if (start == 'call' || start == 'video') {
+          _call(chat, video: start == 'video');
+        }
+      });
+    }
     _presenceTimer = Timer.periodic(const Duration(seconds: 20), (_) => _app.watchPresence(widget.chatId));
   }
 
@@ -211,7 +228,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _schedule() async {
     if (_input.text.trim().isEmpty) {
-      _snack('Escribe primero el mensaje que quieres programar');
+      _snack(tr('Escribe primero el mensaje que quieres programar'));
       return;
     }
     final now = DateTime.now();
@@ -231,7 +248,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (time == null) return;
     final at = DateTime(day.year, day.month, day.day, time.hour, time.minute);
     if (!at.isAfter(DateTime.now())) {
-      _snack('Elige una hora que todavía no haya pasado');
+      _snack(tr('Elige una hora que todavía no haya pasado'));
       return;
     }
     await _send(at: at);
@@ -280,7 +297,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final path = await CustomStickers.saveBytes(data);
       await _sendCustomSticker(path);
     } catch (_) {
-      _snack('No se pudo usar esa imagen');
+      _snack(tr('No se pudo usar esa imagen'));
     }
   }
 
@@ -345,7 +362,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           {
             final x = await picker.pickMedia();
             if (x != null) await _sendFile(x.path, viewOnce: true);
-            if (x != null) _snack('Enviada para ver una vez: se borrará al abrirla');
+            if (x != null) _snack(tr('Enviada para ver una vez: se borrará al abrirla'));
           }
         case 'sticker':
           {
@@ -373,7 +390,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ? 'KLK no tiene permiso. Actívalo en Ajustes del iPhone → KLK.'
           : 'No se pudo abrir: ${e.message ?? e.code}');
     } catch (_) {
-      _snack('No se pudo enviar. Revisa tu conexión e inténtalo otra vez.');
+      _snack(tr('No se pudo enviar. Revisa tu conexión e inténtalo otra vez.'));
     }
   }
 
@@ -381,7 +398,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _translateDraft() async {
     final text = _input.text.trim();
     if (text.isEmpty) {
-      _snack('Escribe primero en español lo que quieres decir y luego toca Traducir');
+      _snack(tr('Escribe primero en español lo que quieres decir y luego toca Traducir'));
       return;
     }
     final lang = await showModalBottomSheet<String>(
@@ -389,9 +406,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const ListTile(
-            title: Text('Traducir mi mensaje al…', style: TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text('Se traduce dentro de tu móvil. La primera vez descarga el idioma.'),
+          ListTile(
+            title: Text(tr('Traducir mi mensaje al…'), style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(tr('Se traduce dentro de tu móvil. La primera vez descarga el idioma.')),
           ),
           for (final name in translateTargets.keys)
             ListTile(leading: const Icon(Icons.translate), title: Text(name), onTap: () => Navigator.pop(ctx, name)),
@@ -405,19 +422,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _input.text = out;
       setState(() {});
     } catch (_) {
-      _snack('No se pudo traducir. Revisa tu conexión la primera vez.');
+      _snack(tr('No se pudo traducir. Revisa tu conexión la primera vez.'));
     }
   }
 
   Future<bool> _locationAllowed() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
-      _snack('Activa la localización del teléfono para enviar tu ubicación');
+      _snack(tr('Activa la localización del teléfono para enviar tu ubicación'));
       return false;
     }
     var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
     if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
-      _snack('KLK no tiene permiso de ubicación. Actívalo en Ajustes del iPhone → KLK.');
+      _snack(tr('KLK no tiene permiso de ubicación. Actívalo en Ajustes del iPhone → KLK.'));
       return false;
     }
     return true;
@@ -425,7 +442,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _sendLocation() async {
     if (!await _locationAllowed()) return;
-    _snack('Buscando tu ubicación…');
+    _snack(tr('Buscando tu ubicación…'));
     final pos = await Geolocator.getCurrentPosition();
     await _sendMedia(MessageMedia(type: MediaType.location, lat: pos.latitude, lng: pos.longitude));
   }
@@ -434,7 +451,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _shareLive() async {
     final duration = await pickLiveDuration(context);
     if (duration == null || !await _locationAllowed()) return;
-    _snack('Buscando tu ubicación…');
+    _snack(tr('Buscando tu ubicación…'));
     final pos = await Geolocator.getCurrentPosition();
     await _app.startLiveLocation(widget.chatId, duration, pos);
   }
@@ -453,8 +470,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           icon: Icon(video ? Icons.videocam_outlined : Icons.call_outlined),
           title: Text(video ? '¿Videollamada a ${chat?.title ?? ''}?' : '¿Llamar a ${chat?.title ?? ''}?'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Llamar')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Llamar'))),
           ],
         ),
       );
@@ -470,8 +487,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             title: Text('En ${zone.place} son las ${DateFormat.jm('es').format(there)}'),
             content: Text('Puede que ${chat!.title} esté durmiendo. ¿Llamar de todas formas?'),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Mejor luego')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Llamar')),
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Mejor luego'))),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Llamar'))),
             ],
           ),
         );
@@ -548,7 +565,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _startRecording() async {
     if (!await _recorder.hasPermission()) {
-      _snack('KLK no tiene permiso para el micrófono. Actívalo en Ajustes del iPhone → KLK.');
+      _snack(tr('KLK no tiene permiso para el micrófono. Actívalo en Ajustes del iPhone → KLK.'));
       return;
     }
     final path = await MediaStore.newPath('.m4a');
@@ -583,7 +600,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       try {
         await File(path).delete();
       } catch (_) {}
-      if (send) _snack('Mantén la grabación al menos un segundo');
+      if (send) _snack(tr('Mantén la grabación al menos un segundo'));
       return;
     }
     await _sendMedia(MessageMedia(
@@ -617,7 +634,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _voicePreviewBar(ColorScheme cs) => Row(children: [
         IconButton(
-          tooltip: 'Borrar nota de voz',
+          tooltip: tr('Borrar nota de voz'),
           onPressed: () => _finishVoicePreview(send: false),
           icon: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A), size: 28),
         ),
@@ -635,7 +652,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         const SizedBox(width: 6),
         IconButton.filled(
-          tooltip: 'Enviar nota de voz',
+          tooltip: tr('Enviar nota de voz'),
           onPressed: () => _finishVoicePreview(send: true),
           icon: const Icon(Icons.send),
         ),
@@ -680,7 +697,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (!m.deleted)
             ListTile(
               leading: const Icon(Icons.reply),
-              title: const Text('Responder'),
+              title: Text(tr('Responder')),
               onTap: () {
                 Navigator.pop(ctx);
                 setState(() => _replyTo = m);
@@ -690,7 +707,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ListTile(
               leading: Icon(m.starred ? Icons.star_rounded : Icons.star_outline_rounded,
                   color: m.starred ? const Color(0xFFFFB627) : null),
-              title: Text(m.starred ? 'Quitar de destacados' : 'Destacar'),
+              title: Text(m.starred ? tr('Quitar de destacados') : tr('Destacar')),
               onTap: () {
                 Navigator.pop(ctx);
                 _app.toggleStar(m);
@@ -700,8 +717,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (_app.canEdit(m))
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Editar'),
-              subtitle: const Text('Durante 15 minutos después de enviarlo'),
+              title: Text(tr('Editar')),
+              subtitle: Text(tr('Durante 15 minutos después de enviarlo')),
               onTap: () {
                 Navigator.pop(ctx);
                 _editMessage(m);
@@ -710,7 +727,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (!m.deleted && !(m.media?.viewOnce ?? false))
             ListTile(
               leading: const Icon(Icons.forward),
-              title: const Text('Reenviar'),
+              title: Text(tr('Reenviar')),
               onTap: () async {
                 Navigator.pop(ctx);
                 final targets = await pickForwardTargets(
@@ -720,7 +737,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     await _app.forward(m, targets);
                     _snack('Reenviado a ${targets.length} ${targets.length == 1 ? 'chat' : 'chats'}');
                   } catch (_) {
-                    _snack('No se pudo reenviar. Revisa tu conexión.');
+                    _snack(tr('No se pudo reenviar. Revisa tu conexión.'));
                   }
                 }
               },
@@ -728,28 +745,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (m.body.isNotEmpty && !m.deleted)
             ListTile(
               leading: const Icon(Icons.copy),
-              title: const Text('Copiar'),
+              title: Text(tr('Copiar')),
               onTap: () {
                 Clipboard.setData(ClipboardData(text: m.body));
                 Navigator.pop(ctx);
-                _snack('Copiado');
+                _snack(tr('Copiado'));
               },
             ),
           if (m.body.length > 20 && !m.deleted)
             ListTile(
               leading: const Icon(Icons.text_fields),
-              title: const Text('Seleccionar texto'),
-              subtitle: const Text('Para copiar solo una parte'),
+              title: Text(tr('Seleccionar texto')),
+              subtitle: Text(tr('Para copiar solo una parte')),
               onTap: () {
                 Navigator.pop(ctx);
                 showDialog<void>(
                   context: context,
                   builder: (d) => AlertDialog(
-                    title: const Text('Selecciona lo que quieras copiar'),
+                    title: Text(tr('Selecciona lo que quieras copiar')),
                     content: SingleChildScrollView(
                       child: SelectableText(m.body, style: const TextStyle(fontSize: 16)),
                     ),
-                    actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cerrar'))],
+                    actions: [TextButton(onPressed: () => Navigator.pop(d), child: Text(tr('Cerrar')))],
                   ),
                 );
               },
@@ -757,7 +774,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (!m.deleted)
             ListTile(
               leading: const Icon(Icons.push_pin_outlined),
-              title: Text(_app.chatById(widget.chatId)?.pinnedId == m.id ? 'Desfijar' : 'Fijar arriba'),
+              title: Text(_app.chatById(widget.chatId)?.pinnedId == m.id ? tr('Desfijar') : tr('Fijar arriba')),
               onTap: () {
                 Navigator.pop(ctx);
                 final pinned = _app.chatById(widget.chatId)?.pinnedId == m.id;
@@ -767,8 +784,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (!m.deleted && m.media?.type == MediaType.audio && m.media?.transcript == null)
             ListTile(
               leading: const Icon(Icons.subtitles_outlined),
-              title: const Text('Pasar a texto'),
-              subtitle: const Text('Se hace en tu móvil, sin enviar el audio a nadie'),
+              title: Text(tr('Pasar a texto')),
+              subtitle: Text(tr('Se hace en tu móvil, sin enviar el audio a nadie')),
               onTap: () {
                 Navigator.pop(ctx);
                 _transcribe(m);
@@ -777,7 +794,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (canTranslate)
             ListTile(
               leading: const Icon(Icons.translate),
-              title: const Text('Traducir al español'),
+              title: Text(tr('Traducir al español')),
               onTap: () {
                 Navigator.pop(ctx);
                 ref.read(translatorProvider).translateIncoming(m.id, m.body);
@@ -786,7 +803,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (m.isMine && !m.deleted)
             ListTile(
               leading: const Icon(Icons.delete_forever_outlined, color: Color(0xFFFF6B7A)),
-              title: const Text('Borrar para todos', style: TextStyle(color: Color(0xFFFF6B7A))),
+              title: Text(tr('Borrar para todos'), style: TextStyle(color: Color(0xFFFF6B7A))),
               onTap: () {
                 Navigator.pop(ctx);
                 _app.deleteForEveryone(m);
@@ -794,7 +811,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ListTile(
             leading: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A)),
-            title: const Text('Borrar para mí', style: TextStyle(color: Color(0xFFFF6B7A))),
+            title: Text(tr('Borrar para mí'), style: TextStyle(color: Color(0xFFFF6B7A))),
             onTap: () {
               Navigator.pop(ctx);
               _app.deleteMessage(m.id);
@@ -811,7 +828,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final text = await showDialog<String>(
       context: context,
       builder: (d) => AlertDialog(
-        title: const Text('Editar mensaje'),
+        title: Text(tr('Editar mensaje')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -820,15 +837,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           textCapitalization: TextCapitalization.sentences,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(d, ctrl.text), child: const Text('Guardar')),
+          TextButton(onPressed: () => Navigator.pop(d), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(d, ctrl.text), child: Text(tr('Guardar'))),
         ],
       ),
     );
     ctrl.dispose();
     if (text == null || text.trim().isEmpty || text.trim() == m.body) return;
     if (!_app.canEdit(m)) {
-      _snack('Ya pasaron 15 minutos: no se puede editar');
+      _snack(tr('Ya pasaron 15 minutos: no se puede editar'));
       return;
     }
     await _app.editMessage(m, text);
@@ -841,9 +858,105 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await _app.markViewOnceOpened(m);
   }
 
+  /// Info del contacto (o del grupo), como al tocar su nombre en WhatsApp.
+  Future<void> _openInfo(Chat? chat) async {
+    if (chat == null || chat.isNotes) return;
+    if (chat.isGroup) {
+      await showGroupInfo(context, chat);
+      return;
+    }
+    final action = await Navigator.of(context)
+        .push<String>(MaterialPageRoute(builder: (_) => ContactInfoScreen(chatId: chat.id)));
+    if (action == null || !mounted) return;
+    final fresh = _app.chatById(widget.chatId) ?? chat;
+    if (action == 'call' || action == 'video') {
+      await _call(fresh, video: action == 'video');
+    } else {
+      await _chatMenu(action, fresh);
+    }
+  }
+
+  /// Foto de quien grabó la nota de voz (yo, el contacto o el miembro del grupo).
+  Widget _voiceAvatar(Message m, Chat? chat, AppController app) {
+    if (m.isMine) {
+      return ChatAvatar(
+          id: 'me', title: app.profile.name.isEmpty ? tr('Yo') : app.profile.name, photoPath: app.profile.photoPath, radius: 26);
+    }
+    if (chat != null && chat.isGroup) {
+      final member = chat.members.where((x) => x.name == m.sender).firstOrNull;
+      final contact = member == null ? null : app.chatById(member.id);
+      return ChatAvatar(id: member?.id ?? m.sender, title: m.sender, photoPath: contact?.avatarPath, radius: 26);
+    }
+    return ChatAvatar(id: widget.chatId, title: chat?.title ?? '', photoPath: chat?.avatarPath, radius: 26);
+  }
+
+  PopupMenuEntry<String> _menuItem(String value, IconData icon, String label, {bool danger = false}) {
+    final cs = Theme.of(context).colorScheme;
+    final color = danger ? const Color(0xFFE5484D) : null;
+    return PopupMenuItem<String>(
+      value: value,
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(children: [
+        Icon(icon, size: 21, color: color ?? cs.onSurface.withValues(alpha: 0.78)),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w500, color: color)),
+        ),
+      ]),
+    );
+  }
+
+  /// Menú ⋮ del chat: con iconos, por grupos y con lo peligroso en rojo al final.
+  List<PopupMenuEntry<String>> _menuItems(Chat? chat, bool blocked) {
+    final isContact = chat != null && !chat.isGroup && !chat.isNotes;
+    const gap = PopupMenuDivider(height: 9);
+    return [
+      if (chat != null && !chat.isNotes)
+        _menuItem('info', Icons.info_outline_rounded, chat.isGroup ? tr('Info. del grupo') : tr('Info. del contacto')),
+      _menuItem('search', Icons.search_rounded, tr('Buscar')),
+      _menuItem('starred', Icons.star_outline_rounded, tr('Mensajes destacados')),
+      gap,
+      if (chat != null && !chat.isNotes) ...[
+        _menuItem(chat.muted ? 'unmute' : 'mute',
+            chat.muted ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
+            chat.muted ? tr('Activar sonido') : tr('Silenciar')),
+        _menuItem('timer', Icons.timer_outlined, '${tr('Mensajes temporales')} · ${disappearLabel(chat.disappearSec)}'),
+      ],
+      _menuItem('wallpaper', Icons.wallpaper_outlined, tr('Fondo de pantalla')),
+      gap,
+      if (isContact) _menuItem('safety', Icons.verified_user_outlined, tr('Código de seguridad')),
+      if (chat != null && !chat.isNotes)
+        _menuItem(
+            'rename',
+            chat.isGroup || !isUnsavedContact(chat) ? Icons.edit_outlined : Icons.person_add_alt_1_outlined,
+            chat.isGroup
+                ? tr('Cambiar nombre (solo para mí)')
+                : (isUnsavedContact(chat) ? tr('Añadir a contactos') : tr('Editar contacto'))),
+      if (chat != null)
+        _menuItem('archive', chat.archived ? Icons.unarchive_outlined : Icons.archive_outlined,
+            chat.archived ? tr('Desarchivar chat') : tr('Archivar chat')),
+      _menuItem('hide', (chat?.hidden ?? false) ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+          (chat?.hidden ?? false) ? tr('Mostrar en la lista') : tr('Ocultar chat')),
+      gap,
+      if (isContact) ...[
+        _menuItem('block', Icons.block_rounded, blocked ? tr('Desbloquear') : tr('Bloquear'), danger: true),
+        _menuItem('report', Icons.thumb_down_outlined, tr('Denunciar'), danger: true),
+      ],
+      if (chat != null)
+        _menuItem('delete', Icons.delete_outline_rounded, chat.isGroup ? tr('Eliminar grupo') : tr('Eliminar contacto'),
+            danger: true),
+    ];
+  }
+
   Future<void> _chatMenu(String action, Chat? chat) async {
     if (chat == null) return;
     switch (action) {
+      case 'info':
+        await _openInfo(chat);
       case 'timer':
         {
           final sec = await pickDisappearing(context, chat.disappearSec);
@@ -854,11 +967,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           final d = await pickMuteDuration(context);
           if (d == null) return;
           await _app.setMuted(widget.chatId, duration: d == Duration.zero ? null : d);
-          _snack('Chat silenciado 🔕');
+          _snack(tr('Chat silenciado 🔕'));
         }
       case 'unmute':
         await _app.setMuted(widget.chatId, unmute: true);
-        _snack('Sonido activado 🔔');
+        _snack(tr('Sonido activado 🔔'));
       case 'archive':
         await _app.setArchived(widget.chatId, !chat.archived);
         _snack(chat.archived ? 'Chat desarchivado' : 'Chat archivado');
@@ -869,7 +982,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       case 'hide':
         {
           if (!chat.hidden && !await _app.hasPin) {
-            _snack('Primero crea tu PIN en Ajustes → Chats ocultos');
+            _snack(tr('Primero crea tu PIN en Ajustes → Chats ocultos'));
             return;
           }
           await _app.setHidden(widget.chatId, !chat.hidden);
@@ -899,13 +1012,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               context: context,
               builder: (ctx) => AlertDialog(
                 title: Text('¿Bloquear a ${chat.title}?'),
-                content: const Text('No recibirás sus mensajes, llamadas ni estados, y no verá tu foto, tu nombre ni tus estados.'),
+                content: Text(tr('No recibirás sus mensajes, llamadas ni estados, y no verá tu foto, tu nombre ni tus estados.')),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
                   FilledButton(
                     style: FilledButton.styleFrom(backgroundColor: const Color(0xFFCE1126)),
                     onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Bloquear'),
+                    child: Text(tr('Bloquear')),
                   ),
                 ],
               ),
@@ -920,7 +1033,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (r == null) return;
           try {
             await _app.report(widget.chatId, r.$1, includeMessages: r.$2, block: r.$3);
-            _snack('Denuncia enviada. Gracias por ayudar a que KLK sea un sitio seguro.');
+            _snack(tr('Denuncia enviada. Gracias por ayudar a que KLK sea un sitio seguro.'));
           } catch (e) {
             _snack('No se pudo enviar la denuncia: $e');
           }
@@ -985,19 +1098,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final status = (chat?.isNotes ?? false)
         ? 'Mensajes para ti · solo en este móvil'
         : recording
-        ? 'grabando audio…'
+        ? tr('grabando audio…')
         : typing
-            ? 'escribiendo…'
+            ? tr('escribiendo…')
             : (chat?.isGroup ?? false)
                 ? (chat != null && chat.members.isNotEmpty ? '${chat.members.length + 1} miembros' : 'Grupo')
                 : (seen ?? prettyPhone(chat?.phone ?? ''));
-    final live = typing || recording || seen == 'en línea';
+    final live = typing || recording || seen == tr('en línea');
 
     return Scaffold(
       appBar: _searching
           ? AppBar(
               leading: IconButton(
-                tooltip: 'Cerrar búsqueda',
+                tooltip: tr('Cerrar búsqueda'),
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => setState(() {
                   _searching = false;
@@ -1009,7 +1122,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 controller: _search,
                 autofocus: true,
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(hintText: 'Buscar en este chat', border: InputBorder.none),
+                decoration: InputDecoration(hintText: tr('Buscar en este chat'), border: InputBorder.none),
               ),
               actions: [
                 if (query.isNotEmpty)
@@ -1026,60 +1139,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         actions: [
           if (!(chat?.isGroup ?? false) && !blocked && !(chat?.isNotes ?? false)) ...[
             IconButton(
-              tooltip: 'Videollamada',
+              tooltip: tr('Videollamada'),
               icon: const Icon(Icons.videocam_outlined),
               onPressed: () => _call(chat, video: true),
             ),
             IconButton(
-              tooltip: 'Llamada de voz',
+              tooltip: tr('Llamada de voz'),
               icon: const Icon(Icons.call_outlined),
               onPressed: () => _call(chat, video: false),
             ),
           ],
           PopupMenuButton<String>(
+            tooltip: tr('Más opciones'),
+            icon: const Icon(Icons.more_vert_rounded),
+            position: PopupMenuPosition.under,
+            offset: const Offset(-6, 6),
+            elevation: 10,
+            shadowColor: Colors.black38,
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            surfaceTintColor: Colors.transparent,
+            constraints: const BoxConstraints(minWidth: 250, maxWidth: 300),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             onSelected: (a) => _chatMenu(a, chat),
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: 'search', child: Text('Buscar')),
-              const PopupMenuItem(value: 'starred', child: Text('Mensajes destacados')),
-              if (chat != null && !chat.isGroup && !chat.isNotes)
-                const PopupMenuItem(value: 'safety', child: Text('Código de seguridad')),
-              if (chat?.isGroup ?? false) const PopupMenuItem(value: 'group', child: Text('Info del grupo')),
-              if (chat != null && !chat.isNotes)
-                PopupMenuItem(
-                  value: chat.muted ? 'unmute' : 'mute',
-                  child: Text(chat.muted ? 'Activar sonido' : 'Silenciar'),
-                ),
-              if (chat != null && !chat.isNotes)
-                PopupMenuItem(
-                  value: 'timer',
-                  child: Text('Mensajes temporales · ${disappearLabel(chat.disappearSec)}'),
-                ),
-              const PopupMenuItem(value: 'wallpaper', child: Text('Fondo de pantalla')),
-              if (chat != null)
-                PopupMenuItem(value: 'archive', child: Text(chat.archived ? 'Desarchivar chat' : 'Archivar chat')),
-              if (chat != null && !chat.isNotes)
-                PopupMenuItem(
-                  value: 'rename',
-                  child: Text(chat.isGroup
-                      ? 'Cambiar nombre (solo para mí)'
-                      : (isUnsavedContact(chat) ? 'Añadir a contactos' : 'Editar contacto')),
-                ),
-              PopupMenuItem(value: 'hide', child: Text((chat?.hidden ?? false) ? 'Mostrar en la lista' : 'Ocultar chat')),
-              if (!(chat?.isGroup ?? true) && !(chat?.isNotes ?? false)) ...[
-                PopupMenuItem(value: 'block', child: Text(blocked ? 'Desbloquear' : 'Bloquear')),
-                const PopupMenuItem(value: 'report', child: Text('Denunciar')),
-              ],
-              if (chat != null)
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Text(chat.isGroup ? 'Eliminar grupo' : 'Eliminar contacto',
-                      style: const TextStyle(color: Color(0xFFCE1126))),
-                ),
-            ],
+            itemBuilder: (_) => _menuItems(chat, blocked),
           ),
         ],
-        title: Row(children: [
-          ChatAvatar(id: widget.chatId, title: title, photoPath: chat?.avatarPath, radius: 19),
+        title: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openInfo(chat),
+          child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: [
+          Hero(
+            tag: 'avatar-${widget.chatId}',
+            child: ChatAvatar(id: widget.chatId, title: title, photoPath: chat?.avatarPath, radius: 19),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1098,6 +1192,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ]),
           ),
         ]),
+          ),
+        ),
       ),
       body: Column(children: [
         if (pinned != null && !_searching) _pinnedBar(pinned, cs),
@@ -1108,7 +1204,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               // Avisos de arriba + mensajes. Se construye solo lo que se ve en pantalla.
               final header = <Widget>[
               if (_searching && query.isNotEmpty && messages.isEmpty)
-                  const _Chip(icon: Icons.search_off, text: 'No hay mensajes con esas palabras'),
+                  _Chip(icon: Icons.search_off, text: tr('No hay mensajes con esas palabras')),
                 if (zone != null && !_searching)
                   _Chip(icon: Icons.schedule, text: 'En ${zone.place} son las ${DateFormat.jm('es').format(nowIn(zone.zone))}'),
                 if (!_searching && chat != null && isUnsavedContact(chat))
@@ -1117,15 +1213,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: FilledButton.tonalIcon(
                         icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
-                        label: const Text('Añadir a contactos'),
+                        label: Text(tr('Añadir a contactos')),
                         onPressed: () => editContactName(context, _app, chat),
                       ),
                     ),
                   ),
                 if (!_searching)
-                const _Chip(
+                _Chip(
                   icon: Icons.lock_outline,
-                  text: 'Mensajes y archivos cifrados de punta a punta. Nadie fuera de este chat puede verlos.',
+                  text: tr('Mensajes y archivos cifrados de punta a punta. Nadie fuera de este chat puede verlos.'),
                   accent: true,
                 ),
               ];
@@ -1155,6 +1251,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     onStopLive: () => _app.stopLiveLocation(m.id),
                     onTranscribe: () => _transcribe(m),
                     transcribing: _transcribing.contains(m.id),
+                    voiceAvatar: m.media?.type == MediaType.audio ? _voiceAvatar(m, chat, app) : null,
+                    voiceHeard: m.isMine && m.status == MessageStatus.read,
                     highlight: _searching ? _search.text : null,
                   ),
                 );
@@ -1197,12 +1295,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Mensaje fijado', style: TextStyle(fontSize: 12, color: cs.secondary, fontWeight: FontWeight.w700)),
+                  Text(tr('Mensaje fijado'), style: TextStyle(fontSize: 12, color: cs.secondary, fontWeight: FontWeight.w700)),
                   Text(m.summary, maxLines: 1, overflow: TextOverflow.ellipsis),
                 ]),
               ),
               IconButton(
-                tooltip: 'Desfijar',
+                tooltip: tr('Desfijar'),
                 icon: const Icon(Icons.close, size: 18),
                 onPressed: () => _app.pinMessage(widget.chatId, null),
               ),
@@ -1216,10 +1314,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Row(children: [
           const Icon(Icons.block, color: Color(0xFFFF6B7A)),
           const SizedBox(width: 10),
-          const Expanded(child: Text('Bloqueaste a este contacto. No puedes escribirle ni llamarle.')),
+          Expanded(child: Text(tr('Bloqueaste a este contacto. No puedes escribirle ni llamarle.'))),
           TextButton(
             onPressed: () => _app.setBlocked(widget.chatId, false),
-            child: const Text('Desbloquear'),
+            child: Text(tr('Desbloquear')),
           ),
         ]),
       );
@@ -1244,7 +1342,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ]),
         ),
         IconButton(
-          tooltip: 'Cancelar respuesta',
+          tooltip: tr('Cancelar respuesta'),
           icon: const Icon(Icons.close, size: 20),
           onPressed: () => setState(() => _replyTo = null),
         ),
@@ -1290,7 +1388,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             IconButton(
-              tooltip: 'Adjuntar',
+              tooltip: tr('Adjuntar'),
               onPressed: _showAttachSheet,
               icon: Icon(Icons.add, size: 26, color: muted),
             ),
@@ -1311,8 +1409,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 textCapitalization: TextCapitalization.sentences,
                 onChanged: _onChanged,
                 style: const TextStyle(fontSize: 16.5),
-                decoration: const InputDecoration(
-                  hintText: 'Mensaje',
+                decoration: InputDecoration(
+                  hintText: tr('Mensaje'),
                   filled: false,
                   isDense: true,
                   border: InputBorder.none,
@@ -1323,19 +1421,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
             IconButton(
-              tooltip: _emoji ? 'Teclado' : 'Emojis',
+              tooltip: _emoji ? tr('Teclado') : 'Emojis',
               onPressed: _toggleEmoji,
               icon: Icon(_emoji ? Icons.keyboard_outlined : Icons.emoji_emotions_outlined, color: muted),
             ),
             if (hasText)
               IconButton(
-                tooltip: 'Programar mensaje',
+                tooltip: tr('Programar mensaje'),
                 onPressed: _schedule,
                 icon: Icon(Icons.schedule_send_outlined, color: muted),
               )
             else
               IconButton(
-                tooltip: 'Cámara',
+                tooltip: tr('Cámara'),
                 onPressed: () => _attach('camera'),
                 icon: Icon(Icons.photo_camera_outlined, color: muted),
               ),
@@ -1350,7 +1448,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           heroTag: null,
           elevation: 1,
           shape: const CircleBorder(),
-          tooltip: hasText ? 'Enviar' : 'Grabar nota de voz',
+          tooltip: hasText ? tr('Enviar') : 'Grabar nota de voz',
           onPressed: hasText ? () => _send() : _startRecording,
           child: Icon(hasText ? Icons.send_rounded : Icons.mic_rounded, size: 24),
         ),
@@ -1362,7 +1460,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final elapsed = DateTime.now().difference(_recStart ?? DateTime.now());
     return Row(children: [
       IconButton(
-        tooltip: 'Cancelar',
+        tooltip: tr('Cancelar'),
         onPressed: () => _stopRecording(send: false),
         icon: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A), size: 28),
       ),
@@ -1373,12 +1471,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           style: const TextStyle(fontSize: 16, fontFeatures: [FontFeature.tabularFigures()])),
       const Spacer(),
       IconButton(
-        tooltip: 'Parar y escuchar antes de enviar',
+        tooltip: tr('Parar y escuchar antes de enviar'),
         onPressed: () => _stopRecording(send: false, preview: true),
         icon: const Icon(Icons.stop_circle_outlined, size: 30),
       ),
       IconButton.filled(
-        tooltip: 'Enviar nota de voz',
+        tooltip: tr('Enviar nota de voz'),
         onPressed: () => _stopRecording(send: true),
         icon: const Icon(Icons.send),
       ),

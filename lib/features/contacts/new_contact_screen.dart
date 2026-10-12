@@ -8,6 +8,7 @@ import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../messaging/app_controller.dart';
 import 'device_contacts.dart';
+import '../../core/l10n/l10n.dart';
 
 enum _Check { idle, checking, onKlk, notOnKlk, invalid, error }
 
@@ -128,7 +129,7 @@ class _NewContactScreenState extends ConsumerState<NewContactScreen> {
         );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Nuevo contacto', style: TextStyle(fontWeight: FontWeight.w700))),
+      appBar: AppBar(title: Text(tr('Nuevo contacto'), style: TextStyle(fontWeight: FontWeight.w700))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -201,7 +202,7 @@ class _NewContactScreenState extends ConsumerState<NewContactScreen> {
               icon: _saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.chat_bubble_outline),
-              label: const Text('Guardar y escribir', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              label: Text(tr('Guardar y escribir'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -210,7 +211,7 @@ class _NewContactScreenState extends ConsumerState<NewContactScreen> {
             if (_check == _Check.onKlk && _first.text.trim().isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text('Escribe un nombre para guardarlo',
+                child: Text(tr('Escribe un nombre para guardarlo'),
                     textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
               ),
           ],
@@ -244,7 +245,7 @@ class _StatusChip extends StatelessWidget {
         );
 
     return switch (check) {
-      _Check.idle => Text('Escribe el número con o sin prefijo. Te diremos al momento si usa KLK.',
+      _Check.idle => Text(tr('Escribe el número con o sin prefijo. Te diremos al momento si usa KLK.'),
           style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
       _Check.checking => chip(
           SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary)),
@@ -255,7 +256,7 @@ class _StatusChip extends StatelessWidget {
           Icon(Icons.info_outline, color: cs.secondary),
           'Todavía no usa KLK',
           cs.secondary,
-          trailing: TextButton(onPressed: onInvite, child: const Text('Invitar')),
+          trailing: TextButton(onPressed: onInvite, child: Text(tr('Invitar'))),
         ),
       _Check.invalid => chip(const Icon(Icons.error_outline, color: red), 'Ese número no parece completo', red),
       _Check.error => chip(const Icon(Icons.wifi_off, color: red), 'Sin conexión para comprobarlo', red),

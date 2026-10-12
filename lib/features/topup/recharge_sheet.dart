@@ -8,6 +8,7 @@ import '../../core/network/api_client.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_sheets.dart';
 import '../messaging/app_controller.dart';
+import '../../core/l10n/l10n.dart';
 
 /// ¿Es un móvil de RD? (+1 809/829/849)
 bool isDominicanMobile(String phone) => RegExp(r'^\+1(809|829|849)\d{7}$').hasMatch(phone);
@@ -235,18 +236,18 @@ class _RechargeSheetState extends ConsumerState<_RechargeSheet> with WidgetsBind
             Row(children: [
               const Icon(Icons.phone_iphone, color: Color(0xFF1F7A4D), size: 30),
               const SizedBox(width: 10),
-              const Expanded(
-                  child: Text('Recarga a RD', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800))),
+              Expanded(
+                  child: Text(tr('Recarga a RD'), style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800))),
               if (_test)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(color: const Color(0xFFFFD60A), borderRadius: BorderRadius.circular(99)),
-                  child: const Text('MODO PRUEBA',
+                  child: Text(tr('MODO PRUEBA'),
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.black)),
                 ),
             ]),
             const SizedBox(height: 4),
-            Text('Claro, Altice y Viva', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
+            Text(tr('Claro, Altice y Viva'), style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
             const SizedBox(height: 16),
             ...switch (_step) {
               _Step.phone || _Step.amounts => _chooser(cs),
@@ -269,13 +270,13 @@ class _RechargeSheetState extends ConsumerState<_RechargeSheet> with WidgetsBind
         keyboardType: TextInputType.phone,
         autofocus: widget.initialPhone.isEmpty,
         decoration: InputDecoration(
-          labelText: 'Número de RD',
+          labelText: tr('Número de RD'),
           hintText: '809 555 1234',
           prefixIcon: const Icon(Icons.call_outlined),
           border: const OutlineInputBorder(),
           suffixIcon: _step == _Step.amounts
               ? IconButton(
-                  tooltip: 'Cambiar número',
+                  tooltip: tr('Cambiar número'),
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: () => setState(() {
                         _step = _Step.phone;
@@ -297,7 +298,7 @@ class _RechargeSheetState extends ConsumerState<_RechargeSheet> with WidgetsBind
           onPressed: _busy ? null : _lookup,
           child: _busy
               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Seguir', style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700)),
+              : Text(tr('Seguir'), style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700)),
         )
       else ...[
         Row(children: [
@@ -348,14 +349,14 @@ class _RechargeSheetState extends ConsumerState<_RechargeSheet> with WidgetsBind
         const SizedBox(height: 8),
         const Center(child: CircularProgressIndicator()),
         const SizedBox(height: 16),
-        const Text('Esperando el pago…',
+        Text(tr('Esperando el pago…'),
             textAlign: TextAlign.center, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
-        Text('Cuando pagues, vuelve aquí. La recarga llega en unos segundos.',
+        Text(tr('Cuando pagues, vuelve aquí. La recarga llega en unos segundos.'),
             textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65))),
         const SizedBox(height: 16),
-        OutlinedButton(onPressed: _openPay, child: const Text('Abrir la página de pago otra vez')),
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+        OutlinedButton(onPressed: _openPay, child: Text(tr('Abrir la página de pago otra vez'))),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cerrar'))),
       ];
 
   List<Widget> _doneView(ColorScheme cs) => [
@@ -370,18 +371,18 @@ class _RechargeSheetState extends ConsumerState<_RechargeSheet> with WidgetsBind
         FilledButton(
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50), shape: const StadiumBorder()),
           onPressed: _finish,
-          child: const Text('Listo'),
+          child: Text(tr('Listo')),
         ),
       ];
 
   List<Widget> _failedView(ColorScheme cs) => [
         Icon(Icons.error_outline, size: 60, color: cs.error),
         const SizedBox(height: 10),
-        const Text('No se pudo recargar',
+        Text(tr('No se pudo recargar'),
             textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
         Text(_error ?? '', textAlign: TextAlign.center),
         const SizedBox(height: 18),
-        OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+        OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cerrar'))),
       ];
 }

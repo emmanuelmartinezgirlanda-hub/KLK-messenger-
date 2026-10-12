@@ -5,6 +5,7 @@ import '../../messaging/app_controller.dart';
 import 'chat_avatar.dart';
 import 'chat_list_view.dart';
 import 'chat_screen.dart';
+import '../../../core/l10n/l10n.dart';
 
 /// Chats archivados. Deslizar o dejar pulsado para desarchivar.
 class ArchivedScreen extends ConsumerWidget {
@@ -16,16 +17,16 @@ class ArchivedScreen extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final list = app.archivedChats;
     return Scaffold(
-      appBar: AppBar(title: const Text('Archivados')),
+      appBar: AppBar(title: Text(tr('Archivados'))),
       body: list.isEmpty
           ? Center(
-              child: Text('No tienes chats archivados',
+              child: Text(tr('No tienes chats archivados'),
                   style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6))),
             )
           : ListView(children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Text('Deja pulsado un chat para sacarlo de aquí.',
+                child: Text(tr('Deja pulsado un chat para sacarlo de aquí.'),
                     style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
               ),
               for (final c in list)

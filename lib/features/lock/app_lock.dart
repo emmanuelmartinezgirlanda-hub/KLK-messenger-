@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../../core/brand/klk_logo.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Desbloqueo con Face ID / Touch ID o, si no hay, con el código del iPhone.
 class AppLockService {
@@ -68,15 +69,15 @@ class _LockScreenState extends State<LockScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               const KlkEmblem(size: 96),
               const SizedBox(height: 20),
-              const Text('KLK está bloqueado', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+              Text(tr('KLK está bloqueado'), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
-              Text('Usa Face ID, Touch ID o el código de tu iPhone.',
+              Text(tr('Usa Face ID, Touch ID o el código de tu iPhone.'),
                   textAlign: TextAlign.center, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: _trying ? null : _unlock,
                 icon: const Icon(Icons.face_unlock_outlined),
-                label: const Text('Desbloquear'),
+                label: Text(tr('Desbloquear')),
               ),
             ]),
           ),

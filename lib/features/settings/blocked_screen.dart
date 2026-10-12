@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../messaging/app_controller.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Lista de contactos bloqueados, con opción de desbloquear.
 class BlockedScreen extends ConsumerWidget {
@@ -15,13 +16,13 @@ class BlockedScreen extends ConsumerWidget {
     final list = app.blockedChats;
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Contactos bloqueados')),
+      appBar: AppBar(title: Text(tr('Contactos bloqueados'))),
       body: list.isEmpty
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Text(
-                  'No has bloqueado a nadie.\nPara bloquear, entra en el chat → ⋮ → Bloquear.',
+                  tr('No has bloqueado a nadie.\nPara bloquear, entra en el chat → ⋮ → Bloquear.'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
                 ),
@@ -35,7 +36,7 @@ class BlockedScreen extends ConsumerWidget {
                   subtitle: c.phone.isEmpty ? null : Text(prettyPhone(c.phone)),
                   trailing: TextButton(
                     onPressed: () => app.setBlocked(c.id, false),
-                    child: const Text('Desbloquear'),
+                    child: Text(tr('Desbloquear')),
                   ),
                 ),
             ]),

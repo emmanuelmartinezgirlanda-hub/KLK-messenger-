@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../messaging/app_controller.dart';
 import 'community.dart';
+import '../../core/l10n/l10n.dart';
 
 /// Comunidades por país: la lista y el número de miembros son REALES (del servidor).
 /// Te puedes unir a la de tu país, a otras o a todas. Cada comunidad tiene su chat.
@@ -36,10 +37,10 @@ class _CommunitiesViewState extends ConsumerState<CommunitiesView> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text('¿Salir de ${c.title}?'),
-          content: const Text('Se borrará el chat de la comunidad de este móvil.'),
+          content: Text(tr('Se borrará el chat de la comunidad de este móvil.')),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Salir')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Salir'))),
           ],
         ),
       );
@@ -60,7 +61,7 @@ class _CommunitiesViewState extends ConsumerState<CommunitiesView> {
     setState(() => _joiningAll = true);
     try {
       await ref.read(appProvider).joinAllCommunities();
-      _say('Te uniste a todas las comunidades');
+      _say(tr('Te uniste a todas las comunidades'));
     } catch (e) {
       _say('No se pudo: $e');
     } finally {
@@ -85,15 +86,15 @@ class _CommunitiesViewState extends ConsumerState<CommunitiesView> {
         decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
         child: Text(c.flag, style: const TextStyle(fontSize: 26)),
       ),
-      title: Text(c.id == 'DO' ? 'República Dominicana' : 'Dominicanos en ${c.name}',
+      title: Text(c.id == 'DO' ? tr('República Dominicana') : 'Dominicanos en ${c.name}',
           style: const TextStyle(fontWeight: FontWeight.w700)),
       subtitle: Text(mine ? 'Tu país · $count' : count),
       onTap: c.joined ? () => _open(c) : null,
       trailing: busy
           ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5))
           : c.joined
-              ? OutlinedButton(onPressed: () => _toggle(c), child: const Text('Salir'))
-              : FilledButton(onPressed: () => _toggle(c), child: const Text('Unirme')),
+              ? OutlinedButton(onPressed: () => _toggle(c), child: Text(tr('Salir')))
+              : FilledButton(onPressed: () => _toggle(c), child: Text(tr('Unirme'))),
     );
   }
 
@@ -137,7 +138,7 @@ class _CommunitiesViewState extends ConsumerState<CommunitiesView> {
               child: Column(children: [
                 Text('No se pudieron cargar las comunidades.\n${app.communitiesError}', textAlign: TextAlign.center),
                 const SizedBox(height: 8),
-                OutlinedButton(onPressed: app.loadCommunities, child: const Text('Reintentar')),
+                OutlinedButton(onPressed: app.loadCommunities, child: Text(tr('Reintentar'))),
               ]),
             ),
           if (list.isNotEmpty && pending > 0)
@@ -147,7 +148,7 @@ class _CommunitiesViewState extends ConsumerState<CommunitiesView> {
                 icon: _joiningAll
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.public),
-                label: const Text('Unirme a todas'),
+                label: Text(tr('Unirme a todas')),
                 onPressed: _joiningAll ? null : _joinAll,
               ),
             ),
@@ -182,9 +183,9 @@ class _NewsSection extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       child: Column(children: [
-        const ListTile(
-          title: Text('Pelota y noticias de RD', style: TextStyle(fontWeight: FontWeight.w800)),
-          subtitle: Text('Se abren en tu navegador. Los resultados en vivo dentro de KLK llegarán más adelante.'),
+        ListTile(
+          title: Text(tr('Pelota y noticias de RD'), style: TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(tr('Se abren en tu navegador. Los resultados en vivo dentro de KLK llegarán más adelante.')),
         ),
         for (final (icon, title, sub, url) in _links)
           ListTile(
