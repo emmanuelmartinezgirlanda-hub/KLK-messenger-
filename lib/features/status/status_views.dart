@@ -281,13 +281,30 @@ class _StatusComposer extends ConsumerStatefulWidget {
   ConsumerState<_StatusComposer> createState() => _StatusComposerState();
 }
 
+/// Una foto o un vídeo elegido para publicar, con su texto.
+class _Pick {
+  final String path;
+  final bool video;
+  String caption = '';
+  _Pick(this.path, this.video);
+}
+
+bool _looksLikeVideo(XFile x) {
+  final mime = x.mimeType ?? '';
+  if (mime.startsWith('video/')) return true;
+  final p = x.path.toLowerCase();
+  return p.endsWith('.mp4') || p.endsWith('.mov') || p.endsWith('.m4v') || p.endsWith('.3gp');
+}
+
 class _StatusComposerState extends ConsumerState<_StatusComposer> {
   final _text = TextEditingController();
   int _color = statusColors.first;
-  String? _media; // foto o vídeo elegido
-  bool _isVideo = false;
+  final List<_Pick> _items = []; // fotos y vídeos elegidos (se publica uno por estado)
+  int _sel = 0; // el que se ve en grande
   bool _posting = false;
-  bool _preparing = false; // comprimiendo un vídeo
+  String? _busy; // "Preparando el vídeo 1 de 3…" / "Publicando 2 de 5…"
+
+  static const _maxItems = 30;
 
   @override
   void dispose() {
@@ -299,6 +316,15 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  /// Guarda el texto escrito en el que se está viendo y pasa a otro.
+  void _select(int i) {
+    if (_items.isNotEmpty && _sel < _items.length) _items[_sel].caption = _text.text;
+    setState(() {
+      _sel = i.clamp(0, _items.isEmpty ? 0 : _items.length - 1);
+      _text.text = _items.isEmpty ? '' : _items[_sel].caption;
+    });
+  }
+
   Future<void> _pickMedia() async {
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -307,14 +333,9 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
             leading: const Icon(Icons.photo_library_outlined),
-            title: Text(tr('Foto de la galería')),
-            onTap: () => Navigator.pop(ctx, 'photo'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.video_library_outlined),
-            title: Text(tr('Vídeo de la galería')),
-            subtitle: Text(tr('Hasta 10 minutos')),
-            onTap: () => Navigator.pop(ctx, 'video'),
+            title: Text(tr('Fotos y vídeos de la galería')),
+            subtitle: Text(tr('Elige todos los que quieras')),
+            onTap: () => Navigator.pop(ctx, 'gallery'),
           ),
           ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
@@ -332,67 +353,140 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
     );
     if (choice == null) return;
     final picker = ImagePicker();
+    final room = _maxItems - _items.length;
+    if (room <= 0) {
+      _say(tr('Como máximo 30 a la vez'));
+      return;
+    }
     try {
-      XFile? x;
-      final video = choice == 'video' || choice == 'record';
-      if (video) {
-        x = await picker.pickVideo(
-          source: choice == 'record' ? ImageSource.camera : ImageSource.gallery,
-          maxDuration: maxStatusVideo,
-        );
+      final picked = <XFile>[];
+      if (choice == 'gallery') {
+        picked.addAll(await picker.pickMultipleMedia(maxWidth: 1600, imageQuality: 85, limit: room > 1 ? room : 2));
+      } else if (choice == 'camera') {
+        final x = await picker.pickImage(source: ImageSource.camera, maxWidth: 1600, imageQuality: 85);
+        if (x != null) picked.add(x);
       } else {
-        x = await picker.pickImage(
-          source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
-          maxWidth: 1600,
-          imageQuality: 85,
-        );
+        final x = await picker.pickVideo(source: ImageSource.camera, maxDuration: maxStatusVideo);
+        if (x != null) picked.add(x);
       }
-      if (x == null) return;
-      var path = x.path;
-      if (video) {
-        // Los vídeos largos se comprimen en el móvil para que quepan
-        setState(() => _preparing = true);
-        try {
-          path = await KlkNative.compressVideo(path);
-        } catch (e) {
-          _say(e.toString());
-        } finally {
-          if (mounted) setState(() => _preparing = false);
+      if (picked.isEmpty) return;
+      final list = picked.take(room).toList();
+      final videos = list.where((x) => choice == 'record' || _looksLikeVideo(x)).length;
+      var done = 0;
+      var tooBig = 0;
+      final added = <_Pick>[];
+      for (final x in list) {
+        final video = choice == 'record' || _looksLikeVideo(x);
+        var path = x.path;
+        if (video) {
+          // Los vídeos largos se comprimen en el móvil para que quepan
+          done++;
+          if (mounted) {
+            setState(() => _busy = videos > 1
+                ? tr('Preparando el vídeo {n} de {t}…').replaceAll('{n}', '$done').replaceAll('{t}', '$videos')
+                : tr('Preparando el vídeo…'));
+          }
+          try {
+            path = await KlkNative.compressVideo(path);
+          } catch (e) {
+            _say(e.toString());
+          }
+          if (await File(path).length() > _maxUploadBytes) {
+            tooBig++;
+            continue;
+          }
         }
-        if (await File(path).length() > _maxUploadBytes) {
-          _say(tr('Ese vídeo pesa demasiado aun comprimido (máx. 64 MB). Prueba con uno más corto.'));
-          return;
-        }
+        added.add(_Pick(path, video));
       }
       if (!mounted) return;
+      if (_items.isNotEmpty) _items[_sel].caption = _text.text;
       setState(() {
-        _media = path;
-        _isVideo = video;
+        _busy = null;
+        final first = _items.length;
+        _items.addAll(added);
+        if (added.isNotEmpty) {
+          _sel = first;
+          _text.text = '';
+        }
       });
+      if (tooBig > 0) _say(tr('Ese vídeo pesa demasiado aun comprimido (máx. 64 MB). Prueba con uno más corto.'));
+      if (picked.length > room) _say(tr('Como máximo 30 a la vez'));
     } catch (_) {
+      if (mounted) setState(() => _busy = null);
       _say(tr('KLK no tiene permiso para tus fotos o la cámara. Actívalo en Ajustes del iPhone → KLK.'));
     }
   }
 
+  void _removeCurrent() {
+    setState(() {
+      _items.removeAt(_sel);
+      if (_sel >= _items.length) _sel = _items.isEmpty ? 0 : _items.length - 1;
+      _text.text = _items.isEmpty ? '' : _items[_sel].caption;
+    });
+  }
+
   Future<void> _post() async {
-    if (_text.text.trim().isEmpty && _media == null) return;
-    setState(() => _posting = true);
-    await ref.read(appProvider).postStatus(text: _text.text.trim(), color: _color, mediaSourcePath: _media);
+    final app = ref.read(appProvider);
+    if (_items.isEmpty) {
+      if (_text.text.trim().isEmpty) return;
+      setState(() => _posting = true);
+      await app.postStatus(text: _text.text.trim(), color: _color);
+    } else {
+      _items[_sel].caption = _text.text;
+      setState(() => _posting = true);
+      for (var i = 0; i < _items.length; i++) {
+        if (_items.length > 1 && mounted) {
+          setState(() => _busy = tr('Publicando {n} de {t}…').replaceAll('{n}', '${i + 1}').replaceAll('{t}', '${_items.length}'));
+        }
+        await app.postStatus(text: _items[i].caption.trim(), color: _color, mediaSourcePath: _items[i].path);
+      }
+    }
     if (mounted) Navigator.of(context).pop();
+  }
+
+  Widget _thumb(int i) {
+    final it = _items[i];
+    final selected = i == _sel;
+    return GestureDetector(
+      onTap: () => _select(i),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 56,
+        height: 56,
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: selected ? Colors.white : Colors.transparent, width: 2.5),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(9),
+          child: it.video
+              ? const ColoredBox(
+                  color: Colors.white12,
+                  child: Center(child: Icon(Icons.play_arrow_rounded, color: Colors.white)),
+                )
+              : Image.file(File(it.path), fit: BoxFit.cover, cacheWidth: 168),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final canPost = (_text.text.trim().isNotEmpty || _media != null) && !_posting && !_preparing;
-    final media = _media;
+    final hasMedia = _items.isNotEmpty;
+    final busy = _busy != null;
+    final canPost = (_text.text.trim().isNotEmpty || hasMedia) && !_posting && !busy;
+    final current = hasMedia ? _items[_sel] : null;
+    final n = _items.length;
     return Scaffold(
-      backgroundColor: media != null ? Colors.black : Color(_color),
+      backgroundColor: hasMedia ? Colors.black : Color(_color),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
+        title: n > 1 ? Text('${_sel + 1} / $n', style: const TextStyle(fontSize: 16)) : null,
         actions: [
-          IconButton(tooltip: tr('Foto o vídeo'), icon: const Icon(Icons.perm_media_outlined), onPressed: _pickMedia),
-          if (media == null)
+          IconButton(tooltip: tr('Foto o vídeo'), icon: const Icon(Icons.perm_media_outlined), onPressed: busy ? null : _pickMedia),
+          if (!hasMedia)
             IconButton(
               tooltip: tr('Color de fondo'),
               icon: const Icon(Icons.palette_outlined),
@@ -404,22 +498,20 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
         child: Column(children: [
           Expanded(
             child: Center(
-              child: media != null
+              child: current != null
                   ? Stack(alignment: Alignment.topRight, children: [
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(16),
-                          child: _isVideo
-                              ? StatusVideo(key: ValueKey(media), path: media, loop: true)
-                              : Image.file(File(media)),
+                          child: current.video
+                              ? StatusVideo(key: ValueKey(current.path), path: current.path, loop: true)
+                              : Image.file(File(current.path), key: ValueKey(current.path)),
                         ),
                       ),
                       IconButton(
-                        onPressed: () => setState(() {
-                          _media = null;
-                          _isVideo = false;
-                        }),
+                        tooltip: tr('Quitar'),
+                        onPressed: _posting ? null : _removeCurrent,
                         icon: const CircleAvatar(backgroundColor: Colors.black54, child: Icon(Icons.close, color: Colors.white)),
                       ),
                     ])
@@ -436,27 +528,52 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
                         cursorColor: Colors.white,
                         decoration: InputDecoration(
                           hintText: tr('Escribe algo…'),
-                          hintStyle: TextStyle(color: Colors.white54),
+                          hintStyle: const TextStyle(color: Colors.white54),
                           border: InputBorder.none,
-                          counterStyle: TextStyle(color: Colors.white54),
+                          counterStyle: const TextStyle(color: Colors.white54),
                         ),
                       ),
                     ),
             ),
           ),
-          if (media != null)
+          if (hasMedia)
+            SizedBox(
+              height: 64,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                children: [
+                  for (var i = 0; i < n; i++) _thumb(i),
+                  if (n < _maxItems)
+                    GestureDetector(
+                      onTap: busy || _posting ? null : _pickMedia,
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white38, width: 1.5),
+                        ),
+                        child: Tooltip(message: tr('Añadir más'), child: const Icon(Icons.add_rounded, color: Colors.white)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          if (hasMedia)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: TextField(
                 controller: _text,
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: tr('Añade un texto…'),
-                  hintStyle: TextStyle(color: Colors.white54),
+                  hintStyle: const TextStyle(color: Colors.white54),
                   filled: true,
                   fillColor: Colors.white12,
-                  border: OutlineInputBorder(borderSide: BorderSide.none),
+                  border: const OutlineInputBorder(borderSide: BorderSide.none),
                 ),
               ),
             ),
@@ -465,17 +582,18 @@ class _StatusComposerState extends ConsumerState<_StatusComposer> {
             child: Row(children: [
               Expanded(
                 child: Text(
-                    _preparing
-                        ? 'Preparando el vídeo…'
-                        : _isVideo
-                            ? 'Vídeo de hasta 10 min · lo verán tus contactos durante 24 horas'
-                            : 'Lo verán tus contactos durante 24 horas',
+                    _busy ??
+                        (n > 1
+                            ? tr('Se publicarán {n} estados · los verán tus contactos durante 24 horas').replaceAll('{n}', '$n')
+                            : (current?.video ?? false)
+                                ? tr('Vídeo de hasta 10 min · lo verán tus contactos durante 24 horas')
+                                : tr('Lo verán tus contactos durante 24 horas')),
                     style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
               ),
               FloatingActionButton(
                 onPressed: canPost ? _post : null,
                 backgroundColor: canPost ? Colors.white : Colors.white38,
-                foregroundColor: media != null ? Colors.black : Color(_color),
+                foregroundColor: hasMedia ? Colors.black : Color(_color),
                 child: _posting ? const CircularProgressIndicator() : const Icon(Icons.send),
               ),
             ]),
