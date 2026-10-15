@@ -59,6 +59,33 @@ type OTP struct {
 	remote RemoteVerifier // si no es nil, Twilio Verify genera y comprueba el código
 	sent   map[string]time.Time
 	now    func() time.Time
+
+	// Cuentas de revisión (Apple/Google): no se manda SMS y el código es fijo.
+	review     map[string]bool
+	reviewCode string
+}
+
+// SetReview activa números de prueba para los revisores de las tiendas.
+// No reciben SMS: entran siempre con [code] (mínimo 6 cifras).
+func (o *OTP) SetReview(phones []string, code string) {
+	if len(code) < 6 {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.review = map[string]bool{}
+	for _, p := range phones {
+		if ValidPhone(p) {
+			o.review[p] = true
+		}
+	}
+	o.reviewCode = code
+}
+
+func (o *OTP) isReview(phone string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.review[phone]
 }
 
 func NewOTP(sender SMSSender) *OTP {
@@ -74,6 +101,9 @@ func NewRemoteOTP(v RemoteVerifier) *OTP {
 func (o *OTP) Request(phone string) error {
 	if !ValidPhone(phone) {
 		return ErrInvalidPhone
+	}
+	if o.isReview(phone) {
+		return nil // número de revisión: sin SMS
 	}
 	if o.remote != nil {
 		o.mu.Lock()
@@ -116,6 +146,12 @@ func (o *OTP) Request(phone string) error {
 
 // Verify comprueba el código. Cada código admite como máximo 5 intentos.
 func (o *OTP) Verify(phone, code string) error {
+	if o.isReview(phone) {
+		if subtle.ConstantTimeCompare([]byte(code), []byte(o.reviewCode)) == 1 {
+			return nil
+		}
+		return ErrBadCode
+	}
 	if o.remote != nil {
 		// Twilio Verify ya limita a 5 intentos por código y lo caduca a los 10 min.
 		if !ValidPhone(phone) || len(code) < 4 || len(code) > 10 {

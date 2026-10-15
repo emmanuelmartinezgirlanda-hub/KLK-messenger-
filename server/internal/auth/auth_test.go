@@ -38,3 +38,29 @@ func TestTwilioError(t *testing.T) {
 		t.Fatalf("esperaba error 400, llegó %v", err)
 	}
 }
+
+func TestReviewPhones(t *testing.T) {
+	sent := 0
+	o := NewOTP(senderFunc(func(string, string) error { sent++; return nil }))
+	o.SetReview([]string{"+12025550147"}, "246810")
+	if err := o.Request("+12025550147"); err != nil || sent != 0 {
+		t.Fatalf("revisión: err=%v sms=%d", err, sent)
+	}
+	if o.Verify("+12025550147", "000000") == nil {
+		t.Fatal("código malo aceptado")
+	}
+	if err := o.Verify("+12025550147", "246810"); err != nil {
+		t.Fatal(err)
+	}
+	if err := o.Verify("+12025550147", "246810"); err != nil {
+		t.Fatal("el código fijo debe valer siempre")
+	}
+	// Otros números siguen igual.
+	if err := o.Request("+34600000001"); err != nil || sent != 1 {
+		t.Fatalf("normal: %v %d", err, sent)
+	}
+}
+
+type senderFunc func(string, string) error
+
+func (f senderFunc) Send(p, m string) error { return f(p, m) }

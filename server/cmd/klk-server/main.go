@@ -15,6 +15,7 @@
 //	  KLK_TOPUP_DEMO=1   modo prueba sin ninguna cuenta (proveedor y pago de mentira)
 //	  KLK_TOPUP_CURRENCY (EUR) · KLK_TOPUP_MARGIN (0.08) · KLK_TOPUP_FEE (0.35) · KLK_TOPUP_MAX (40) · KLK_TOPUP_DAILY_MAX (5)
 //	  KLK_PUBLIC_URL     dirección pública del servidor (https://…)
+//	KLK_REVIEW_PHONES / KLK_REVIEW_CODE  números de prueba para la revisión de las tiendas (sin SMS)
 //	KLK_OWNER_NAME / KLK_SUPPORT_EMAIL  responsable y correo de soporte (/privacidad y /soporte)
 //	KLK_SMS_DAILY_MAX   SMS al día en total (500) · KLK_SMS_COUNTRY_MAX por país (200) · KLK_SMS_IP_MAX por conexión (10)
 package main
@@ -94,6 +95,16 @@ func main() {
 	default:
 		otp = auth.NewOTP(auth.LogSender{})
 		slog.Warn("sin TWILIO_ACCOUNT_SID: los códigos SMS se escriben en el log (solo pruebas)")
+	}
+
+	// Números de prueba para la revisión de Apple/Google (sin SMS, código fijo).
+	if phones := os.Getenv("KLK_REVIEW_PHONES"); phones != "" {
+		var list []string
+		for _, p := range strings.Split(phones, ",") {
+			list = append(list, strings.TrimSpace(p))
+		}
+		otp.SetReview(list, strings.TrimSpace(os.Getenv("KLK_REVIEW_CODE")))
+		slog.Info("números de revisión activos", "n", len(list))
 	}
 
 	apiServer := api.New(st, otp, hub)
