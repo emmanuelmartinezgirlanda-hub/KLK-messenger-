@@ -34,10 +34,11 @@ services:
         value: "0.08"
       - key: KLK_SERVER_COST
         value: "12"
-      # Recargas a RD. Con KLK_TOPUP_DEMO=1 funcionan en MODO PRUEBA (no se cobra nada).
-      # Para las de verdad se añaden en Render las claves de Reloadly y Stripe.
+      # Recargas a RD: APAGADAS hasta el lanzamiento (la app dice "Pronto").
+      # "1" = modo prueba (no se cobra nada). Para las de verdad se añaden en Render
+      # las claves de Reloadly y Stripe.
       - key: KLK_TOPUP_DEMO
-        value: "1"
+        value: "0"
       - key: RELOADLY_CLIENT_ID
         sync: false
       - key: RELOADLY_CLIENT_SECRET
