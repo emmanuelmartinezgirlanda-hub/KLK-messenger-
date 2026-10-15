@@ -42,6 +42,8 @@ if command -v plutil >/dev/null; then
 fi
 # iOS 15.5 mínimo: lo exige el traductor de Google ML Kit
 sed -i.bak "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 15.5;/g" ios/Runner.xcodeproj/project.pbxproj
+# Solo iPhone (en iPad se abre la versión de iPhone): así la App Store no pide capturas de iPad
+sed -i.bak 's/TARGETED_DEVICE_FAMILY = "1,2";/TARGETED_DEVICE_FAMILY = 1;/g' ios/Runner.xcodeproj/project.pbxproj
 sed -i.bak "s/PRODUCT_BUNDLE_IDENTIFIER = [A-Za-z0-9.]*klk;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" ios/Runner.xcodeproj/project.pbxproj
 if [ -f ios/Podfile ]; then
   sed -i.bak "s/^# platform :ios.*/platform :ios, '15.5'/" ios/Podfile
