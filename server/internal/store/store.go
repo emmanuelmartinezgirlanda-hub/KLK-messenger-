@@ -148,6 +148,10 @@ type Store interface {
 	// CommunityMembers devuelve los ids de las cuentas (no bloqueadas) de una comunidad.
 	CommunityMembers(ctx context.Context, community string, limit int) ([]string, error)
 
+	// DeleteAccount borra la cuenta y todo lo suyo del servidor (claves, cola,
+	// denuncias, comunidades, recargas…). Lo pide la propia persona desde la app.
+	DeleteAccount(ctx context.Context, accountID string) error
+
 	// ---- Recargas de móvil ----
 	CreateTopup(ctx context.Context, t Topup) error
 	GetTopup(ctx context.Context, id string) (Topup, error)

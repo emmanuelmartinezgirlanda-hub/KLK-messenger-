@@ -196,3 +196,36 @@ func TestContactPage(t *testing.T) {
 	}
 	resp.Body.Close()
 }
+
+func TestDeleteAccountAndLegalPages(t *testing.T) {
+	e := newAdminEnv(t)
+	a := e.register("+18095550101", 1)
+	b := e.register("+34600000002", 2)
+	e.do("POST", "/v1/reports", b.token, map[string]any{"accountId": a.accountID, "reason": "spam"}, nil)
+	if s := e.do("DELETE", "/v1/account", a.token, nil, nil); s != http.StatusNoContent {
+		t.Fatalf("borrar cuenta: %d", s)
+	}
+	// El token ya no vale y el número no aparece.
+	if s := e.do("GET", "/v1/announcements", a.token, nil, nil); s != http.StatusUnauthorized {
+		t.Fatalf("token tras borrar: %d", s)
+	}
+	if s := e.do("POST", "/v1/accounts/lookup", b.token, map[string]string{"phone": "+18095550101"}, nil); s != http.StatusNotFound {
+		t.Fatalf("lookup tras borrar: %d", s)
+	}
+	// Puede volver a registrarse como cuenta nueva.
+	a2 := e.register("+18095550101", 3)
+	if a2.accountID == a.accountID {
+		t.Fatal("reutilizó la cuenta borrada")
+	}
+	for _, p := range []string{"/privacidad", "/soporte"} {
+		resp, err := http.Get(e.srv.URL + p)
+		if err != nil || resp.StatusCode != 200 {
+			t.Fatalf("%s: %v", p, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if !strings.Contains(string(body), "Eliminar mi cuenta") {
+			t.Fatalf("%s sin instrucciones para borrar la cuenta", p)
+		}
+	}
+}

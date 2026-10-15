@@ -45,6 +45,9 @@ type Server struct {
 	SMSPrice   float64
 	ServerCost float64
 
+	// Legal: responsable y correo de soporte para /privacidad y /soporte.
+	Legal Legal
+
 	// Topups: recargas de móvil a RD (nil = apagadas).
 	Topups *Topups
 
@@ -78,6 +81,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/account/pin", s.authed(s.pinStatus))
 	mux.HandleFunc("PUT /v1/account/pin", s.limited(s.authed(s.setPin)))
 	mux.HandleFunc("DELETE /v1/account/pin", s.authed(s.clearPin))
+	mux.HandleFunc("DELETE /v1/account", s.authed(s.deleteAccount))
+	mux.HandleFunc("GET /privacidad", s.privacyPage)
+	mux.HandleFunc("GET /privacy", s.privacyPage)
+	mux.HandleFunc("GET /soporte", s.supportPage)
+	mux.HandleFunc("GET /support", s.supportPage)
 
 	mux.HandleFunc("GET /v1/communities", s.authed(s.listCommunities))
 	mux.HandleFunc("POST /v1/communities/{id}", s.authed(s.joinCommunity))

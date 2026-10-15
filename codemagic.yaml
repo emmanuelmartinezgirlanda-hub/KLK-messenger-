@@ -2,20 +2,47 @@
 # Pasos de configuración: ver INSTALAR_EN_IPHONE.md
 
 workflows:
-  # (TestFlight: ver tool/codemagic_testflight.yaml; necesita la cuenta de Apple de pago)
+  # ---------- iPhone: compila, firma y sube a TestFlight / App Store ----------
+  # Necesita: cuenta de Apple Developer y, en Codemagic → Integrations → Developer Portal,
+  # la clave de App Store Connect con el nombre "KLK App Store Connect".
+  # Se lanza a mano: Start new build → "KLK iOS → TestFlight".
+  ios-testflight:
+    name: KLK iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: KLK App Store Connect
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.klkapp.klk
+    scripts:
+      - name: Preparar carpetas nativas
+        script: bash tool/prepare_native.sh
+      - name: Tests
+        script: flutter test
+      - name: Firma de código
+        script: xcode-project use-profiles
+      - name: Compilar IPA firmada
+        script: |
+          flutter build ipa --release \
+            --build-number=$((BUILD_NUMBER + 10)) \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
 
+  # ---------- iPhone sin cuenta de pago: IPA sin firmar (ya la hace GitHub) ----------
   ios-ipa-sin-firmar:
     name: KLK iOS (IPA sin firmar)
     instance_type: mac_mini_m2
     max_build_duration: 45
-    # Se compila sola cada vez que se sube código a la rama main
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
-      cancel_previous_builds: true
     environment:
       flutter: stable
       xcode: latest

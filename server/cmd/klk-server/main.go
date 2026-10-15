@@ -15,6 +15,7 @@
 //	  KLK_TOPUP_DEMO=1   modo prueba sin ninguna cuenta (proveedor y pago de mentira)
 //	  KLK_TOPUP_CURRENCY (EUR) · KLK_TOPUP_MARGIN (0.08) · KLK_TOPUP_FEE (0.35) · KLK_TOPUP_MAX (40) · KLK_TOPUP_DAILY_MAX (5)
 //	  KLK_PUBLIC_URL     dirección pública del servidor (https://…)
+//	KLK_OWNER_NAME / KLK_SUPPORT_EMAIL  responsable y correo de soporte (/privacidad y /soporte)
 //	KLK_SMS_DAILY_MAX   SMS al día en total (500) · KLK_SMS_COUNTRY_MAX por país (200) · KLK_SMS_IP_MAX por conexión (10)
 package main
 
@@ -104,6 +105,7 @@ func main() {
 		CountryMax: envInt("KLK_SMS_COUNTRY_MAX", 200),
 		PerIPMax:   envInt("KLK_SMS_IP_MAX", 10),
 	}
+	apiServer.Legal = api.Legal{Owner: os.Getenv("KLK_OWNER_NAME"), SupportEmail: os.Getenv("KLK_SUPPORT_EMAIL")}
 	apiServer.Topups = topupConfig()
 	if apiServer.Topups != nil {
 		go func() {

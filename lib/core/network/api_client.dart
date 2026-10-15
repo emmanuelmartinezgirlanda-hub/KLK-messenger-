@@ -227,6 +227,9 @@ class ApiClient {
 
   Future<void> clearPin() => _send('DELETE', '/v1/account/pin');
 
+  /// Borra la cuenta y todo lo suyo del servidor.
+  Future<void> deleteAccount() => _send('DELETE', '/v1/account');
+
   // ---------- Recargas a RD ----------
 
   /// Compañía del número y montos disponibles con su precio.

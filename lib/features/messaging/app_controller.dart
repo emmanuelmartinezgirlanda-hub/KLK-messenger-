@@ -2157,6 +2157,11 @@ class AppController extends ChangeNotifier {
   }
 
   /// Botón de pánico: borra la base de datos y todas las claves de este móvil.
+  /// Elimina la cuenta del servidor (después hay que llamar a [panic] para borrar el móvil).
+  Future<void> deleteAccountOnServer() async {
+    if (!isDemo && _api != null) await _api!.deleteAccount();
+  }
+
   Future<void> panic() async {
     _signal = null;
     _legacyPeers.clear();

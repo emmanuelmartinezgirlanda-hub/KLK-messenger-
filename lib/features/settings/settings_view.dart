@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/brand/klk_logo.dart';
+import '../../core/config.dart';
+import '../../core/network/api_client.dart';
 import '../../core/l10n/l10n.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
@@ -187,6 +190,26 @@ class SettingsView extends ConsumerWidget {
           ),
         const Divider(),
         ListTile(
+          leading: const Icon(Icons.help_outline),
+          title: Text(tr('Ayuda')),
+          subtitle: Text(tr('Preguntas frecuentes y contacto')),
+          trailing: const Icon(Icons.open_in_new, size: 18),
+          onTap: () => _openWeb(s?.server, '/soporte'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.policy_outlined),
+          title: Text(tr('Política de privacidad')),
+          trailing: const Icon(Icons.open_in_new, size: 18),
+          onTap: () => _openWeb(s?.server, '/privacidad'),
+        ),
+        if (s != null && !s.isDemo)
+          ListTile(
+            leading: const Icon(Icons.person_remove_outlined, color: Color(0xFFFF6B7A)),
+            title: Text(tr('Eliminar mi cuenta'), style: const TextStyle(color: Color(0xFFFF6B7A))),
+            subtitle: Text(tr('Borra tu cuenta del servidor y todo lo de este móvil')),
+            onTap: () => _confirmDeleteAccount(context, ref),
+          ),
+        ListTile(
           leading: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF6B7A)),
           title: Text(tr('Botón de pánico'), style: TextStyle(color: Color(0xFFFF6B7A))),
           subtitle: Text(tr('Borra todos los chats y claves de este móvil')),
@@ -196,7 +219,7 @@ class SettingsView extends ConsumerWidget {
         const Center(child: KlkLogo(height: 120)),
         const SizedBox(height: 12),
         Center(
-          child: Text(tr('KLK messenger 0.1.0 · Tu gente, donde tú estés.'),
+          child: Text(tr('KLK messenger 1.0.0 · Tu gente, donde tú estés.'),
               style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5))),
         ),
         const SizedBox(height: 24),
@@ -217,6 +240,53 @@ class SettingsView extends ConsumerWidget {
       ),
     );
     if (ok == true) await ref.read(appProvider).panic();
+  }
+
+  static Future<void> _openWeb(String? server, String path) async {
+    final base = (server == null || server.isEmpty) ? KlkConfig.officialServer : server;
+    final uri = Uri.parse(base).replace(path: path);
+    if (!await launchUrl(uri, mode: LaunchMode.inAppBrowserView).catchError((_) => false)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication).catchError((_) => false);
+    }
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.person_remove_outlined, color: Color(0xFFCE1126), size: 36),
+        title: Text(tr('¿Eliminar tu cuenta?')),
+        content: Text(tr('Se borrará tu cuenta de KLK: tu número dejará de aparecer, tus mensajes pendientes, '
+            'comunidades y recargas se borran del servidor, y todos tus chats se borran de este móvil. '
+            'No se puede deshacer.')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFCE1126)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('Eliminar cuenta')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    final app = ref.read(appProvider);
+    try {
+      await app.deleteAccountOnServer();
+    } catch (e) {
+      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+      messenger.showSnackBar(SnackBar(
+          content: Text(e is ApiException ? e.message : tr('No se pudo eliminar la cuenta. Revisa tu conexión.'))));
+      return;
+    }
+    if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+    await app.panic();
   }
 
   Future<void> _confirmPanic(BuildContext context, WidgetRef ref) async {
