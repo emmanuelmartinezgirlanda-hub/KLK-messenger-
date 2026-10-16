@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 
+import '../../../core/features.dart';
 import '../../../core/media/media_store.dart';
 import '../../../core/translate/translator.dart';
 import '../../../core/util/phone.dart';
@@ -552,8 +553,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               item(Icons.emoji_emotions_outlined, 'Stickers', const Color(0xFFFFB627), 'sticker'),
               item(Icons.flight_takeoff, "Bajando pa' RD", const Color(0xFF002D62), 'trip'),
               item(Icons.translate, 'Traducir', const Color(0xFF00A6B4), 'translate'),
-              item(Icons.payments_outlined, 'Enviar dinero', const Color(0xFF2E7D32), 'money'),
-              item(Icons.phone_iphone, 'Recarga', const Color(0xFF7A3B2E), 'recharge'),
+              if (kMoneyFeatures) ...[
+                item(Icons.payments_outlined, 'Enviar dinero', const Color(0xFF2E7D32), 'money'),
+                item(Icons.phone_iphone, 'Recarga', const Color(0xFF7A3B2E), 'recharge'),
+              ],
             ],
           ),
         ),

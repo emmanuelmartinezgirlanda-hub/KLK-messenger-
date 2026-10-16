@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/features.dart';
 import '../../core/notify/alerts.dart';
 import '../chat/presentation/archived_screen.dart';
 import '../chat/presentation/chat_avatar.dart';
@@ -175,7 +176,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               PopupMenuItem(value: 'qr', child: Text(tr('Mi código QR'))),
               PopupMenuItem(value: 'scan', child: Text(tr('Escanear código QR'))),
               PopupMenuItem(value: 'notes', child: Text(tr('Notas para mí'))),
-              PopupMenuItem(value: 'recharge', child: Text(tr('Recargar un móvil de RD'))),
+              if (kMoneyFeatures) PopupMenuItem(value: 'recharge', child: Text(tr('Recargar un móvil de RD'))),
               PopupMenuItem(value: 'starred', child: Text(tr('Mensajes destacados'))),
               PopupMenuItem(value: 'archived', child: Text(tr('Archivados'))),
               PopupMenuItem(value: 'hidden', child: Text(tr('Chats ocultos'))),
