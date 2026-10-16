@@ -29,4 +29,10 @@ jobs:
       - name: Análisis
         run: go vet ./...
       - name: Tests
-        run: go test -count=1 ./...
+        run: |
+          set -o pipefail
+          go test -count=1 ./... 2>&1 | tee test.log
+      - name: Resumen del error (si falla)
+        if: failure()
+        run: |
+          grep -E -- "--- FAIL|_test.go:[0-9]+|panic:|FAIL\s" test.log | head -30 | while IFS= read -r l; do echo "::error::$l"; done
