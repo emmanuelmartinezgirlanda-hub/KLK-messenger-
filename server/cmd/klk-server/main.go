@@ -18,6 +18,10 @@
 //	KLK_REVIEW_PHONES / KLK_REVIEW_CODE  números de prueba para la revisión de las tiendas (sin SMS)
 //	KLK_OWNER_NAME / KLK_SUPPORT_EMAIL  responsable y correo de soporte (/privacidad y /soporte)
 //	KLK_SMS_DAILY_MAX   SMS al día en total (500) · KLK_SMS_COUNTRY_MAX por país (200) · KLK_SMS_IP_MAX por conexión (10)
+//	Notificaciones push de iPhone (apagadas si falta la clave):
+//	  APNS_KEY      contenido del archivo AuthKey_XXXXXXXXXX.p8 de Apple Developer
+//	  APNS_KEY_ID   los 10 caracteres de la clave · APNS_TEAM_ID  Team ID de la cuenta
+//	  APNS_TOPIC    bundle id (com.klkapp.klk) · APNS_SANDBOX=1 solo para apps instaladas desde Xcode
 package main
 
 import (
@@ -34,6 +38,7 @@ import (
 
 	"github.com/klk-app/klk-server/internal/api"
 	"github.com/klk-app/klk-server/internal/auth"
+	"github.com/klk-app/klk-server/internal/push"
 	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
 	"github.com/klk-app/klk-server/internal/topup"
@@ -74,7 +79,7 @@ func main() {
 		slog.Warn("DATABASE_URL vacía: usando almacén en memoria (los datos se pierden al reiniciar)")
 	}
 
-	hub := relay.NewHub(st, relay.NoopPusher{})
+	hub := relay.NewHub(st, pusher(st))
 	go hub.RunScheduler(ctx, 2*time.Second)
 	go purgeAttachments(ctx, st)
 
@@ -260,4 +265,30 @@ func topupConfig() *api.Topups {
 		return t
 	}
 	return nil
+}
+
+// pusher enciende las notificaciones push de iPhone si están las claves de Apple.
+func pusher(st store.Store) relay.Pusher {
+	key := os.Getenv("APNS_KEY")
+	if key == "" {
+		slog.Warn("sin APNS_KEY: no hay notificaciones push con la app cerrada")
+		return relay.NoopPusher{}
+	}
+	host := push.ProductionHost
+	if os.Getenv("APNS_SANDBOX") == "1" {
+		host = push.SandboxHost
+	}
+	p, err := push.New(push.Config{
+		KeyPEM: key,
+		KeyID:  strings.TrimSpace(os.Getenv("APNS_KEY_ID")),
+		TeamID: strings.TrimSpace(os.Getenv("APNS_TEAM_ID")),
+		Topic:  envOr("APNS_TOPIC", "com.klkapp.klk"),
+		Host:   host,
+	}, st)
+	if err != nil {
+		slog.Error("notificaciones push apagadas", "err", err)
+		return relay.NoopPusher{}
+	}
+	slog.Info("notificaciones push encendidas", "sandbox", host == push.SandboxHost)
+	return p
 }

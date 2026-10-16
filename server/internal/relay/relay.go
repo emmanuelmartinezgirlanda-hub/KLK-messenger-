@@ -108,7 +108,10 @@ type inFrame struct {
 	Messages  []wireMsg  `json:"messages,omitempty"`
 	DeliverAt *time.Time `json:"deliverAt,omitempty"`
 	Ephemeral bool       `json:"ephemeral,omitempty"`
-	ID        string     `json:"id,omitempty"`
+	// Push: el remitente pide avisar con una notificación si el destinatario
+	// está desconectado (mensajes de verdad; no confirmaciones de leído, etc.).
+	Push bool   `json:"push,omitempty"`
+	ID   string `json:"id,omitempty"`
 }
 
 type msgFrame struct {
@@ -305,7 +308,7 @@ func (h *Hub) handleSend(ctx context.Context, from store.Device, f inFrame) []by
 	}
 	if !scheduled {
 		for _, e := range envs {
-			if !h.deliver(e, false) {
+			if !h.deliver(e, false) && f.Push {
 				h.pusher.Notify(ctx, e.ToAccount, e.ToDevice)
 			}
 		}

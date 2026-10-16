@@ -52,7 +52,10 @@ type env struct {
 }
 
 // newEnv usa el almacén en memoria, o Postgres si KLK_TEST_DATABASE_URL está definida.
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return newEnvWith(t, relay.NoopPusher{}) }
+
+// newEnvWith es newEnv con un emisor de notificaciones push concreto.
+func newEnvWith(t *testing.T, pusher relay.Pusher) *env {
 	var st store.Store = store.NewMemory()
 	if url := os.Getenv("KLK_TEST_DATABASE_URL"); url != "" {
 		pg, err := store.NewPostgres(context.Background(), url)
@@ -69,7 +72,7 @@ func newEnv(t *testing.T) *env {
 		st = pg
 	}
 	sms := &fakeSMS{codes: map[string]string{}}
-	hub := relay.NewHub(st, relay.NoopPusher{})
+	hub := relay.NewHub(st, pusher)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go hub.RunScheduler(ctx, 50*time.Millisecond)

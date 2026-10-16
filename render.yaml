@@ -53,6 +53,16 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # Notificaciones push de iPhone (avisos con la app cerrada).
+      # APNS_KEY = contenido del archivo AuthKey_XXXXXXXXXX.p8 de Apple Developer.
+      - key: APNS_KEY
+        sync: false
+      - key: APNS_KEY_ID
+        sync: false
+      - key: APNS_TEAM_ID
+        sync: false
+      - key: APNS_TOPIC
+        value: com.klkapp.klk
 
 databases:
   - name: klk-db

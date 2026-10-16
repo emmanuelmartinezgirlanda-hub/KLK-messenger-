@@ -152,6 +152,15 @@ type Store interface {
 	// denuncias, comunidades, recargas…). Lo pide la propia persona desde la app.
 	DeleteAccount(ctx context.Context, accountID string) error
 
+	// ---- Notificaciones push (APNs) ----
+	// SetPushToken guarda el token de notificaciones del dispositivo ("" = quitarlo).
+	// Un mismo token solo puede pertenecer a un dispositivo: si otro lo tenía, se le quita.
+	SetPushToken(ctx context.Context, accountID string, deviceID int, token string) error
+	// PushToken devuelve el token del dispositivo ("" si no tiene).
+	PushToken(ctx context.Context, accountID string, deviceID int) (string, error)
+	// DropPushToken borra un token que Apple dice que ya no vale.
+	DropPushToken(ctx context.Context, token string) error
+
 	// ---- Recargas de móvil ----
 	CreateTopup(ctx context.Context, t Topup) error
 	GetTopup(ctx context.Context, id string) (Topup, error)

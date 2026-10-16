@@ -1,0 +1,29 @@
+# Comprobación del servidor (Go): análisis y tests en cada cambio de server/.
+name: Comprobar servidor
+
+on:
+  push:
+    paths:
+      - "server/**"
+      - ".github/workflows/servidor.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Formato
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: Análisis
+        run: go vet ./...
+      - name: Tests
+        run: go test -count=1 ./...
