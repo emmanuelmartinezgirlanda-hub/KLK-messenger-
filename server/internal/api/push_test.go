@@ -77,6 +77,7 @@ func TestPushOnlyForRealMessagesToOfflineDevices(t *testing.T) {
 	ana := e.register("+18095550011", 30)
 	luis := e.register("+18095550012", 40)
 	a := e.connect(ana)
+	a.expect("synced")
 
 	// Luis desconectado + mensaje con push → aviso.
 	a.send(sendFrame("r1", luis.accountID, "hola", map[string]any{"push": true}))
