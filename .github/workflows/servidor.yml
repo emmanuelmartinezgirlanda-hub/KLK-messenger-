@@ -23,6 +23,9 @@ jobs:
           cache-dependency-path: server/go.sum
       - name: Formato
         run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      # Igual que el Dockerfile de Render: completa go.sum antes de compilar.
+      - name: Dependencias
+        run: go mod tidy
       - name: Análisis
         run: go vet ./...
       - name: Tests
