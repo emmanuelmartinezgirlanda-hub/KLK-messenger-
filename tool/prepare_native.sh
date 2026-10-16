@@ -81,6 +81,29 @@ if [ -f "$APPDELEGATE" ] && ! grep -q "UNUserNotificationCenter" "$APPDELEGATE";
   perl -0pi -e 's/(\n(\s*)GeneratedPluginRegistrant\.register\([^\n]*\)\n)/$1$2UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate\n/' "$APPDELEGATE"
 fi
 
+# iOS: notificaciones push (avisos con la app cerrada).
+# Necesita "Push Notifications" activado en el identificador com.klkapp.klk
+# de Apple Developer; si no, la firma falla al compilar.
+ENTITLEMENTS=ios/Runner/Runner.entitlements
+if [ -d ios/Runner ]; then
+  cat > "$ENTITLEMENTS" <<'PLISTEOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>aps-environment</key>
+	<string>production</string>
+</dict>
+</plist>
+PLISTEOF
+  PBX=ios/Runner.xcodeproj/project.pbxproj
+  if ! grep -q "CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements" "$PBX"; then
+    # Solo en la app (Runner), no en RunnerTests: van junto a su bundle id.
+    perl -0pi -e "s/(\n(\s*)PRODUCT_BUNDLE_IDENTIFIER = \Q$BUNDLE_ID\E;)/\n\$2CODE_SIGN_ENTITLEMENTS = Runner\/Runner.entitlements;\$1/g" "$PBX"
+  fi
+  echo "Notificaciones push: $(grep -c 'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements' "$PBX") configuraciones con entitlements"
+fi
+
 # Android: las notificaciones locales necesitan "desugaring" de Java
 for g in android/app/build.gradle.kts; do
   if [ -f "$g" ] && ! grep -q "CoreLibraryDesugaring" "$g"; then

@@ -460,6 +460,7 @@ class AppController extends ChangeNotifier {
       unawaited(_resumeDownloads());
       unawaited(_loadAnnouncements());
       unawaited(_ensureSignalKeys());
+      unawaited(_registerPush());
     } catch (e) {
       debugPrint('WebSocket: $e');
       // ¿No conecta porque el dueño bloqueó la cuenta? (como mucho 1 vez por minuto)
@@ -469,6 +470,36 @@ class AppController extends ChangeNotifier {
       }
       _onDisconnect();
     }
+  }
+
+  bool _pushRegistered = false;
+
+  /// Registra el iPhone para las notificaciones push (avisos con la app cerrada).
+  /// Una vez por sesión. Si la persona apagó las notificaciones en Ajustes de
+  /// KLK, se borra el token del servidor para que no le lleguen avisos.
+  Future<void> _registerPush() async {
+    final api = _api;
+    if (_pushRegistered || api == null || isDemo || !KlkNative.supported) return;
+    _pushRegistered = true;
+    try {
+      if (!Alerts.instance.settings.value.show) {
+        await api.clearPushToken();
+        return;
+      }
+      final token = await KlkNative.pushToken();
+      if (token == null || token.isEmpty) return;
+      await api.setPushToken(token);
+    } catch (e) {
+      // Servidor antiguo o sin conexión: se reintenta en la próxima sesión.
+      _pushRegistered = false;
+      debugPrint('push: $e');
+    }
+  }
+
+  /// Vuelve a registrar el push (p. ej. al activar o desactivar las notificaciones).
+  Future<void> refreshPush() async {
+    _pushRegistered = false;
+    await _registerPush();
   }
 
   void _onDisconnect() {
@@ -1002,6 +1033,9 @@ class AppController extends ChangeNotifier {
       ],
       if (deliverAt != null) 'deliverAt': deliverAt.toUtc().toIso8601String(),
       if (ephemeral) 'ephemeral': true,
+      // Solo los mensajes de verdad (texto, fotos, audios…) avisan con la app
+      // cerrada; las confirmaciones de leído, perfiles, etc. no.
+      if (!ephemeral && p.kind == 'text') 'push': true,
     });
     if (!ephemeral) _outbox[ref] = frame;
     _ws?.sink.add(frame);
@@ -2194,6 +2228,7 @@ class AppController extends ChangeNotifier {
     announcements = [];
     _dismissedNews = {};
     banned = false;
+    _pushRegistered = false;
     phase = AppPhase.onboarding;
     notifyListeners();
   }

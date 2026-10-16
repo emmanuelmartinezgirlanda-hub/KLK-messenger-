@@ -64,6 +64,21 @@ class KlkNative {
     }
   }
 
+  /// Pide permiso de notificaciones y devuelve el token de APNs del iPhone
+  /// (hexadecimal), o null si no hay permiso o no se pudo obtener.
+  static Future<String?> pushToken() async {
+    if (!supported) return null;
+    try {
+      return await _channel
+          .invokeMethod<String>('pushToken')
+          .timeout(const Duration(seconds: 20), onTimeout: () => null);
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   /// Se emite cada vez que el usuario hace una captura de pantalla (iPhone).
   static Stream<void> get screenshots =>
       supported ? _shots.receiveBroadcastStream().map((_) {}) : const Stream.empty();

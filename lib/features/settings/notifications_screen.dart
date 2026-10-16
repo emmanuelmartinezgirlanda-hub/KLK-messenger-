@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/notify/alerts.dart';
+import '../messaging/app_controller.dart';
 import '../../core/l10n/l10n.dart';
 
 /// Ajustes → Notificaciones: sonido, avisos, vista previa y vibración.
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final alerts = Alerts.instance;
     final muted = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
     return Scaffold(
@@ -28,7 +30,11 @@ class NotificationsScreen extends StatelessWidget {
             title: Text(tr('Avisos')),
             subtitle: Text(tr('Notificación cuando KLK está en segundo plano')),
             value: s.show,
-            onChanged: (v) => alerts.update(s.copyWith(show: v)),
+            onChanged: (v) async {
+              await alerts.update(s.copyWith(show: v));
+              // Con la app cerrada, los avisos los manda el servidor: avisarle también.
+              await ref.read(appProvider).refreshPush();
+            },
           ),
           SwitchListTile(
             secondary: const Icon(Icons.visibility_outlined),

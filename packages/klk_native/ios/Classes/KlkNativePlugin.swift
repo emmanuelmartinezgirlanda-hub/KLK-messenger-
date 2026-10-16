@@ -3,6 +3,7 @@ import CoreImage
 import Flutter
 import Speech
 import UIKit
+import UserNotifications
 import Vision
 
 /// Funciones nativas de KLK:
@@ -10,8 +11,12 @@ import Vision
 ///   (requiresOnDeviceRecognition). Si el iPhone no puede hacerlo en el propio
 ///   móvil, devuelve un error en vez de mandar el audio a Apple.
 /// - "klk/screenshots": avisa cuando el usuario hace una captura de pantalla.
+/// - "pushToken": pide permiso de notificaciones y devuelve el token de APNs
+///   (para que el servidor avise con la app cerrada).
 public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private var sink: FlutterEventSink?
+  // Peticiones de token esperando a que iOS conteste.
+  private var pushResults: [FlutterResult] = []
   private var observer: NSObjectProtocol?
   // Se guardan para que no se liberen mientras transcriben.
   private var recognizer: SFSpeechRecognizer?
@@ -21,6 +26,8 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     let instance = KlkNativePlugin()
     let channel = FlutterMethodChannel(name: "klk/native", binaryMessenger: registrar.messenger())
     registrar.addMethodCallDelegate(instance, channel: channel)
+    // Para recibir el token de notificaciones (didRegisterForRemoteNotifications…).
+    registrar.addApplicationDelegate(instance)
     let events = FlutterEventChannel(name: "klk/screenshots", binaryMessenger: registrar.messenger())
     events.setStreamHandler(instance)
   }
@@ -45,6 +52,8 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         return
       }
       compressVideo(path: path, result: result)
+    case "pushToken":
+      requestPushToken(result: result)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -170,6 +179,40 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       } catch {
         self.fail(result, "failed", "No se pudo quitar el fondo: \(error.localizedDescription)")
       }
+    }
+  }
+
+  // ---------- Notificaciones push ----------
+
+  /// Pide permiso (si aún no se pidió) y registra el iPhone en APNs.
+  /// Devuelve el token en hexadecimal, o nil si la persona no da permiso.
+  private func requestPushToken(result: @escaping FlutterResult) {
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+      DispatchQueue.main.async {
+        guard granted else {
+          result(nil)
+          return
+        }
+        self.pushResults.append(result)
+        UIApplication.shared.registerForRemoteNotifications()
+      }
+    }
+  }
+
+  public func application(_ application: UIApplication,
+                          didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+    let waiting = pushResults
+    pushResults.removeAll()
+    waiting.forEach { $0(token) }
+  }
+
+  public func application(_ application: UIApplication,
+                          didFailToRegisterForRemoteNotificationsWithError error: Error) {
+    let waiting = pushResults
+    pushResults.removeAll()
+    waiting.forEach {
+      $0(FlutterError(code: "push_failed", message: error.localizedDescription, details: nil))
     }
   }
 

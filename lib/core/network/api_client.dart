@@ -230,6 +230,12 @@ class ApiClient {
   /// Borra la cuenta y todo lo suyo del servidor.
   Future<void> deleteAccount() => _send('DELETE', '/v1/account');
 
+  /// Guarda el token de notificaciones push de este iPhone (APNs).
+  Future<void> setPushToken(String token) => _send('PUT', '/v1/push-token', {'token': token});
+
+  /// Deja de recibir notificaciones push en este iPhone.
+  Future<void> clearPushToken() => _send('DELETE', '/v1/push-token');
+
   // ---------- Recargas a RD ----------
 
   /// Compañía del número y montos disponibles con su precio.
