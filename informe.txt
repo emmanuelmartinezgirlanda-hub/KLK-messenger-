@@ -1,0 +1,40 @@
+01.0 [0.88] que lo que me señalé, la app de mensajes hecha para los dominicanos.
+01.1 [0.88] que lo que me sende la app de mensajes hecha para los dominicanos.
+01.2 [0.88] que lo que me sender, la app de mensajes hecha para los dominicanos.
+01.3 [0.88] que lo que me señalera la app de mensajes hecha para los dominicanos.
+==> 01 (0.88) fin=4.04
+02.0 [1.00] Regístrate con tu número. Te llega un código por SMS y listo.
+02.1 [0.92] ¡Pregístrate con tu número! Te llega un código por SMS y listo.
+02.2 [0.77] Regístrate con tu número. Te llego a un código por ese MS y listo.
+02.3 [0.88] Regístrate con tu número. Te llega un código por ese MS y listo.
+==> 02 (1.00) fin=3.96
+03.0 [0.93] Escríbete a tu familia y amigos, chats, grupos y comunidades en todo el mundo.
+03.1 [0.93] Escríbela a tu familia y amigos, chats, grupos y comunidades en todo el mundo.
+03.2 [0.93] Escríbela a tu familia y amigos, chats, grupos y comunidades en todo el mundo.
+03.3 [0.93] Escríbela a tu familia y amigos, chats, grupos y comunidades en todo el mundo.
+==> 03 (0.93) fin=4.44
+04.0 [1.00] envía audios, fotos y hasta tus propios stickers.
+04.1 [1.00] envía audios, fotos y hasta tus propios stickers.
+04.2 [1.00] envía audios, fotos y hasta tus propios stickers.
+04.3 [0.88] envía audios, fotos y hasta tus propios tíqueps.
+==> 04 (1.00) fin=None
+05.0 [0.93] y es privada de verdad, solo tú y tu gente puede leer tus mensajes.
+05.1 [0.93] y es privada de verdad, sólo tú y tu gente pide leer tus mensajes.
+05.2 [1.00] y es privada de verdad, solo tú y tu gente pueden leer tus mensajes.
+05.3 [1.00] y es privada de verdad, solo tú y tu gente pueden leer tus mensajes.
+==> 05 (1.00) fin=4.52
+06.0 [1.00] y muy pronto, envía dinero y recargas a República Dominicana desde el mismo chat.
+06.1 [1.00] y muy pronto envía dinero y recargas a República Dominicana desde el mismo chat.
+06.2 [0.97] y muy pronto envía dinero y recargas a la República Dominicana desde el mismo chat.
+06.3 [0.90] y muy pronto envía dinero y recalga a la República Dominicana desde el mismo chat.
+==> 06 (1.00) fin=5.08
+07.0 [1.00] comparte tu código QR y te añaden en un segundo.
+07.1 [0.90] Comparte tu código juez y te añaden en un segundo.
+07.2 [1.00] Comparte tu código QR y te añaden en un segundo.
+07.3 [1.00] comparte tu código QR y te añaden en un segundo.
+==> 07 (1.00) fin=3.22
+08.0 [0.77] que lo que me sendiera, descargala ya.
+08.1 [0.50] que lo que me señier descargalaya.
+08.2 [0.67] que lo que me sendiera, descargala ya.
+08.3 [0.57] que lo que me sendier descarga la ya.
+==> 08 (0.77) fin=2.16
