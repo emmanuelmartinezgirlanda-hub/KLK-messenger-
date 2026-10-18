@@ -43,6 +43,15 @@ services:
         value: "+12025550147,+12025550148"
       - key: KLK_REVIEW_CODE
         sync: false
+      # Adjuntos (fotos, vídeos, audios cifrados) en Cloudflare R2. Se escriben en Render.
+      - key: KLK_S3_ENDPOINT
+        sync: false
+      - key: KLK_S3_BUCKET
+        value: klk-adjuntos
+      - key: KLK_S3_ACCESS_KEY
+        sync: false
+      - key: KLK_S3_SECRET_KEY
+        sync: false
       - key: KLK_TOPUP_DEMO
         value: "0"
       - key: RELOADLY_CLIENT_ID

@@ -16,6 +16,7 @@
 //	  KLK_TOPUP_CURRENCY (EUR) · KLK_TOPUP_MARGIN (0.08) · KLK_TOPUP_FEE (0.35) · KLK_TOPUP_MAX (40) · KLK_TOPUP_DAILY_MAX (5)
 //	  KLK_PUBLIC_URL     dirección pública del servidor (https://…)
 //	KLK_REVIEW_PHONES / KLK_REVIEW_CODE  números de prueba para la revisión de las tiendas (sin SMS)
+//	KLK_S3_ENDPOINT / KLK_S3_BUCKET / KLK_S3_ACCESS_KEY / KLK_S3_SECRET_KEY  adjuntos en Cloudflare R2
 //	KLK_OWNER_NAME / KLK_SUPPORT_EMAIL  responsable y correo de soporte (/privacidad y /soporte)
 //	KLK_SMS_DAILY_MAX   SMS al día en total (500) · KLK_SMS_COUNTRY_MAX por país (200) · KLK_SMS_IP_MAX por conexión (10)
 package main
@@ -34,6 +35,7 @@ import (
 
 	"github.com/klk-app/klk-server/internal/api"
 	"github.com/klk-app/klk-server/internal/auth"
+	"github.com/klk-app/klk-server/internal/blob"
 	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
 	"github.com/klk-app/klk-server/internal/topup"
@@ -72,6 +74,18 @@ func main() {
 	} else {
 		st = store.NewMemory()
 		slog.Warn("DATABASE_URL vacía: usando almacén en memoria (los datos se pierden al reiniciar)")
+	}
+
+	// Adjuntos en Cloudflare R2 (o cualquier S3) si están las claves.
+	if ep := os.Getenv("KLK_S3_ENDPOINT"); ep != "" && os.Getenv("KLK_S3_ACCESS_KEY") != "" {
+		st = &blob.Store{Store: st, S3: &blob.S3{
+			Endpoint:  ep,
+			Bucket:    envOr("KLK_S3_BUCKET", "klk-adjuntos"),
+			AccessKey: os.Getenv("KLK_S3_ACCESS_KEY"),
+			SecretKey: os.Getenv("KLK_S3_SECRET_KEY"),
+			Region:    os.Getenv("KLK_S3_REGION"),
+		}}
+		slog.Info("adjuntos en almacenamiento S3/R2")
 	}
 
 	hub := relay.NewHub(st, relay.NoopPusher{})
