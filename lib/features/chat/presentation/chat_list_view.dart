@@ -455,10 +455,19 @@ class _ChatTile extends ConsumerWidget {
                 await editContactName(context, ref.read(appProvider), chat);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.cleaning_services_outlined, color: Color(0xFFCE1126)),
+              title: Text(tr('Vaciar chat'), style: const TextStyle(color: Color(0xFFCE1126))),
+              subtitle: Text(tr('Borra los mensajes, el contacto se queda')),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await clearChatFlow(context, ref.read(appProvider), chat);
+              },
+            ),
             if (!chat.isNotes)
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Color(0xFFCE1126)),
-              title: Text(chat.isGroup ? tr('Eliminar grupo') : 'Eliminar contacto',
+              title: Text(chat.isGroup ? tr('Eliminar grupo') : tr('Eliminar chat'),
                   style: const TextStyle(color: Color(0xFFCE1126))),
               onTap: () async {
                 Navigator.pop(ctx);

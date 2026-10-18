@@ -45,12 +45,37 @@ Future<void> editContactName(BuildContext context, AppController app, Chat chat)
   }
 }
 
+/// Vaciar un chat: borra todos los mensajes pero deja el chat y el contacto.
+Future<bool> clearChatFlow(BuildContext context, AppController app, Chat chat) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(chat.isNotes ? '¿Vaciar tus notas?' : '¿Vaciar el chat con ${chat.title}?'),
+      content: Text(tr('Se borrarán todos los mensajes de este chat en este móvil. El contacto no se borra.')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFCE1126)),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(tr('Vaciar')),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return false;
+  await app.clearChat(chat.id);
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Chat vaciado'))));
+  }
+  return true;
+}
+
 /// Eliminar a un amigo (o un grupo de la lista). Devuelve true si se borró.
 Future<bool> deleteContactFlow(BuildContext context, AppController app, Chat chat) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text(chat.isGroup ? '¿Eliminar el grupo ${chat.title}?' : '¿Eliminar a ${chat.title}?'),
+      title: Text(chat.isGroup ? '¿Eliminar el grupo ${chat.title}?' : '¿Eliminar el chat con ${chat.title}?'),
       content: Text(chat.isGroup
           ? 'Se borrarán el chat y todos sus mensajes de este móvil.'
           : 'Se borrarán el contacto, el chat y todos sus mensajes de este móvil. '

@@ -1655,6 +1655,14 @@ class AppController extends ChangeNotifier {
     await _reloadChats();
   }
 
+  /// Vacía un chat: se borran todos los mensajes de este móvil, el contacto se queda.
+  Future<void> clearChat(String chatId) async {
+    _messages.remove(chatId);
+    await _db!.clearChat(chatId);
+    await _reloadChats();
+    await _refresh();
+  }
+
   Future<void> deleteMessage(String id) async {
     await _db!.deleteMessage(id);
     await _refresh();

@@ -978,8 +978,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _menuItem('block', Icons.block_rounded, blocked ? tr('Desbloquear') : tr('Bloquear'), danger: true),
         _menuItem('report', Icons.thumb_down_outlined, tr('Denunciar'), danger: true),
       ],
-      if (chat != null)
-        _menuItem('delete', Icons.delete_outline_rounded, chat.isGroup ? tr('Eliminar grupo') : tr('Eliminar contacto'),
+      if (chat != null) _menuItem('clear', Icons.cleaning_services_outlined, tr('Vaciar chat'), danger: true),
+      if (chat != null && !chat.isNotes)
+        _menuItem('delete', Icons.delete_outline_rounded, chat.isGroup ? tr('Eliminar grupo') : tr('Eliminar chat'),
             danger: true),
     ];
   }
@@ -1032,6 +1033,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         await _pickWallpaper();
       case 'rename':
         await editContactName(context, _app, chat);
+      case 'clear':
+        await clearChatFlow(context, _app, chat);
       case 'delete':
         {
           final nav = Navigator.of(context);

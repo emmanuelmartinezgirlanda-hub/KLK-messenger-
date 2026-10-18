@@ -336,6 +336,12 @@ class LocalDb {
 
   Future<void> deleteChat(String chatId) => _db.delete('chats', where: 'id = ?', whereArgs: [chatId]);
 
+  /// Vacía el chat: borra todos sus mensajes pero el chat (y el contacto) se quedan.
+  Future<void> clearChat(String chatId) async {
+    await _db.delete('messages', where: 'chat_id = ?', whereArgs: [chatId]);
+    await _db.update('chats', {'last_text': '', 'unread': 0}, where: 'id = ?', whereArgs: [chatId]);
+  }
+
   /// Borra el chat y todos sus mensajes (al eliminar un contacto).
   Future<void> deleteChatWithMessages(String chatId) async {
     await _db.delete('messages', where: 'chat_id = ?', whereArgs: [chatId]);
