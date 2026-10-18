@@ -48,6 +48,8 @@ jobs:
           printf '\nhooks:\n  user_defines:\n    sqlite3:\n      source: sqlcipher\n' >> pubspec.yaml
           flutter pub get
           dart run flutter_launcher_icons -f tool/windows/flutter_launcher_icons-windows.yaml
+          # Icono nítido: logo sin fondo blanco y con todos los tamaños que usa Windows (16…256)
+          cp tool/windows/app_icon.ico windows/runner/resources/app_icon.ico
           # Título de la ventana y datos del .exe
           sed -i 's/L"klk"/L"KLK messenger"/' windows/runner/main.cpp
           # Visual Studio 2026 rechaza <experimental/coroutine>, que aún usan algunos plugins
