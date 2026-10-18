@@ -6,7 +6,8 @@
 //	  {"t":"send","ref":"<id cliente>","to":"<accountId>",
 //	   "messages":[{"device":1,"type":3,"content":"<base64>"}],
 //	   "deliverAt":"2026-12-24T23:59:00Z",   // opcional: mensaje programado
-//	   "ephemeral":true}                      // opcional: escribiendo/grabando, no se guarda
+//	   "ephemeral":true,                      // opcional: escribiendo/grabando, no se guarda
+//	   "push":"msg"}                          // opcional: merece aviso push si la app está cerrada
 //	  {"t":"ack","id":"<envelopeId>"}
 //
 //	servidor → cliente
@@ -43,6 +44,9 @@ const (
 	pendingBatch      = 1000
 	sendBuffer        = 256
 	writeTimeout      = 10 * time.Second
+	// ackWait: si el móvil no confirma un mensaje en este tiempo (la app está
+	// en segundo plano y iOS la ha dormido), se le manda el aviso push.
+	ackWait = 5 * time.Second
 )
 
 // Pusher avisa a un dispositivo desconectado de que tiene mensajes (APNs/FCM).
@@ -67,10 +71,52 @@ type Hub struct {
 
 	mu    sync.RWMutex
 	conns map[devKey]*client
+
+	// Avisos push en espera de que el móvil confirme el mensaje (id -> temporizador).
+	pmu     sync.Mutex
+	waiting map[string]*time.Timer
+	ackWait time.Duration
 }
 
 func NewHub(s store.Store, p Pusher) *Hub {
-	return &Hub{store: s, pusher: p, now: time.Now, conns: map[devKey]*client{}}
+	return &Hub{store: s, pusher: p, now: time.Now, conns: map[devKey]*client{},
+		waiting: map[string]*time.Timer{}, ackWait: ackWait}
+}
+
+// SetAckWait cambia la espera antes del aviso push (para los tests).
+func (h *Hub) SetAckWait(d time.Duration) { h.ackWait = d }
+
+// notify avisa con push: al momento si el móvil no está conectado; si lo
+// está, solo si no confirma el mensaje en unos segundos (app dormida).
+func (h *Hub) notify(e store.Envelope, delivered bool) {
+	if !delivered {
+		h.pusher.Notify(context.Background(), e.ToAccount, e.ToDevice)
+		return
+	}
+	h.pmu.Lock()
+	defer h.pmu.Unlock()
+	if _, ok := h.waiting[e.ID]; ok {
+		return
+	}
+	h.waiting[e.ID] = time.AfterFunc(h.ackWait, func() {
+		h.pmu.Lock()
+		_, still := h.waiting[e.ID]
+		delete(h.waiting, e.ID)
+		h.pmu.Unlock()
+		if still {
+			h.pusher.Notify(context.Background(), e.ToAccount, e.ToDevice)
+		}
+	})
+}
+
+// acked: el móvil confirmó el mensaje, ya no hace falta avisar.
+func (h *Hub) acked(id string) {
+	h.pmu.Lock()
+	if t, ok := h.waiting[id]; ok {
+		t.Stop()
+		delete(h.waiting, id)
+	}
+	h.pmu.Unlock()
 }
 
 type client struct {
@@ -108,6 +154,7 @@ type inFrame struct {
 	Messages  []wireMsg  `json:"messages,omitempty"`
 	DeliverAt *time.Time `json:"deliverAt,omitempty"`
 	Ephemeral bool       `json:"ephemeral,omitempty"`
+	Push      string     `json:"push,omitempty"`
 	ID        string     `json:"id,omitempty"`
 }
 
@@ -207,6 +254,7 @@ func (h *Hub) Serve(ctx context.Context, conn *websocket.Conn, dev store.Device)
 		case "send":
 			c.enqueue(h.handleSend(ctx, dev, f))
 		case "ack":
+			h.acked(f.ID)
 			if err := h.store.Ack(ctx, dev.AccountID, dev.DeviceID, f.ID); err != nil && !errors.Is(err, store.ErrNotFound) {
 				slog.Error("ack", "err", err)
 			}
@@ -305,8 +353,11 @@ func (h *Hub) handleSend(ctx context.Context, from store.Device, f inFrame) []by
 	}
 	if !scheduled {
 		for _, e := range envs {
-			if !h.deliver(e, false) {
-				h.pusher.Notify(ctx, e.ToAccount, e.ToDevice)
+			delivered := h.deliver(e, false)
+			// Solo los mensajes de verdad (no confirmaciones de lectura, etc.)
+			// merecen aviso; lo marca el remitente porque el servidor no puede leerlos.
+			if f.Push != "" {
+				h.notify(e, delivered)
 			}
 		}
 	}
@@ -344,9 +395,8 @@ func (h *Hub) RunScheduler(ctx context.Context, every time.Duration) {
 				continue
 			}
 			for _, e := range due {
-				if !h.deliver(e, false) {
-					h.pusher.Notify(ctx, e.ToAccount, e.ToDevice)
-				}
+				// Los programados siempre son mensajes escritos por alguien.
+				h.notify(e, h.deliver(e, false))
 			}
 			last = now
 		}

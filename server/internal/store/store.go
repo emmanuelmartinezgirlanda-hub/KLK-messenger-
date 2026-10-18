@@ -80,6 +80,8 @@ type RegisterParams struct {
 }
 
 type Store interface {
+	PushStore
+
 	// Registra (o re-registra) el dispositivo principal de un número.
 	// Re-registrar sustituye el dispositivo anterior y borra sus claves y cola.
 	RegisterPrimary(ctx context.Context, p RegisterParams) (Device, error)

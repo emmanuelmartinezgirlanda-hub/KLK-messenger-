@@ -36,6 +36,7 @@ import (
 	"github.com/klk-app/klk-server/internal/api"
 	"github.com/klk-app/klk-server/internal/auth"
 	"github.com/klk-app/klk-server/internal/blob"
+	"github.com/klk-app/klk-server/internal/push"
 	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
 	"github.com/klk-app/klk-server/internal/topup"
@@ -88,7 +89,23 @@ func main() {
 		slog.Info("adjuntos en almacenamiento S3/R2")
 	}
 
-	hub := relay.NewHub(st, relay.NoopPusher{})
+	var pusher relay.Pusher = relay.NoopPusher{}
+	if key := os.Getenv("KLK_APNS_KEY"); key != "" {
+		a, err := push.NewAPNs(push.Config{
+			KeyPEM:  key,
+			KeyID:   strings.TrimSpace(os.Getenv("KLK_APNS_KEY_ID")),
+			TeamID:  strings.TrimSpace(os.Getenv("KLK_APNS_TEAM_ID")),
+			Topic:   envOr("KLK_APNS_TOPIC", "com.klkapp.klk"),
+			Sandbox: os.Getenv("KLK_APNS_SANDBOX") == "1",
+		}, st)
+		if err != nil {
+			slog.Error("avisos push de iPhone desactivados", "err", err)
+		} else {
+			pusher = a
+			slog.Info("avisos push de iPhone (APNs) activados")
+		}
+	}
+	hub := relay.NewHub(st, pusher)
 	go hub.RunScheduler(ctx, 2*time.Second)
 	go purgeAttachments(ctx, st)
 

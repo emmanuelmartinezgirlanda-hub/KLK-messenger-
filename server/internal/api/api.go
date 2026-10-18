@@ -82,6 +82,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("PUT /v1/account/pin", s.limited(s.authed(s.setPin)))
 	mux.HandleFunc("DELETE /v1/account/pin", s.authed(s.clearPin))
 	mux.HandleFunc("DELETE /v1/account", s.authed(s.deleteAccount))
+	mux.HandleFunc("PUT /v1/push-token", s.limited(s.authed(s.setPushToken)))
+	mux.HandleFunc("DELETE /v1/push-token", s.authed(s.deletePushToken))
 	mux.HandleFunc("GET /privacidad", s.privacyPage)
 	mux.HandleFunc("GET /privacy", s.privacyPage)
 	mux.HandleFunc("GET /soporte", s.supportPage)
