@@ -99,13 +99,30 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
   // ---------- Comprimir vídeo (estados largos) ----------
 
-  /// Reduce el vídeo para que quepa en el servidor: hasta 2 minutos en 960×540;
-  /// más largo, en calidad media (unos 5 MB por minuto). Devuelve la ruta del nuevo archivo.
+  /// Reduce el vídeo para que quepa en el servidor (máx. 64 MB). Prueba de mejor
+  /// a peor calidad y se queda con la primera que, según el iPhone, pesará menos
+  /// de ~45 MB (con margen). Así un vídeo corto sale nítido y uno largo sale más ligero.
   private func compressVideo(path: String, result: @escaping FlutterResult) {
     let asset = AVURLAsset(url: URL(fileURLWithPath: path))
-    let seconds = CMTimeGetSeconds(asset.duration)
-    let preset = (seconds.isFinite && seconds > 120) ? AVAssetExportPresetMediumQuality : AVAssetExportPreset960x540
-    guard let export = AVAssetExportSession(asset: asset, presetName: preset) else {
+    let limit: Int64 = 45 * 1024 * 1024
+    let candidates = [
+      AVAssetExportPreset1280x720,
+      AVAssetExportPreset960x540,
+      AVAssetExportPreset640x480,
+      AVAssetExportPresetMediumQuality,
+      AVAssetExportPresetLowQuality,
+    ]
+    let compatible = Set(AVAssetExportSession.exportPresets(compatibleWith: asset))
+    var chosen: AVAssetExportSession?
+    for preset in candidates where compatible.contains(preset) {
+      guard let export = AVAssetExportSession(asset: asset, presetName: preset) else { continue }
+      export.outputFileType = .mp4
+      export.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
+      let estimate = export.estimatedOutputFileLength
+      chosen = export
+      if estimate > 0 && estimate <= limit { break }
+    }
+    guard let export = chosen else {
       fail(result, "no_export", "No se pudo preparar el vídeo")
       return
     }
