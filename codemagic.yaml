@@ -5,19 +5,20 @@ workflows:
   # ---------- iPhone: compila, firma y sube a TestFlight / App Store ----------
   # Necesita: cuenta de Apple Developer y, en Codemagic → Integrations → Developer Portal,
   # la clave de App Store Connect con el nombre "KLK App Store Connect".
-  # Se lanza a mano (Start new build → "KLK iOS → TestFlight") o con una etiqueta testflight-…
+  # Se lanza a mano (Start new build → "KLK iOS → TestFlight") o subiendo a la rama testflight
   ios-testflight:
     name: KLK iOS → TestFlight
     instance_type: mac_mini_m2
     max_build_duration: 60
-    # También se lanza solo al subir una etiqueta "testflight-…" a GitHub
+    # También se lanza solo cuando se sube algo a la rama "testflight" de GitHub
     # (así se puede mandar a TestFlight sin entrar en Codemagic).
     triggering:
       events:
-        - tag
-      tag_patterns:
-        - pattern: 'testflight-*'
+        - push
+      branch_patterns:
+        - pattern: 'testflight'
           include: true
+          source: true
     integrations:
       app_store_connect: codemagic key
     environment:
