@@ -227,6 +227,12 @@ class ApiClient {
 
   Future<void> clearPin() => _send('DELETE', '/v1/account/pin');
 
+  /// Dónde avisar a este móvil cuando llegue un mensaje (el aviso no lleva el mensaje).
+  Future<void> setPushToken(String platform, String token, String lang) =>
+      _send('PUT', '/v1/push-token', {'platform': platform, 'token': token, 'lang': lang});
+
+  Future<void> deletePushToken() => _send('DELETE', '/v1/push-token');
+
   /// Borra la cuenta y todo lo suyo del servidor.
   Future<void> deleteAccount() => _send('DELETE', '/v1/account');
 

@@ -47,6 +47,21 @@ class KlkNative {
     }
   }
 
+  /// Activa los avisos push del iPhone: pide permiso y devuelve el token de
+  /// Apple (hexadecimal), o null si no hay permiso o no está disponible.
+  static Future<String?> registerPush() async {
+    if (!supported) return null;
+    try {
+      return await _channel
+          .invokeMethod<String>('registerPush')
+          .timeout(const Duration(seconds: 30), onTimeout: () => null);
+    } on MissingPluginException {
+      return null;
+    } on PlatformException catch (e) {
+      throw KlkNativeException(e.code, e.message ?? 'No se pudieron activar los avisos');
+    }
+  }
+
   /// Quita el fondo de una foto (deja la persona u objeto) en el propio iPhone.
   /// Devuelve la ruta de un PNG transparente. Necesita iOS 17.
   static Future<String> liftSubject(String path) async {

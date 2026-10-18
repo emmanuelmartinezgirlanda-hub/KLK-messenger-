@@ -20,6 +20,7 @@ import '../../core/config.dart';
 import '../../core/crypto/crypto_engine.dart';
 import '../../core/crypto/signal_engine.dart';
 import '../../core/database/local_db.dart';
+import '../../core/l10n/l10n.dart';
 import '../../core/media/media_store.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/link_preview.dart';
@@ -461,6 +462,7 @@ class AppController extends ChangeNotifier {
         ch.sink.add(frame);
       }
       unawaited(_resumeDownloads());
+      unawaited(_registerPush());
       unawaited(_loadAnnouncements());
       unawaited(_ensureSignalKeys());
     } catch (e) {
@@ -1005,6 +1007,8 @@ class AppController extends ChangeNotifier {
       ],
       if (deliverAt != null) 'deliverAt': deliverAt.toUtc().toIso8601String(),
       if (ephemeral) 'ephemeral': true,
+      // Solo los mensajes de verdad piden aviso push (no las confirmaciones de lectura…)
+      if (!ephemeral && p.kind == 'text') 'push': 'msg',
     });
     if (!ephemeral) _outbox[ref] = frame;
     _ws?.sink.add(frame);
@@ -1926,6 +1930,23 @@ class AppController extends ChangeNotifier {
       nonce: base64Encode(sealed.nonce),
       mac: base64Encode(sealed.mac),
     );
+  }
+
+  bool _pushRegistered = false;
+
+  /// Avisos push (iPhone): le da al servidor el token de Apple para que avise
+  /// cuando llegue un mensaje con KLK cerrada. El aviso no lleva el mensaje.
+  Future<void> _registerPush() async {
+    if (_pushRegistered || isDemo || _api == null || !Platform.isIOS) return;
+    _pushRegistered = true;
+    try {
+      final token = await KlkNative.registerPush();
+      if (token == null || token.isEmpty) return;
+      await _api!.setPushToken('apns', token, currentLanguageCode());
+    } catch (e) {
+      _pushRegistered = false; // se reintenta en la próxima conexión
+      debugPrint('Avisos push: $e');
+    }
   }
 
   Future<void> _resumeDownloads() async {

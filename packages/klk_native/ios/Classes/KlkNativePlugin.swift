@@ -3,6 +3,7 @@ import CoreImage
 import Flutter
 import Speech
 import UIKit
+import UserNotifications
 import Vision
 
 /// Funciones nativas de KLK:
@@ -16,11 +17,14 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   // Se guardan para que no se liberen mientras transcriben.
   private var recognizer: SFSpeechRecognizer?
   private var task: SFSpeechRecognitionTask?
+  // Esperando el token de avisos push de Apple.
+  private var pushResult: FlutterResult?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = KlkNativePlugin()
     let channel = FlutterMethodChannel(name: "klk/native", binaryMessenger: registrar.messenger())
     registrar.addMethodCallDelegate(instance, channel: channel)
+    registrar.addApplicationDelegate(instance)
     let events = FlutterEventChannel(name: "klk/screenshots", binaryMessenger: registrar.messenger())
     events.setStreamHandler(instance)
   }
@@ -45,6 +49,8 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         return
       }
       compressVideo(path: path, result: result)
+    case "registerPush":
+      registerPush(result: result)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -188,6 +194,37 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         self.fail(result, "failed", "No se pudo quitar el fondo: \(error.localizedDescription)")
       }
     }
+  }
+
+  // ---------- Avisos push (APNs) ----------
+
+  /// Pide permiso para avisos y el token de Apple. Devuelve el token en hexadecimal,
+  /// o nil si la persona no da permiso.
+  private func registerPush(result: @escaping FlutterResult) {
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+      DispatchQueue.main.async {
+        guard granted else {
+          result(nil)
+          return
+        }
+        if let old = self.pushResult {
+          old(FlutterError(code: "replaced", message: "Otra petición en curso", details: nil))
+        }
+        self.pushResult = result
+        UIApplication.shared.registerForRemoteNotifications()
+      }
+    }
+  }
+
+  public func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
+    pushResult?(hex)
+    pushResult = nil
+  }
+
+  public func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+    pushResult?(FlutterError(code: "failed", message: "No se pudieron activar los avisos: \(error.localizedDescription)", details: nil))
+    pushResult = nil
   }
 
   // ---------- Capturas de pantalla ----------
