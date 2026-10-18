@@ -318,6 +318,9 @@ class AppController extends ChangeNotifier {
     unawaited(_loadLastSeen());
     await _loadPinnedChats();
     _db = await LocalDb.open(await _store.databaseKey());
+    try {
+      await _db!.failInterruptedUploads();
+    } catch (_) {}
     final savedProfile = await _store.read(_profileKey);
     if (savedProfile != null) profile = Profile.fromJson(jsonDecode(savedProfile) as Map<String, dynamic>);
     try {

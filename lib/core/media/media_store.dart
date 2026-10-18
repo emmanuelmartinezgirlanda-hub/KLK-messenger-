@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:path/path.dart' as p;
@@ -20,7 +21,6 @@ class SealedFile {
 /// Esa clave viaja dentro del mensaje (que ya va cifrado de punta a punta),
 /// así que el servidor solo guarda bytes ilegibles.
 class MediaStore {
-  static final _aes = AesGcm.with256bits();
   static const _uuid = Uuid();
 
   static Future<Directory> _dir() async {
@@ -63,22 +63,27 @@ class MediaStore {
     return dest;
   }
 
-  static Future<SealedFile> seal(String path) async {
-    final key = await _aes.newSecretKey();
-    final nonce = _aes.newNonce();
-    final box = await _aes.encrypt(await File(path).readAsBytes(), secretKey: key, nonce: nonce);
-    return SealedFile(box.cipherText, await key.extractBytes(), box.nonce, box.mac.bytes);
-  }
+  /// Cifra el archivo en un hilo aparte: con vídeos grandes, hacerlo en el hilo
+  /// principal congelaba la pantalla.
+  static Future<SealedFile> seal(String path) => Isolate.run(() async {
+        final aes = AesGcm.with256bits();
+        final key = await aes.newSecretKey();
+        final nonce = aes.newNonce();
+        final box = await aes.encrypt(await File(path).readAsBytes(), secretKey: key, nonce: nonce);
+        return SealedFile(box.cipherText, await key.extractBytes(), box.nonce, box.mac.bytes);
+      });
 
-  /// Descifra y guarda el archivo; devuelve su ruta local.
+  /// Descifra y guarda el archivo; devuelve su ruta local (también en un hilo aparte).
   static Future<String> open(List<int> cipherText,
       {required List<int> key, required List<int> nonce, required List<int> mac, required String extension}) async {
-    final clear = await _aes.decrypt(
-      SecretBox(cipherText, nonce: nonce, mac: Mac(mac)),
-      secretKey: SecretKey(key),
-    );
     final path = await newPath(extension);
-    await File(path).writeAsBytes(clear, flush: true);
+    await Isolate.run(() async {
+      final clear = await AesGcm.with256bits().decrypt(
+        SecretBox(cipherText, nonce: nonce, mac: Mac(mac)),
+        secretKey: SecretKey(key),
+      );
+      await File(path).writeAsBytes(clear, flush: true);
+    });
     return path;
   }
 

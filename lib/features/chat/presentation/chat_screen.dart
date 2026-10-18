@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:klk_native/klk_native.dart';
 import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 
@@ -302,16 +303,44 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  static const _maxUploadBytes = 64 * 1024 * 1024;
+
   Future<void> _sendFile(String sourcePath, {MediaType? forceType, String? name, bool viewOnce = false}) async {
-    final path = await MediaStore.importFile(sourcePath);
-    final ext = p.extension(path).toLowerCase();
+    final srcExt = p.extension(sourcePath).toLowerCase();
     final type = forceType ??
-        (const ['.mp4', '.mov', '.m4v', '.3gp'].contains(ext)
+        (const ['.mp4', '.mov', '.m4v', '.3gp'].contains(srcExt)
             ? MediaType.video
-            : const ['.jpg', '.jpeg', '.png', '.heic', '.gif', '.webp'].contains(ext)
+            : const ['.jpg', '.jpeg', '.png', '.heic', '.gif', '.webp'].contains(srcExt)
                 ? MediaType.image
                 : MediaType.file);
+    var source = sourcePath;
+    String? temp;
+    if (type == MediaType.video) {
+      // Los vídeos del iPhone pesan mucho (4K): se comprimen antes de cifrar y subir.
+      _snack(tr('Preparando el vídeo…'));
+      try {
+        final out = await KlkNative.compressVideo(sourcePath);
+        if (out != sourcePath) source = temp = out;
+      } catch (_) {
+        // Si no se puede comprimir, se intenta con el original.
+      }
+    }
+    final path = await MediaStore.importFile(source);
+    if (temp != null) {
+      try {
+        await File(temp).delete();
+      } catch (_) {}
+    }
     final size = await File(path).length();
+    if (size > _maxUploadBytes) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+      _snack(type == MediaType.video
+          ? tr('El vídeo es demasiado largo. Prueba con uno más corto (máximo 64 MB).')
+          : tr('El archivo es demasiado grande (máximo 64 MB).'));
+      return;
+    }
     await _sendMedia(MessageMedia(
       type: type,
       localPath: path,

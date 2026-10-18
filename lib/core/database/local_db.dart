@@ -212,6 +212,12 @@ class LocalDb {
 
   Future<void> deleteMessage(String id) => _db.delete('messages', where: 'id = ?', whereArgs: [id]);
 
+  /// Al abrir KLK: los adjuntos que se quedaron "enviando" (la app se cerró a
+  /// mitad de la subida) pasan a "no enviado" para que no se queden con el reloj.
+  Future<void> failInterruptedUploads() => _db.rawUpdate(
+      "UPDATE messages SET status = ? WHERE status = ? AND media_json IS NOT NULL",
+      [MessageStatus.failed.name, MessageStatus.sending.name]);
+
   Future<void> setStatus(String messageId, MessageStatus status) => _db.update(
       'messages', {'status': status.name}, where: 'id = ?', whereArgs: [messageId]);
 
