@@ -61,21 +61,19 @@ JSON
   fi
   grep -c "ALTERNATE_APPICON_NAMES" ios/Runner.xcodeproj/project.pbxproj || true
 fi
-# Avisos push (APNs): permiso "aps-environment" en la app de iPhone
-cat > ios/Runner/Runner.entitlements <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>aps-environment</key>
-	<string>production</string>
-</dict>
-</plist>
-PLIST
-if ! grep -q "CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements" ios/Runner.xcodeproj/project.pbxproj; then
-  perl -pi -e "s#^(\s*)PRODUCT_BUNDLE_IDENTIFIER = \Q$BUNDLE_ID\E;#\1CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\1PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;#" ios/Runner.xcodeproj/project.pbxproj
+# Avisos push (APNs): permiso "aps-environment" en la app de iPhone.
+# Solo con KLK_PUSH=1 (hay que activar antes "Push Notifications" en el App ID
+# de developer.apple.com; si no, la firma de Codemagic falla).
+if [ "${KLK_PUSH:-0}" = "1" ]; then
+  printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+    '<plist version="1.0"><dict><key>aps-environment</key><string>production</string></dict></plist>' \
+    > ios/Runner/Runner.entitlements
+  if ! grep -q "CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements" ios/Runner.xcodeproj/project.pbxproj; then
+    perl -pi -e "s#^(\s*)PRODUCT_BUNDLE_IDENTIFIER = \Q$BUNDLE_ID\E;#\1CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\1PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;#" ios/Runner.xcodeproj/project.pbxproj
+  fi
+  grep -c "CODE_SIGN_ENTITLEMENTS" ios/Runner.xcodeproj/project.pbxproj || true
 fi
-grep -c "CODE_SIGN_ENTITLEMENTS" ios/Runner.xcodeproj/project.pbxproj || true
 if [ -f ios/Podfile ]; then
   sed -i.bak "s/^# platform :ios.*/platform :ios, '15.5'/" ios/Podfile
 fi
