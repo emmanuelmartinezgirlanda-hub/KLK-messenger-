@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KLK messenger — la app de mensajes de los dominicanos</title>
+<meta name="description" content="Chats, notas de voz, stickers y grupos con tu gente, estés donde estés. Cifrado de punta a punta: solo tú y tu gente leen tus mensajes.">
+<meta property="og:title" content="KLK messenger">
+<meta property="og:description" content="La app de mensajes hecha por y para dominicanos. Privada de verdad.">
+<meta property="og:image" content="https://klkmessenger.com/img/og.png">
+<meta property="og:url" content="https://klkmessenger.com/">
+<meta name="theme-color" content="#0A2F6B">
+<link rel="icon" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --azul: #0A2F6B;
+    --azul-hondo: #061F4A;
+    --rojo: #CE1126;
+    --blanco: #FFFFFF;
+    --cielo: #E8F0FB;
+    --tinta: #0B1B33;
+    --gris: #4A5A73;
+    --verde: #1F7A4D;
+    --display: "Bricolage Grotesque", system-ui, sans-serif;
+    --texto: "Atkinson Hyperlegible", system-ui, sans-serif;
+    --ancho: 1120px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--blanco);
+    color: var(--tinta);
+    font: 18px/1.6 var(--texto);
+  }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: inherit; }
+  a:focus-visible, button:focus-visible { outline: 3px solid #FFC400; outline-offset: 3px; border-radius: 6px; }
+  .wrap { max-width: var(--ancho); margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- Cabecera ---------- */
+  .top {
+    background: var(--azul);
+    color: var(--blanco);
+  }
+  .top .wrap { display: flex; align-items: center; justify-content: space-between; height: 72px; }
+  .marca { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 800 22px/1 var(--display); }
+  .marca img { width: 44px; height: 44px; }
+  .top nav a { text-decoration: none; font-weight: 700; margin-left: 24px; opacity: .9; }
+  .top nav a:hover { opacity: 1; text-decoration: underline; }
+
+  /* ---------- Portada ---------- */
+  .hero {
+    background: var(--azul);
+    color: var(--blanco);
+    overflow: hidden;
+  }
+  .hero .wrap {
+    display: grid;
+    grid-template-columns: 1.15fr .85fr;
+    gap: 40px;
+    align-items: center;
+    padding-top: 40px;
+  }
+  .bocadillo {
+    position: relative;
+    background: var(--rojo);
+    border-radius: 36px;
+    padding: 36px 40px 40px;
+    margin-bottom: 56px;
+    transform: rotate(-2deg);
+    transform-origin: left bottom;
+    animation: entra .7s cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  .bocadillo::after {
+    content: "";
+    position: absolute;
+    left: 64px;
+    bottom: -38px;
+    border-style: solid;
+    border-width: 40px 0 0 46px;
+    border-color: var(--rojo) transparent transparent transparent;
+  }
+  .bocadillo h1 {
+    margin: 0;
+    font: 800 clamp(48px, 8.4vw, 104px)/.92 var(--display);
+    letter-spacing: -.02em;
+    text-shadow: 4px 4px 0 var(--azul-hondo);
+  }
+  .bocadillo p {
+    margin: 18px 0 0;
+    font-size: clamp(19px, 2vw, 23px);
+    line-height: 1.45;
+    max-width: 30ch;
+  }
+  .hero-texto { padding: 24px 0 72px; }
+  .hero-texto .aviso { margin: 0 0 22px; font-size: 18px; max-width: 46ch; color: #D6E2F5; }
+  .hero-movil { align-self: end; justify-self: center; width: min(340px, 100%); }
+  .hero-movil img { filter: drop-shadow(0 30px 40px rgba(0,0,0,.35)); }
+  @keyframes entra { from { transform: rotate(-2deg) scale(.85); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .bocadillo { animation: none; } }
+
+  /* ---------- Botones de descarga ---------- */
+  .descargas { display: flex; flex-wrap: wrap; gap: 12px; }
+  .boton {
+    display: inline-flex; flex-direction: column; justify-content: center;
+    min-width: 200px; padding: 12px 22px;
+    border-radius: 14px;
+    text-decoration: none;
+    line-height: 1.2;
+  }
+  .boton small { font-size: 14px; opacity: .85; }
+  .boton strong { font: 700 20px/1.2 var(--display); }
+  .boton.si { background: var(--blanco); color: var(--azul); }
+  .boton.si:hover { background: var(--cielo); }
+  .boton.pronto { border: 2px solid rgba(255,255,255,.45); color: var(--blanco); cursor: default; }
+  .claro .boton.si { background: var(--azul); color: var(--blanco); }
+  .claro .boton.si:hover { background: var(--azul-hondo); }
+  .claro .boton.pronto { border-color: #B7C6DD; color: var(--azul); }
+
+  /* ---------- Secciones ---------- */
+  section { padding: 96px 0; }
+  h2 {
+    margin: 0 0 20px;
+    font: 800 clamp(34px, 4.6vw, 54px)/1.02 var(--display);
+    letter-spacing: -.015em;
+    color: var(--azul);
+  }
+  .intro { font-size: 20px; color: var(--gris); max-width: 52ch; margin: 0 0 40px; }
+
+  .privada .wrap { display: grid; grid-template-columns: 1fr 340px; gap: 64px; align-items: center; }
+  .checks { list-style: none; margin: 0; padding: 0; }
+  .checks li {
+    position: relative;
+    padding: 0 0 22px 44px;
+    max-width: 52ch;
+  }
+  .checks li::before {
+    content: "";
+    position: absolute; left: 0; top: 3px;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--verde) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/18px no-repeat;
+  }
+  .checks b { display: block; font-size: 19px; color: var(--tinta); }
+  .checks span { color: var(--gris); }
+
+  .tarjeta { border-radius: 28px; box-shadow: 0 24px 60px rgba(10,47,107,.22); }
+  .usas { background: var(--cielo); }
+  .lista {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 56px;
+    margin: 0;
+  }
+  .lista div { padding: 18px 0; border-top: 2px solid #C9D7EC; }
+  .lista dt { font: 700 21px/1.3 var(--display); color: var(--azul); }
+  .lista dd { margin: 4px 0 0; color: var(--gris); }
+
+  .pantallas { background: var(--azul); color: var(--blanco); padding-bottom: 0; overflow: hidden; }
+  .pantallas h2 { color: var(--blanco); }
+  .pantallas .intro { color: #D6E2F5; }
+  .tira {
+    display: flex; gap: 28px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 8px 24px 0;
+    max-width: calc(var(--ancho) + 48px);
+    margin: 0 auto;
+    scrollbar-width: none;
+  }
+  .tira::-webkit-scrollbar { display: none; }
+  .tira figure { margin: 0; flex: 0 0 240px; scroll-snap-align: start; }
+  .tira figcaption { font: 700 18px/1.3 var(--display); margin: 0 0 14px; }
+
+  .gente { text-align: center; }
+  .gente h2 { max-width: 18ch; margin-left: auto; margin-right: auto; }
+  .ciudades {
+    font: 600 clamp(22px, 3vw, 32px)/1.5 var(--display);
+    color: var(--rojo);
+    max-width: 30ch;
+    margin: 0 auto 48px;
+  }
+  .gente .descargas { justify-content: center; }
+
+  .viene-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+  .viene article {
+    position: relative;
+    border: 3px solid var(--rojo);
+    border-radius: 28px 28px 28px 6px;
+    padding: 32px 32px 28px;
+  }
+  .viene article::before {
+    content: "Muy pronto";
+    position: absolute; top: -16px; left: 24px;
+    background: var(--rojo); color: var(--blanco);
+    font: 700 15px/1 var(--texto);
+    padding: 8px 14px; border-radius: 999px;
+  }
+  .viene article h3 { margin: 8px 0 10px; font: 800 28px/1.1 var(--display); color: var(--azul); }
+  .viene article p { margin: 0; color: var(--gris); max-width: 46ch; }
+
+  .faq { background: var(--cielo); }
+  .faq .wrap { max-width: 860px; }
+  .faq details { border-top: 2px solid #C9D7EC; padding: 6px 0; }
+  .faq details:last-of-type { border-bottom: 2px solid #C9D7EC; }
+  .faq summary {
+    cursor: pointer; list-style: none;
+    font: 700 21px/1.3 var(--display); color: var(--azul);
+    padding: 14px 40px 14px 0; position: relative;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; position: absolute; right: 4px; top: 10px; font-size: 28px; color: var(--rojo); }
+  .faq details[open] summary::after { content: "–"; }
+  .faq details p { margin: 0 0 16px; color: var(--gris); max-width: 62ch; }
+
+  footer { background: var(--azul-hondo); color: #C9D7EC; padding: 40px 0; font-size: 16px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; }
+  footer nav a { margin-right: 20px; }
+  .bandera { height: 8px; background: linear-gradient(90deg, var(--azul) 0 50%, var(--rojo) 50% 100%); }
+
+  /* ---------- Móvil ---------- */
+  @media (max-width: 860px) {
+    .hero .wrap, .privada .wrap { grid-template-columns: 1fr; }
+    .hero-movil { width: 280px; }
+    .hero-texto { padding-bottom: 0; }
+    .privada .movil { max-width: 300px; margin: 0 auto; }
+    .lista, .viene-grid { grid-template-columns: 1fr; }
+    section { padding: 72px 0; }
+    .top nav { display: none; }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 0 16px; }
+    .bocadillo { padding: 28px 24px 30px; border-radius: 28px; }
+    .boton { min-width: 0; flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="marca" href="/"><img src="/img/logo.webp" alt="" width="44" height="44">KLK messenger</a>
+    <nav aria-label="Principal">
+      <a href="#privada">Privacidad</a>
+      <a href="#pronto">Lo que viene</a>
+      <a href="#descargar">Descargar</a>
+      <a href="https://klk-server.onrender.com/soporte">Ayuda</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <div class="hero-texto">
+        <div class="bocadillo">
+          <h1>¡Klk, mi gente!</h1>
+          <p>La app de mensajes hecha por y para dominicanos. Habla con tu familia y tus panas, estés donde estés.</p>
+        </div>
+        <p class="aviso">Ya puedes usarla en Windows. La versión de iPhone está a punto de salir en la App Store y Android llega después.</p>
+        <div class="descargas">
+          <a class="boton pronto" aria-disabled="true"><small>iPhone</small><strong>App Store: muy pronto</strong></a>
+          <a class="boton si" href="https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/latest/download/KLK-messenger-Setup.exe"><small>Ordenador</small><strong>Descargar para Windows</strong></a>
+        </div>
+      </div>
+      <div class="hero-movil">
+        <img src="/img/chats.webp" alt="Lista de chats de KLK: Mami, Yokasta, Los Primos y Dominicanos en España" width="540" height="1144">
+      </div>
+    </div>
+  </div>
+
+  <section class="privada" id="privada">
+    <div class="wrap">
+      <div>
+        <h2>Tus chats son tuyos. Punto.</h2>
+        <p class="intro">Cada mensaje sale cifrado de tu móvil y solo se abre en el de la persona que lo recibe. Ni KLK puede leerlo.</p>
+        <ul class="checks">
+          <li><b>Cifrado de punta a punta</b><span>El mismo sistema que usan Signal y WhatsApp, en todos los chats, audios y fotos.</span></li>
+          <li><b>PIN de seguridad</b><span>Aunque alguien tenga tu número, sin tu PIN no entra en tu cuenta.</span></li>
+          <li><b>Face ID, chats ocultos y botón de pánico</b><span>Escondes lo que quieras y, si hace falta, lo borras todo de un toque.</span></li>
+          <li><b>Sin anuncios</b><span>No vendemos tus datos. Tu agenda no se guarda en nuestros servidores.</span></li>
+        </ul>
+      </div>
+      <div class="movil">
+        <img class="tarjeta" src="/img/ajustes-privacidad.webp" alt="Ajustes de privacidad: PIN de seguridad, Face ID, chats ocultos y botón de pánico" width="520" height="931" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <section class="usas">
+    <div class="wrap">
+      <h2>Todo lo que usas cada día</h2>
+      <p class="intro">Sin aprender nada nuevo: si sabes usar WhatsApp, ya sabes usar KLK.</p>
+      <dl class="lista">
+        <div><dt>Notas de voz</dt><dd>Grábalas y escúchalas a 1,5× o 2× cuando el tío se alarga.</dd></div>
+        <div><dt>Fotos y vídeos en buena calidad</dt><dd>Se envían cifrados y se borran del servidor a los 30 días.</dd></div>
+        <div><dt>Tus propios stickers</dt><dd>Haz un sticker con cualquier foto en segundos. Y trae los nuestros: ¡Tamo activo!</dd></div>
+        <div><dt>Grupos con encuestas</dt><dd>Para decidir la playa del verano o quién lleva el sancocho.</dd></div>
+        <div><dt>Comunidades por país</dt><dd>Conecta con dominicanos en España, Estados Unidos, Irlanda y más.</dd></div>
+        <div><dt>Llamadas y videollamadas</dt><dd>De móvil a móvil, también cifradas.</dd></div>
+        <div><dt>Estados de 24 horas</dt><dd>Comparte tu día con tus contactos y desaparece solo.</dd></div>
+        <div><dt>Mensajes temporales</dt><dd>Mensajes y fotos que se borran solos o se ven una sola vez.</dd></div>
+        <div><dt>Traductor dentro del móvil</dt><dd>Traduce mensajes a otros idiomas sin enviarlos a ningún servidor.</dd></div>
+        <div><dt>Audios a texto</dt><dd>¿No puedes escuchar? Lee la nota de voz. Se convierte en tu propio iPhone.</dd></div>
+        <div><dt>Comparte tu contacto con un QR</dt><dd>Te añaden escaneando tu código, sin dictar tu número.</dd></div>
+        <div><dt>Copia de seguridad cifrada</dt><dd>Guarda tus chats con contraseña en iCloud o donde quieras.</dd></div>
+        <div><dt>Mensajes programados</dt><dd>Escribe hoy el «feliz cumpleaños» y que llegue a las 12 en punto.</dd></div>
+        <div><dt>Temas y fondos</dt><dd>Con los colores de la bandera, modo claro u oscuro.</dd></div>
+        <div><dt>Notas para ti</dt><dd>Un chat contigo mismo para apuntar cosas. Nunca sale de tu móvil.</dd></div>
+        <div><dt>En el ordenador</dt><dd>Usa KLK también en Windows, con tu misma cuenta.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="pantallas">
+    <div class="wrap">
+      <h2>Así se ve</h2>
+      <p class="intro">Con los colores de la bandera y el sabor de nuestra tierra.</p>
+    </div>
+    <div class="tira" tabindex="0" aria-label="Pantallas de KLK messenger">
+      <figure><figcaption>Audios y stickers</figcaption><img src="/img/stickers.webp" alt="Chat con nota de voz y sticker ¡Tamo activo!" width="540" height="1144"></figure>
+      <figure><figcaption>Grupos de familia</figcaption><img src="/img/grupos.webp" alt="Grupo Los Primos con una encuesta sobre qué playa visitar" width="540" height="1144"></figure>
+      <figure><figcaption>Tu código QR</figcaption><img src="/img/qr.webp" alt="Código QR para compartir tu contacto" width="540" height="1144"></figure>
+      <figure><figcaption>Todos tus chats</figcaption><img src="/img/chats.webp" alt="Lista de chats de KLK" width="540" height="1144"></figure>
+    </div>
+  </section>
+
+  <section class="viene" id="pronto">
+    <div class="wrap">
+      <h2>Lo que viene</h2>
+      <p class="intro">Estamos preparando dos cosas que la diáspora nos pide siempre. Saldrán dentro de la app, con la misma seguridad de siempre.</p>
+      <div class="viene-grid">
+        <article>
+          <h3>Envío de dinero a RD</h3>
+          <p>Manda dinero a tu familia en República Dominicana desde el mismo chat donde hablas con ella, sin colas ni papeleo.</p>
+        </article>
+        <article>
+          <h3>Recargas de móvil</h3>
+          <p>Ponle saldo a cualquier número de Claro, Altice o Viva en segundos, estés en Nueva York, Madrid o Dublín.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="faq">
+    <div class="wrap">
+      <h2>Preguntas frecuentes</h2>
+      <details><summary>¿KLK puede leer mis mensajes?</summary><p>No. Los mensajes, audios, fotos y llamadas van cifrados de punta a punta. Nuestro servidor solo pasa paquetes cerrados que no puede abrir.</p></details>
+      <details><summary>¿Qué necesito para usarla?</summary><p>Un número de teléfono de cualquier país. Te llega un código por SMS y listo. Tu gente necesita KLK también para hablar contigo por aquí.</p></details>
+      <details><summary>¿Funciona fuera de República Dominicana?</summary><p>Sí, en todo el mundo. Está pensada justo para la familia que vive repartida entre RD, Estados Unidos, España, Irlanda y otros países.</p></details>
+      <details><summary>¿Qué pasa si pierdo el móvil?</summary><p>Si tenías copia de seguridad, recuperas tus chats con tu contraseña. Con el PIN de seguridad, nadie puede registrarse con tu número.</p></details>
+      <details><summary>¿Cómo borro mi cuenta?</summary><p>En la app: Ajustes, luego «Eliminar mi cuenta». Se borra todo lo tuyo de nuestro servidor.</p></details>
+      <details><summary>¿Cuándo llegan el envío de dinero y las recargas?</summary><p>Estamos en ello. Saldrán en una actualización de la app; no hace falta que hagas nada, te avisaremos dentro de KLK.</p></details>
+    </div>
+  </section>
+
+  <section class="gente claro" id="descargar">
+    <div class="wrap">
+      <h2>Tu gente, donde tú estés</h2>
+      <p class="ciudades">Santo Domingo, Santiago, Nueva York, Madrid, Dublín, Boston, Barcelona y donde haya un dominicano.</p>
+      <div class="descargas">
+        <a class="boton pronto" aria-disabled="true"><small>iPhone</small><strong>App Store: muy pronto</strong></a>
+        <a class="boton pronto" aria-disabled="true"><small>Android</small><strong>Google Play: muy pronto</strong></a>
+        <a class="boton si" href="https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/latest/download/KLK-messenger-Setup.exe"><small>Ordenador</small><strong>Descargar para Windows</strong></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="bandera" aria-hidden="true"></div>
+<footer>
+  <div class="wrap">
+    <nav aria-label="Legal">
+      <a href="https://klk-server.onrender.com/privacidad">Política de privacidad</a>
+      <a href="https://klk-server.onrender.com/soporte">Ayuda y contacto</a>
+      <a href="mailto:klkmessenger.rd@gmail.com">klkmessenger.rd@gmail.com</a>
+    </nav>
+    <span>© 2026 KLK messenger. Hecho con cariño para la familia dominicana 🇩🇴</span>
+  </div>
+</footer>
+</body>
+</html>
