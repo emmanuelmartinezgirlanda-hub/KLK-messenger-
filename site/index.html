@@ -132,6 +132,16 @@
   }
   .intro { font-size: 20px; color: var(--gris); max-width: 52ch; margin: 0 0 40px; }
 
+  .video { background: var(--cielo); }
+  .video .wrap { display: grid; grid-template-columns: 1fr 320px; gap: 64px; align-items: center; }
+  .video .nota { color: var(--tinta); font-weight: 700; max-width: 44ch; margin: 0; }
+  .pantalla-video {
+    background: var(--tinta);
+    padding: 10px;
+    border-radius: 44px;
+    box-shadow: 0 30px 60px rgba(10,47,107,.3);
+  }
+  .pantalla-video video { display: block; width: 100%; height: auto; border-radius: 34px; background: var(--azul); }
   .privada .wrap { display: grid; grid-template-columns: 1fr 340px; gap: 64px; align-items: center; }
   .checks { list-style: none; margin: 0; padding: 0; }
   .checks li {
@@ -224,7 +234,8 @@
 
   /* ---------- Móvil ---------- */
   @media (max-width: 860px) {
-    .hero .wrap, .privada .wrap { grid-template-columns: 1fr; }
+    .hero .wrap, .privada .wrap, .video .wrap { grid-template-columns: 1fr; }
+    .pantalla-video { max-width: 300px; margin: 0 auto; }
     .hero-movil { width: 280px; }
     .hero-texto { padding-bottom: 0; }
     .privada .movil { max-width: 300px; margin: 0 auto; }
@@ -245,6 +256,7 @@
   <div class="wrap">
     <a class="marca" href="/"><img src="/img/logo.webp" alt="" width="44" height="44">KLK messenger</a>
     <nav aria-label="Principal">
+      <a href="#video">Vídeo</a>
       <a href="#privada">Privacidad</a>
       <a href="#pronto">Lo que viene</a>
       <a href="#descargar">Descargar</a>
@@ -272,6 +284,22 @@
       </div>
     </div>
   </div>
+
+  <section class="video" id="video">
+    <div class="wrap">
+      <div>
+        <h2>Míralo en 40 segundos</h2>
+        <p class="intro">Chats, notas de voz, stickers, grupos con la familia y todo lo que viene. Dale al play y sube el volumen.</p>
+        <p class="nota">¿Te gusta? Compártelo con tu gente: es la mejor forma de que KLK llegue a toda la familia.</p>
+      </div>
+      <div class="pantalla-video">
+        <video controls playsinline preload="none" poster="/img/anuncio-portada.jpg" width="720" height="1280">
+          <source src="/anuncio.mp4" type="video/mp4">
+          Tu navegador no puede reproducir este vídeo. <a href="/anuncio.mp4">Descárgalo aquí</a>.
+        </video>
+      </div>
+    </div>
+  </section>
 
   <section class="privada" id="privada">
     <div class="wrap">
