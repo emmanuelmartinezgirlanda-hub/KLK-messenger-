@@ -27,6 +27,7 @@ type Memory struct {
 	communities map[string]map[string]bool // comunidad -> cuentas
 	topups      map[string]Topup
 	push        map[devKey]PushToken
+	plus        map[string]time.Time
 }
 
 type memAttachment struct {

@@ -147,6 +147,7 @@ func main() {
 		CountryMax: envInt("KLK_SMS_COUNTRY_MAX", 200),
 		PerIPMax:   envInt("KLK_SMS_IP_MAX", 10),
 	}
+	apiServer.PlusCodes = api.ParsePlusCodes(os.Getenv("KLK_PLUS_CODES"))
 	apiServer.Legal = api.Legal{Owner: os.Getenv("KLK_OWNER_NAME"), SupportEmail: os.Getenv("KLK_SUPPORT_EMAIL")}
 	apiServer.Topups = topupConfig()
 	if apiServer.Topups != nil {

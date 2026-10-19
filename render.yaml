@@ -45,6 +45,9 @@ services:
         sync: false
       # Adjuntos (fotos, vídeos, audios cifrados) en Cloudflare R2. Se escriben en Render.
       # Avisos push de iPhone: clave .p8 de Apple Developer → Keys (con "Apple Push Notifications service")
+      # KLK Plus: códigos para activarlo (dueño y pruebas). "CODIGO" = 10 años, "CODIGO:30" = 30 días
+      - key: KLK_PLUS_CODES
+        sync: false
       - key: KLK_APNS_KEY
         sync: false
       - key: KLK_APNS_KEY_ID

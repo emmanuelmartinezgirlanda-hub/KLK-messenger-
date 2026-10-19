@@ -48,6 +48,9 @@ type Server struct {
 	// Legal: responsable y correo de soporte para /privacidad y /soporte.
 	Legal Legal
 
+	// PlusCodes activan KLK Plus (dueño y pruebas). Vacío = sin códigos.
+	PlusCodes []PlusCode
+
 	// Topups: recargas de móvil a RD (nil = apagadas).
 	Topups *Topups
 
@@ -82,6 +85,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("PUT /v1/account/pin", s.limited(s.authed(s.setPin)))
 	mux.HandleFunc("DELETE /v1/account/pin", s.authed(s.clearPin))
 	mux.HandleFunc("DELETE /v1/account", s.authed(s.deleteAccount))
+	mux.HandleFunc("GET /v1/plus", s.authed(s.plusStatus))
+	mux.HandleFunc("POST /v1/plus/redeem", s.limited(s.authed(s.plusRedeem)))
 	mux.HandleFunc("PUT /v1/push-token", s.limited(s.authed(s.setPushToken)))
 	mux.HandleFunc("DELETE /v1/push-token", s.authed(s.deletePushToken))
 	mux.HandleFunc("GET /privacidad", s.privacyPage)
