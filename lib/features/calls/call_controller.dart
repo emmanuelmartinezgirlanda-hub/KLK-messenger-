@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:klk_native/klk_native.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/config.dart';
+import '../../core/l10n/l10n.dart';
+import '../../core/translate/translator.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
 import 'call_screen.dart';
@@ -49,6 +52,22 @@ class CallController extends ChangeNotifier {
   int remoteFilter = 0;
   DateTime? startedAt;
   String status = '';
+
+  // ---------- Subtítulos traducidos (beta, KLK Plus) ----------
+  /// Yo pedí ver subtítulos de lo que dice el otro.
+  bool captionsOn = false;
+  /// El otro pidió subtítulos: mi móvil pasa MI voz a texto y se lo manda.
+  bool sendingCaptions = false;
+  String? captionError;
+  /// Último trozo que dijo el otro (original y traducido a mi idioma).
+  String remoteCaption = '';
+  String? remoteCaptionTranslated;
+  StreamSubscription<(String, bool)>? _capSub;
+  DateTime _lastCapSent = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _capFlush;
+  String _capPending = '';
+  int _capSeq = 0;
+  Timer? _capClear;
 
   final localRenderer = RTCVideoRenderer();
   final remoteRenderer = RTCVideoRenderer();
@@ -170,6 +189,108 @@ class CallController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Activa o quita los subtítulos de lo que dice la otra persona.
+  /// Su móvil pasa su voz a texto (dentro del móvil) y me lo manda cifrado.
+  Future<void> toggleCaptions() async {
+    captionsOn = !captionsOn;
+    if (!captionsOn) {
+      remoteCaption = '';
+      remoteCaptionTranslated = null;
+    }
+    notifyListeners();
+    if (_app.isDemo) {
+      if (captionsOn) _showRemoteCaption('Hi! How are you? When are you coming to visit?', 'en');
+      return;
+    }
+    await _signal({'a': 'capreq', 'on': captionsOn});
+  }
+
+  /// El otro pide (o deja de pedir) subtítulos: enciendo o apago mi voz a texto.
+  Future<void> _setSendingCaptions(bool on) async {
+    if (on == sendingCaptions) return;
+    sendingCaptions = on;
+    captionError = null;
+    notifyListeners();
+    if (!on) {
+      await _stopCaptionSource();
+      return;
+    }
+    try {
+      _capSub = KlkNative.liveCaptions.listen(_onMyCaption);
+      await KlkNative.startLiveCaptions(_speechLocale());
+    } on KlkNativeException catch (e) {
+      captionError = e.message;
+      sendingCaptions = false;
+      await _stopCaptionSource();
+      await _signal({'a': 'capnone', 'why': e.code});
+      notifyListeners();
+    }
+  }
+
+  Future<void> _stopCaptionSource() async {
+    await _capSub?.cancel();
+    _capSub = null;
+    _capFlush?.cancel();
+    await KlkNative.stopLiveCaptions();
+  }
+
+  String _speechLocale() => switch (currentLanguageCode()) {
+        'en' => 'en-US',
+        'it' => 'it-IT',
+        'fr' => 'fr-FR',
+        'pt' => 'pt-BR',
+        _ => 'es-US',
+      };
+
+  /// Lo que acabo de decir: se manda como mucho ~2 veces por segundo (y siempre el final).
+  void _onMyCaption((String, bool) c) {
+    if (muted) return; // si estoy en silencio, tampoco van subtítulos
+    final (text, isFinal) = c;
+    var t = text.trim();
+    if (t.isEmpty) return;
+    if (t.length > 220) t = t.substring(t.length - 220);
+    _capPending = t;
+    final now = DateTime.now();
+    if (isFinal || now.difference(_lastCapSent) > const Duration(milliseconds: 500)) {
+      _sendCaption(isFinal);
+    } else {
+      _capFlush?.cancel();
+      _capFlush = Timer(const Duration(milliseconds: 500), () => _sendCaption(false));
+    }
+  }
+
+  void _sendCaption(bool isFinal) {
+    _capFlush?.cancel();
+    if (_capPending.isEmpty) return;
+    _lastCapSent = DateTime.now();
+    _signal({'a': 'cap', 't': _capPending, 'l': currentLanguageCode(), 'f': isFinal, 'n': ++_capSeq});
+    if (isFinal) _capPending = '';
+  }
+
+  int _lastCapShown = 0;
+  Future<void> _showRemoteCaption(String text, String lang, {int seq = 0}) async {
+    if (!captionsOn) return;
+    if (seq != 0 && seq < _lastCapShown) return; // llegó tarde
+    _lastCapShown = seq;
+    remoteCaption = text;
+    notifyListeners();
+    _capClear?.cancel();
+    _capClear = Timer(const Duration(seconds: 6), () {
+      remoteCaption = '';
+      remoteCaptionTranslated = null;
+      notifyListeners();
+    });
+    try {
+      final translated = await _ref.read(translatorProvider).translateLive(text, lang);
+      if (seq == 0 || seq == _lastCapShown) {
+        remoteCaptionTranslated = translated;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Subtítulos: $e');
+    }
+  }
+
   Future<void> switchCamera() async {
     final tracks = _local?.getVideoTracks() ?? [];
     if (tracks.isNotEmpty) await Helper.switchCamera(tracks.first);
@@ -215,6 +336,18 @@ class CallController extends ChangeNotifier {
       case 'filter':
         {
           remoteFilter = (s['f'] as num?)?.toInt() ?? 0;
+          notifyListeners();
+        }
+      case 'capreq':
+        await _setSendingCaptions(s['on'] == true);
+      case 'cap':
+        await _showRemoteCaption((s['t'] as String?) ?? '', (s['l'] as String?) ?? 'es', seq: (s['n'] as num?)?.toInt() ?? 0);
+      case 'capnone':
+        {
+          captionError = s['why'] == 'unsupported'
+              ? 'El otro móvil no puede hacer subtítulos (hace falta un iPhone con la última versión de KLK).'
+              : 'El otro móvil no pudo activar los subtítulos.';
+          captionsOn = false;
           notifyListeners();
         }
       case 'answer':
@@ -328,6 +461,17 @@ class CallController extends ChangeNotifier {
   Future<void> _finish(String reason, {bool notifyPeer = false, bool missed = false}) async {
     if (phase == CallPhase.idle || phase == CallPhase.ended) return;
     if (notifyPeer) await _signal({'a': 'end'});
+
+    // Subtítulos fuera
+    captionsOn = false;
+    remoteCaption = '';
+    remoteCaptionTranslated = null;
+    captionError = null;
+    _capClear?.cancel();
+    if (sendingCaptions) {
+      sendingCaptions = false;
+      await _stopCaptionSource();
+    }
 
     final talked = startedAt == null ? null : elapsed;
     final id = chatId;

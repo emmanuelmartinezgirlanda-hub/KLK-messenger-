@@ -137,6 +137,14 @@ class KlkTranslator extends ChangeNotifier {
     }
   }
 
+  /// Subtítulos de llamada: traduce un trozo de [fromCode] ("es", "en"…) a mi idioma.
+  /// Devuelve null si ya está en mi idioma o no sé ese idioma.
+  Future<String?> translateLive(String text, String fromCode) async {
+    final from = _byCode[fromCode];
+    if (from == null || from == myLanguage || text.trim().isEmpty) return null;
+    return _translate(text, from, myLanguage);
+  }
+
   /// Traduce lo que estoy escribiendo (español -> otro idioma).
   Future<String> translateOutgoing(String text, TranslateLanguage to) =>
       _translate(text, TranslateLanguage.spanish, to);

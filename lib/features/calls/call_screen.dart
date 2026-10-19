@@ -7,6 +7,8 @@ import '../messaging/models.dart';
 import 'call_controller.dart';
 import 'video_filters.dart';
 import '../../core/l10n/l10n.dart';
+import '../plus/plus_screen.dart';
+import '../plus/plus_state.dart';
 
 /// Pantalla de llamada: entrante, saliente y en curso (voz o vídeo).
 class CallScreen extends ConsumerWidget {
@@ -89,6 +91,7 @@ class CallScreen extends ConsumerWidget {
                 Text(tr('Cifrada de punta a punta'), style: TextStyle(color: Colors.white54, fontSize: 12)),
               ]),
               const Spacer(),
+              if (call.captionsOn || call.sendingCaptions || call.captionError != null) _Captions(call: call),
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
                 child: call.phase == CallPhase.incoming ? _IncomingControls(call: call) : _ActiveControls(call: call),
@@ -145,6 +148,16 @@ class _ActiveControls extends StatelessWidget {
           active: call.speaker,
           onTap: ended ? null : call.toggleSpeaker,
         ),
+        _RoundButton(
+          icon: Icons.closed_caption,
+          label: 'Subtítulos',
+          active: call.captionsOn,
+          onTap: ended || call.phase != CallPhase.active
+              ? null
+              : () => plusActive.value || call.captionsOn
+                  ? call.toggleCaptions()
+                  : showPlusRequired(context, 'Los subtítulos traducidos'),
+        ),
         if (call.video) ...[
           _RoundButton(
             icon: call.cameraOff ? Icons.videocam_off : Icons.videocam,
@@ -168,6 +181,54 @@ class _ActiveControls extends StatelessWidget {
         onTap: ended ? null : call.hangUp,
       ),
     ]);
+  }
+}
+
+/// Subtítulos traducidos (beta): lo que dice el otro, en mi idioma.
+class _Captions extends StatelessWidget {
+  final CallController call;
+  const _Captions({required this.call});
+
+  @override
+  Widget build(BuildContext context) {
+    final translated = call.remoteCaptionTranslated;
+    final original = call.remoteCaption;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (call.captionsOn)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(16)),
+            child: original.isEmpty
+                ? const Text('Subtítulos activados (beta). Cuando hable, lo verás aquí en tu idioma.',
+                    textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 14))
+                : Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(translated ?? original,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600, height: 1.3)),
+                    if (translated != null) ...[
+                      const SizedBox(height: 6),
+                      Text(original,
+                          textAlign: TextAlign.center, style: const TextStyle(color: Colors.white60, fontSize: 13.5)),
+                    ],
+                  ]),
+          ),
+        if (call.sendingCaptions)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('🎙️ ${call.chat?.title ?? 'La otra persona'} activó subtítulos: tu voz se pasa a texto en tu móvil.',
+                textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+          ),
+        if (call.captionError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(call.captionError!,
+                textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFFFC46B), fontSize: 13)),
+          ),
+      ]),
+    );
   }
 }
 

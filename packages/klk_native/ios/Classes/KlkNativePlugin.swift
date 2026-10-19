@@ -19,6 +19,8 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private var task: SFSpeechRecognitionTask?
   // Esperando el token de avisos push de Apple.
   private var pushResult: FlutterResult?
+  // Subtítulos de llamada (voz a texto en directo, dentro del iPhone).
+  let captions = LiveCaptions()
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = KlkNativePlugin()
@@ -27,6 +29,8 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     registrar.addApplicationDelegate(instance)
     let events = FlutterEventChannel(name: "klk/screenshots", binaryMessenger: registrar.messenger())
     events.setStreamHandler(instance)
+    let caps = FlutterEventChannel(name: "klk/captions", binaryMessenger: registrar.messenger())
+    caps.setStreamHandler(instance.captions)
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -51,6 +55,12 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       compressVideo(path: path, result: result)
     case "registerPush":
       registerPush(result: result)
+    case "startLiveCaptions":
+      let locale = ((call.arguments as? [String: Any])?["locale"] as? String) ?? "es-US"
+      captions.start(locale: locale, result: result)
+    case "stopLiveCaptions":
+      captions.stop()
+      result(nil)
     case "isTestFlight":
       // Las versiones de TestFlight llevan un recibo de "sandbox".
       let r = Bundle.main.appStoreReceiptURL?.lastPathComponent ?? ""
@@ -265,5 +275,116 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     observer = nil
     sink = nil
     return nil
+  }
+}
+
+
+// ---------- Subtítulos de llamada ----------
+
+/// Pasa a texto lo que dice la persona por el micrófono, en directo y SIN salir
+/// del iPhone (requiresOnDeviceRecognition). Envía {"t": texto, "f": esFinal}.
+/// Las tareas de reconocimiento duran como mucho ~1 minuto: se encadenan solas.
+final class LiveCaptions: NSObject, FlutterStreamHandler {
+  private var sink: FlutterEventSink?
+  private let engine = AVAudioEngine()
+  private var recognizer: SFSpeechRecognizer?
+  private var request: SFSpeechAudioBufferRecognitionRequest?
+  private var task: SFSpeechRecognitionTask?
+  private var running = false
+  private var tapped = false
+
+  func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+    sink = events
+    return nil
+  }
+
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    sink = nil
+    return nil
+  }
+
+  func start(locale: String, result: @escaping FlutterResult) {
+    SFSpeechRecognizer.requestAuthorization { status in
+      DispatchQueue.main.async {
+        guard status == .authorized else {
+          result(FlutterError(code: "denied", message: "Activa el reconocimiento de voz para KLK en Ajustes del iPhone.", details: nil))
+          return
+        }
+        var chosen: SFSpeechRecognizer?
+        for id in [locale, "es-US", "es-MX", "es-ES", "en-US"] {
+          if let r = SFSpeechRecognizer(locale: Locale(identifier: id)), r.isAvailable, r.supportsOnDeviceRecognition {
+            chosen = r
+            break
+          }
+        }
+        guard let rec = chosen else {
+          result(FlutterError(code: "no_on_device", message: "Este iPhone no puede pasar la voz a texto sin internet.", details: nil))
+          return
+        }
+        self.recognizer = rec
+        let input = self.engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+          result(FlutterError(code: "no_mic", message: "El micrófono no está disponible ahora mismo.", details: nil))
+          return
+        }
+        if !self.tapped {
+          input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+            self?.request?.append(buffer)
+          }
+          self.tapped = true
+        }
+        do {
+          self.engine.prepare()
+          try self.engine.start()
+        } catch {
+          self.cleanup()
+          result(FlutterError(code: "no_mic", message: "No se pudo usar el micrófono para los subtítulos: \(error.localizedDescription)", details: nil))
+          return
+        }
+        self.running = true
+        self.newTask()
+        result(nil)
+      }
+    }
+  }
+
+  private func newTask() {
+    guard running, let rec = recognizer else { return }
+    task?.cancel()
+    let req = SFSpeechAudioBufferRecognitionRequest()
+    req.shouldReportPartialResults = true
+    req.requiresOnDeviceRecognition = true
+    req.taskHint = .dictation
+    request = req
+    task = rec.recognitionTask(with: req) { [weak self] res, error in
+      guard let self = self else { return }
+      if let res = res {
+        let text = res.bestTranscription.formattedString
+        let final = res.isFinal
+        DispatchQueue.main.async { self.sink?(["t": text, "f": final]) }
+        if final { DispatchQueue.main.async { self.newTask() } }
+      } else if error != nil {
+        // Silencio largo o límite de tiempo: se empieza otra tarea.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.newTask() }
+      }
+    }
+  }
+
+  func stop() {
+    running = false
+    cleanup()
+  }
+
+  private func cleanup() {
+    task?.cancel()
+    task = nil
+    request?.endAudio()
+    request = nil
+    if engine.isRunning { engine.stop() }
+    if tapped {
+      engine.inputNode.removeTap(onBus: 0)
+      tapped = false
+    }
   }
 }

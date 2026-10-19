@@ -15,6 +15,37 @@ class KlkNativeException implements Exception {
 class KlkNative {
   static const _channel = MethodChannel('klk/native');
   static const _shots = EventChannel('klk/screenshots');
+  static const _captions = EventChannel('klk/captions');
+
+  /// Subtítulos de llamada: lo que dice la persona por el micrófono, en directo
+  /// y pasado a texto dentro del iPhone. Cada evento: (texto, esFinal).
+  static Stream<(String, bool)> get liveCaptions => supported
+      ? _captions.receiveBroadcastStream().map((e) {
+          final m = (e as Map).cast<String, dynamic>();
+          return ((m['t'] as String?) ?? '', m['f'] == true);
+        })
+      : const Stream.empty();
+
+  /// Empieza a pasar mi voz a texto (p. ej. locale "es-US"). Lanza KlkNativeException si no se puede.
+  static Future<void> startLiveCaptions(String locale) async {
+    if (!supported) {
+      throw const KlkNativeException('unsupported', 'Los subtítulos de momento solo están en iPhone.');
+    }
+    try {
+      await _channel.invokeMethod('startLiveCaptions', {'locale': locale});
+    } on PlatformException catch (e) {
+      throw KlkNativeException(e.code, e.message ?? 'No se pudieron activar los subtítulos');
+    } on MissingPluginException {
+      throw const KlkNativeException('unsupported', 'Esta versión de KLK no tiene subtítulos.');
+    }
+  }
+
+  static Future<void> stopLiveCaptions() async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod('stopLiveCaptions');
+    } catch (_) {}
+  }
 
   static bool get supported => Platform.isIOS;
 
