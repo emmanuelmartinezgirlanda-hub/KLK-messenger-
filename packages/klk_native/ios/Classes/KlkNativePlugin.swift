@@ -51,6 +51,27 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       compressVideo(path: path, result: result)
     case "registerPush":
       registerPush(result: result)
+    case "isTestFlight":
+      // Las versiones de TestFlight llevan un recibo de "sandbox".
+      let r = Bundle.main.appStoreReceiptURL?.lastPathComponent ?? ""
+      result(r == "sandboxReceipt")
+    case "getAppIcon":
+      result(UIApplication.shared.alternateIconName)
+    case "setAppIcon":
+      let name = (call.arguments as? [String: Any])?["name"] as? String
+      guard UIApplication.shared.supportsAlternateIcons else {
+        result(FlutterError(code: "unsupported", message: "Este iPhone no permite cambiar el icono", details: nil))
+        return
+      }
+      UIApplication.shared.setAlternateIconName(name) { error in
+        DispatchQueue.main.async {
+          if let error = error {
+            result(FlutterError(code: "failed", message: "No se pudo cambiar el icono: \(error.localizedDescription)", details: nil))
+          } else {
+            result(nil)
+          }
+        }
+      }
     default:
       result(FlutterMethodNotImplemented)
     }

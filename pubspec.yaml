@@ -94,6 +94,7 @@ flutter:
   assets:
     - assets/brand/
     - assets/stickers/
+    - assets/icon/alt/
 
 flutter_launcher_icons:
   android: true

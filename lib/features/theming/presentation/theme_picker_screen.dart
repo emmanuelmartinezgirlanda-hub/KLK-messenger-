@@ -5,6 +5,8 @@ import '../../chat/presentation/message_bubble.dart';
 import '../../messaging/models.dart';
 import '../domain/klk_theme.dart';
 import 'theme_provider.dart';
+import '../../plus/plus_screen.dart';
+import '../../plus/plus_state.dart';
 import '../../../core/l10n/l10n.dart';
 
 class ThemePickerScreen extends ConsumerWidget {
@@ -58,6 +60,21 @@ class ThemePickerScreen extends ConsumerWidget {
                       label: Text(t.name),
                       selected: current.id == t.id,
                       onSelected: (_) => notifier.apply(t),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 24),
+          Text('KLK Plus 💎', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: KlkTheme.plusPresets
+                .map((t) => ChoiceChip(
+                      avatar: CircleAvatar(backgroundColor: t.myBubble, radius: 8),
+                      label: Text(plusActive.value ? t.name : '${t.name} 🔒'),
+                      selected: current.id == t.id,
+                      onSelected: (_) =>
+                          plusActive.value ? notifier.apply(t) : showPlusRequired(context, 'El tema ${t.name}'),
                     ))
                 .toList(),
           ),

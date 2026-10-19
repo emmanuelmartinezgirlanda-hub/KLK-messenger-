@@ -12,6 +12,8 @@ import '../../messaging/stickers.dart';
 import 'chat_avatar.dart';
 import 'sticker_editor.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../plus/plus_screen.dart';
+import '../../plus/plus_state.dart';
 
 /// Hojas inferiores del chat: stickers, viaje, reenviar, temporales,
 /// información del grupo y servicios de dinero.
@@ -58,15 +60,23 @@ class _StickerPickerState extends State<_StickerPicker> {
         itemCount: list.length,
         itemBuilder: (ctx, i) {
           final st = list[i];
+          final locked = isPlusSticker(st.id) && !plusActive.value;
           return InkWell(
             borderRadius: BorderRadius.circular(18),
-            onTap: () => Navigator.pop(context, st.id),
+            onTap: () => locked ? showPlusRequired(context, 'Este sticker') : Navigator.pop(context, st.id),
             child: Tooltip(
               message: st.label,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Image.asset(st.asset, semanticLabel: st.label, cacheWidth: 256),
-              ),
+              child: Stack(children: [
+                Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Opacity(
+                    opacity: locked ? 0.55 : 1,
+                    child: Image.asset(st.asset, semanticLabel: st.label, cacheWidth: 256),
+                  ),
+                ),
+                if (locked)
+                  const Positioned(right: 4, top: 4, child: Text('💎', style: TextStyle(fontSize: 16))),
+              ]),
             ),
           );
         },

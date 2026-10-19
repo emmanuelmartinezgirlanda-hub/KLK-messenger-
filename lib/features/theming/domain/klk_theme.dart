@@ -130,6 +130,71 @@ class KlkTheme {
 
   static const presets = [auto, klkClaro, klkOscuro, quisqueya, nocheCaribe, amoled];
 
+  // ---------- Temas de KLK Plus 💎 ----------
+
+  static const puntaCana = KlkTheme(
+    id: 'plus_punta_cana',
+    name: 'Punta Cana',
+    brightness: Brightness.light,
+    primary: Color(0xFF007C89),
+    accent: Color(0xFFFF8A3D),
+    background: Color(0xFFE6F7F5),
+    myBubble: Color(0xFF00A6B4),
+    myBubbleText: Color(0xFFFFFFFF),
+    theirBubble: Color(0xFFFFFBF2),
+    theirBubbleText: Color(0xFF12343B),
+    bubbleRadius: 22,
+    fontFamily: 'Nunito',
+  );
+
+  static const zonaColonial = KlkTheme(
+    id: 'plus_zona_colonial',
+    name: 'Zona Colonial',
+    brightness: Brightness.light,
+    primary: Color(0xFF8C3B1F),
+    accent: Color(0xFF2F6B3A),
+    background: Color(0xFFF3E9DC),
+    myBubble: Color(0xFFB5532E),
+    myBubbleText: Color(0xFFFFF8F0),
+    theirBubble: Color(0xFFFFFCF7),
+    theirBubbleText: Color(0xFF3B2416),
+    bubbleRadius: 10,
+    fontFamily: 'Lora',
+  );
+
+  static const carnaval = KlkTheme(
+    id: 'plus_carnaval',
+    name: 'Carnaval',
+    brightness: Brightness.dark,
+    primary: Color(0xFFFF4FA3),
+    accent: Color(0xFFFFD60A),
+    background: Color(0xFF1C0B2E),
+    myBubble: Color(0xFF7B2CBF),
+    myBubbleText: Color(0xFFFFFFFF),
+    theirBubble: Color(0xFF2E1647),
+    theirBubbleText: Color(0xFFF5E9FF),
+    bubbleRadius: 24,
+    fontFamily: 'Poppins',
+  );
+
+  static const oro = KlkTheme(
+    id: 'plus_oro',
+    name: 'Oro Plus',
+    brightness: Brightness.dark,
+    primary: Color(0xFFE0B54A),
+    accent: KlkBrand.rojoPatria,
+    background: Color(0xFF0E0E10),
+    myBubble: Color(0xFF3A2E12),
+    myBubbleText: Color(0xFFFFF3D1),
+    theirBubble: Color(0xFF1C1C20),
+    theirBubbleText: Color(0xFFEDEDED),
+    bubbleRadius: 18,
+  );
+
+  static const plusPresets = [puntaCana, zonaColonial, carnaval, oro];
+
+  bool get isPlus => id.startsWith('plus_');
+
   // ---------- Conversión a Material ----------
 
   /// Color de las pantallas (listas, ajustes). El fondo del chat es [background].

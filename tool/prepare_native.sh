@@ -45,6 +45,22 @@ sed -i.bak "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET =
 # Solo iPhone (en iPad se abre la versión de iPhone): así la App Store no pide capturas de iPad
 sed -i.bak 's/TARGETED_DEVICE_FAMILY = "1,2";/TARGETED_DEVICE_FAMILY = 1;/g' ios/Runner.xcodeproj/project.pbxproj
 sed -i.bak "s/PRODUCT_BUNDLE_IDENTIFIER = [A-Za-z0-9.]*klk;/PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;/g" ios/Runner.xcodeproj/project.pbxproj
+# KLK Plus: iconos alternativos de la app (iPhone). Van en el catálogo de imágenes
+# y Xcode los apunta solos en el Info.plist con ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES.
+if [ -d ios/Runner/Assets.xcassets ]; then
+  for pair in "noche:KLK-Noche" "oro:KLK-Oro" "bandera:KLK-Bandera"; do
+    src="assets/icon/alt/${pair%%:*}.png"; set_name="${pair##*:}"
+    dir="ios/Runner/Assets.xcassets/${set_name}.appiconset"
+    mkdir -p "$dir" && cp "$src" "$dir/icon.png"
+    cat > "$dir/Contents.json" <<'JSON'
+{"images":[{"filename":"icon.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}
+JSON
+  done
+  if ! grep -q "ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES" ios/Runner.xcodeproj/project.pbxproj; then
+    perl -pi -e 's#^(\s*)ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;#$1ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;\n$1ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "KLK-Noche KLK-Oro KLK-Bandera";#' ios/Runner.xcodeproj/project.pbxproj
+  fi
+  grep -c "ALTERNATE_APPICON_NAMES" ios/Runner.xcodeproj/project.pbxproj || true
+fi
 # Avisos push (APNs): permiso "aps-environment" en la app de iPhone
 cat > ios/Runner/Runner.entitlements <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

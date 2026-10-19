@@ -13,7 +13,9 @@ class StickerPack {
   final String name;
   final String icon; // emoji de la pestaña
   final List<KlkSticker> stickers;
-  const StickerPack(this.name, this.icon, this.stickers);
+  /// Solo se pueden enviar con KLK Plus (todos los ven al recibirlos).
+  final bool plus;
+  const StickerPack(this.name, this.icon, this.stickers, {this.plus = false});
 }
 
 const stickerPacks = [
@@ -124,7 +126,24 @@ const stickerPacks = [
     KlkSticker('bizcocho', '¡Bizcocho pa\' ti!'),
     KlkSticker('felicidades', '¡Felicidades!'),
   ]),
+  StickerPack('Plus', '💎', [
+    KlkSticker('p_vuelvo', '¡Vuelvo pa\' RD!'),
+    KlkSticker('p_extrano', 'Extraño mi tierra'),
+    KlkSticker('p_jefa', '¡La jefa!'),
+    KlkSticker('p_jefe', '¡El jefe!'),
+    KlkSticker('p_fuego', '¡Tá en fuego!'),
+    KlkSticker('p_estrella', '¡Tú ere\' una estrella!'),
+    KlkSticker('p_solazo', '¡Qué solazo!'),
+    KlkSticker('p_corazon', 'Con el corazón'),
+    KlkSticker('p_gracias', '¡Gracia\' mi gente!'),
+    KlkSticker('p_cool', 'Tranquilo y relajao'),
+    KlkSticker('p_guino', 'Tú sabe\' cómo e\''),
+    KlkSticker('p_risa', '¡Me muero de la risa!'),
+  ], plus: true),
 ];
+
+/// ¿Este sticker es del pack de KLK Plus?
+bool isPlusSticker(String id) => stickerPacks.any((p) => p.plus && p.stickers.any((s) => s.id == id));
 
 /// Todos los stickers, en orden.
 final klkStickers = [for (final p in stickerPacks) ...p.stickers];

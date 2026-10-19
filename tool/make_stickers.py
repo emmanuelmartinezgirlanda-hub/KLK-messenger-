@@ -743,6 +743,19 @@ STICKERS = [
     ("muchos_mas", ["¡Que cumplas", "muchos más!"], "teal", "party", None, False),
     ("bizcocho", ["¡Bizcocho", "pa' ti!"], "pink", None, "cake", True),
     ("felicidades", ["¡Felicidades!"], "orange", None, "balloons", False),
+    # KLK Plus 💎 (solo se pueden enviar con Plus; todos los ven)
+    ("p_vuelvo", ["¡Vuelvo", "pa' RD!"], "teal", None, "palm", False),
+    ("p_extrano", ["Extraño", "mi tierra"], "blue", None, "flag", False),
+    ("p_jefa", ["¡La jefa!"], "pink", None, "crown", False),
+    ("p_jefe", ["¡El jefe!"], "blue", None, "crown", True),
+    ("p_fuego", ["¡Tá en", "fuego!"], "night", None, "fire", False),
+    ("p_estrella", ["¡Tú ere'", "una estrella!"], "purple", None, "star", True),
+    ("p_solazo", ["¡Qué", "solazo!"], "yellow", None, "sun", False),
+    ("p_corazon", ["Con el", "corazón"], "red", None, "heart", False),
+    ("p_gracias", ["¡Gracia'", "mi gente!"], "orange", "love", None, True),
+    ("p_cool", ["Tranquilo", "y relajao"], "teal", "cool", None, False),
+    ("p_guino", ["Tú sabe'", "cómo e'"], "purple", "wink", None, False),
+    ("p_risa", ["¡Me muero", "de la risa!"], "yellow", "laugh", None, True),
 ]
 
 

@@ -31,6 +31,7 @@ import '../../core/util/phone.dart';
 import '../privacy/domain/privacy_settings.dart';
 import '../privacy/presentation/privacy_provider.dart';
 import '../communities/community.dart';
+import '../plus/plus_state.dart';
 import 'demo_data.dart';
 import 'models.dart';
 
@@ -62,6 +63,7 @@ class AppController extends ChangeNotifier {
   List<KlkAnnouncement> announcements = [];
   Set<String> _dismissedNews = {};
   static const _newsKey = 'klk.news.dismissed';
+  static const _plusKey = 'klk.plus.until';
 
   /// El dueño de KLK bloqueó esta cuenta.
   bool banned = false;
@@ -325,6 +327,10 @@ class AppController extends ChangeNotifier {
     final savedProfile = await _store.read(_profileKey);
     if (savedProfile != null) profile = Profile.fromJson(jsonDecode(savedProfile) as Map<String, dynamic>);
     try {
+      final until = DateTime.tryParse(await _store.read(_plusKey) ?? '');
+      setPlus(until); // copia guardada: Plus funciona aunque no haya conexión
+    } catch (_) {}
+    try {
       final news = await _store.read(_newsKey);
       if (news != null) _dismissedNews = (jsonDecode(news) as List).cast<String>().toSet();
     } catch (_) {}
@@ -463,6 +469,7 @@ class AppController extends ChangeNotifier {
       }
       unawaited(_resumeDownloads());
       unawaited(_registerPush());
+      unawaited(refreshPlus());
       unawaited(_loadAnnouncements());
       unawaited(_ensureSignalKeys());
     } catch (e) {
@@ -1930,6 +1937,39 @@ class AppController extends ChangeNotifier {
       nonce: base64Encode(sealed.nonce),
       mac: base64Encode(sealed.mac),
     );
+  }
+
+  // ---------- KLK Plus ----------
+
+  /// Hasta cuándo tiene Plus esta cuenta (null = no tiene).
+  DateTime? get plusUntil => plusUntilNotifier.value;
+  bool get plus => plusActive.value;
+
+  /// Pregunta al servidor si hay Plus (al conectar).
+  Future<void> refreshPlus() async {
+    if (isDemo || _api == null) return;
+    try {
+      final j = await _api!.plusStatus();
+      await _savePlus(j);
+    } catch (e) {
+      debugPrint('Plus: $e');
+    }
+  }
+
+  /// Activa Plus con un código (solo en versiones de prueba). Lanza ApiException si no vale.
+  Future<void> redeemPlus(String code) async {
+    if (_api == null) throw const ApiException(0, 'demo', 'Entra con tu número para activar KLK Plus.');
+    final j = await _api!.redeemPlus(code.trim());
+    await _savePlus(j);
+  }
+
+  Future<void> _savePlus(Map<String, dynamic> j) async {
+    final until = j['active'] == true ? DateTime.tryParse(j['until'] as String? ?? '') : null;
+    setPlus(until);
+    try {
+      await _store.write(_plusKey, until?.toIso8601String() ?? '');
+    } catch (_) {}
+    notifyListeners();
   }
 
   bool _pushRegistered = false;

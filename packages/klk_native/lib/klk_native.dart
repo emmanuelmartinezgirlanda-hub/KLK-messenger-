@@ -62,6 +62,46 @@ class KlkNative {
     }
   }
 
+  /// ¿Es una versión de prueba? (TestFlight en iPhone; en Android, el APK de
+  /// pruebas compilado con --dart-define=KLK_TEST=true). Las tiendas no permiten
+  /// activar funciones de pago con códigos, así que eso solo sale en pruebas.
+  static Future<bool> isTestBuild() async {
+    if (Platform.isAndroid) return const bool.fromEnvironment('KLK_TEST');
+    if (!supported) return false;
+    try {
+      return await _channel.invokeMethod<bool>('isTestFlight') ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// Iconos alternativos de la app (solo iPhone por ahora).
+  static bool get supportsAppIcons => supported;
+
+  /// Cambia el icono de la app. null = el normal.
+  static Future<void> setAppIcon(String? name) async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod('setAppIcon', {'name': name});
+    } on PlatformException catch (e) {
+      throw KlkNativeException(e.code, e.message ?? 'No se pudo cambiar el icono');
+    } on MissingPluginException {
+      throw const KlkNativeException('unsupported', 'Esta versión de KLK no puede cambiar el icono.');
+    }
+  }
+
+  /// Icono actual (null = el normal).
+  static Future<String?> appIcon() async {
+    if (!supported) return null;
+    try {
+      return await _channel.invokeMethod<String>('getAppIcon');
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Quita el fondo de una foto (deja la persona u objeto) en el propio iPhone.
   /// Devuelve la ruta de un PNG transparente. Necesita iOS 17.
   static Future<String> liftSubject(String path) async {

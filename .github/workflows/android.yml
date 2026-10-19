@@ -53,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          flutter build apk --release --build-number=${{ github.run_number }} 2>&1 | tee build.log
+          flutter build apk --release --build-number=${{ github.run_number }} --dart-define=KLK_TEST=true 2>&1 | tee build.log
 
       - name: Resumen del error (si falla)
         if: failure()

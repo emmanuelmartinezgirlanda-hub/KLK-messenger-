@@ -21,6 +21,7 @@ import '../theming/wallpapers.dart';
 import '../../core/security/secure_store.dart';
 import '../home/tabs_provider.dart';
 import 'backup_screen.dart';
+import '../plus/plus_screen.dart';
 import 'notifications_screen.dart';
 import 'translator_settings_screen.dart';
 import '../../core/translate/translator.dart';
@@ -90,6 +91,14 @@ class SettingsView extends ConsumerWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _leaveDemo(context, ref),
             ),
+          ),
+        if (!app.isDemo)
+          ListTile(
+            leading: const Text('💎', style: TextStyle(fontSize: 24)),
+            title: const Text('KLK Plus', style: TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(app.plus ? 'Activo · iconos, temas y stickers exclusivos' : 'Iconos, temas y stickers exclusivos'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlusScreen())),
           ),
         const Divider(),
         ListTile(
@@ -344,9 +353,15 @@ class _ProfileHeader extends ConsumerWidget {
         const SizedBox(width: 16),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name.isEmpty ? tr('Ponte un nombre') : name,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
-                    color: name.isEmpty ? cs.onSurface.withValues(alpha: 0.5) : null)),
+            Row(children: [
+              Flexible(
+                child: Text(name.isEmpty ? tr('Ponte un nombre') : name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+                        color: name.isEmpty ? cs.onSurface.withValues(alpha: 0.5) : null)),
+              ),
+              if (app.plus) ...[const SizedBox(width: 8), const PlusBadge()],
+            ]),
             const SizedBox(height: 2),
             Text(s == null ? '' : prettyPhone(s.phone), style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65))),
             Text(app.isDemo ? tr('Modo demo · sin servidor') : (app.online ? tr('Conectado') : tr('Sin conexión')),
