@@ -4,7 +4,8 @@ import os, re, difflib, json, unicodedata
 import numpy as np, soundfile as sf, torch, whisper
 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
-lines = [l.strip().split("|", 1) for l in open("marketing/anuncio/guion_neutro.txt", encoding="utf-8") if "|" in l]
+GUION = os.environ.get("GUION", "marketing/anuncio/guion_neutro.txt")
+lines = [l.strip().split("|", 1) for l in open(GUION, encoding="utf-8") if "|" in l]
 def norm(t):
     t = unicodedata.normalize("NFD", t.lower())
     t = "".join(c for c in t if unicodedata.category(c) != "Mn")
