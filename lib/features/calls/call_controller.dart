@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:klk_native/klk_native.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/config.dart';
+import '../../core/notify/alerts.dart';
 import '../../core/l10n/l10n.dart';
 import '../../core/translate/translator.dart';
 import '../messaging/app_controller.dart';
@@ -447,13 +449,27 @@ class CallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  AudioPlayer? _ring;
+
   void _startRinging() {
+    if (Alerts.instance.settings.value.sound) {
+      // Tono de llamada: perico ripiao (original de KLK), en bucle.
+      _ring ??= AudioPlayer();
+      _ring!
+          .setAsset('assets/sounds/llamada.wav')
+          .then((_) => _ring?.setLoopMode(LoopMode.one))
+          .then((_) => _ring?.play())
+          .catchError((Object e) => debugPrint('Tono de llamada: $e'));
+    }
     _vibrate?.cancel();
     HapticFeedback.heavyImpact();
     _vibrate = Timer.periodic(const Duration(milliseconds: 1500), (_) => HapticFeedback.heavyImpact());
   }
 
   void _stopRinging() {
+    final r = _ring;
+    _ring = null;
+    if (r != null) unawaited(r.stop().then((_) => r.dispose()).catchError((_) {}));
     _vibrate?.cancel();
     _vibrate = null;
   }

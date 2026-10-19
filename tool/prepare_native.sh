@@ -113,6 +113,13 @@ if [ -f "$G" ] && ! grep -q "CM_KEYSTORE_PATH" "$G"; then
   perl -0pi -e 's/signingConfig = signingConfigs\.getByName\("debug"\)/signingConfig = if (System.getenv("CM_KEYSTORE_PATH") != null) signingConfigs.getByName("release") else signingConfigs.getByName("debug")/' "$G"
 fi
 
+# Android: tonos de KLK para las notificaciones (res/raw), protegidos del recorte de recursos
+RAW=android/app/src/main/res/raw
+mkdir -p "$RAW"
+for f in assets/sounds/*.wav; do cp "$f" "$RAW/klk_$(basename "$f")"; done
+printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' \
+  '<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/klk_*" />' > "$RAW/keep.xml"
+
 # Android: Face ID/huella (local_auth) necesita FlutterFragmentActivity
 for act in $(find android/app/src/main -name "MainActivity.kt" -o -name "MainActivity.java"); do
   sed -i.bak 's/io\.flutter\.embedding\.android\.FlutterActivity/io.flutter.embedding.android.FlutterFragmentActivity/; s/: FlutterActivity()/: FlutterFragmentActivity()/; s/extends FlutterActivity/extends FlutterFragmentActivity/' "$act"

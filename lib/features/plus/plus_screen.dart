@@ -205,6 +205,7 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
             }),
             const _Feature('😎', '12 stickers exclusivos', 'Pack 💎 en el selector de stickers: ¡El jefe!, ¡Tá en fuego!…'),
             const _Feature('🗂️', 'Tus fotos y vídeos, 1 año', 'Se guardan cifrados en el servidor un año en vez de 30 días.'),
+            const _Feature('🥁', 'Tonos dominicanos', 'Tambora, merengue y acordeón para tus mensajes (Ajustes → Notificaciones).'),
             const _Feature('💎', 'Insignia Plus', 'Sale al lado de tu nombre en tu perfil.'),
             const _Feature('💬', 'Subtítulos traducidos en llamadas (beta)',
                 'Toca «Subtítulos» en una llamada y lee en tu idioma lo que dice el otro. Su móvil pasa su voz a texto sin internet. De momento entre iPhones.'),
@@ -218,7 +219,6 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
               ('👨‍👩‍👧', 'Plan Familia (hasta 5 personas)'),
               ('💸', 'Menos comisión en remesas y recargas'),
               ('⚾', 'Pelota en vivo con avisos de tu equipo'),
-              ('🔔', 'Tonos de aviso dominicanos'),
             ])
               ListTile(
                 dense: true,

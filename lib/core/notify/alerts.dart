@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../security/secure_store.dart';
 
@@ -24,6 +27,7 @@ class Alerts with WidgetsBindingObserver {
   static const _showKey = 'klk.notif.show';
   static const _previewKey = 'klk.notif.preview';
   static const _vibrateKey = 'klk.notif.vibrate';
+  static const _toneKey = 'klk.notif.tone';
   static const _badgeId = 0x7ffffff0;
 
   final _plugin = FlutterLocalNotificationsPlugin();
@@ -99,12 +103,19 @@ class Alerts with WidgetsBindingObserver {
       }
     }
 
+    String tone = 'default';
+    try {
+      final t = await _store.read(_toneKey);
+      if (klkTones.any((x) => x.id == t)) tone = t!;
+    } catch (_) {}
     settings.value = AlertSettings(
       sound: await flag(_soundKey),
       show: await flag(_showKey),
       preview: await flag(_previewKey),
       vibrate: await flag(_vibrateKey),
+      tone: tone,
     );
+    unawaited(_installTone(tone));
   }
 
   Future<void> update(AlertSettings s) async {
@@ -114,7 +125,44 @@ class Alerts with WidgetsBindingObserver {
       await _store.write(_showKey, s.show ? '1' : '0');
       await _store.write(_previewKey, s.preview ? '1' : '0');
       await _store.write(_vibrateKey, s.vibrate ? '1' : '0');
+      await _store.write(_toneKey, s.tone);
     } catch (_) {}
+    unawaited(_installTone(s.tone));
+  }
+
+  // ---------- Tonos dominicanos ----------
+
+  AudioPlayer? _player;
+
+  /// Suena un tono de KLK (para probarlo o con la app abierta).
+  Future<void> playTone(String id) async {
+    if (id == 'default') {
+      unawaited(SystemSound.play(SystemSoundType.alert));
+      return;
+    }
+    try {
+      final pl = _player ??= AudioPlayer();
+      await pl.setAsset('assets/sounds/$id.wav');
+      unawaited(pl.play());
+    } catch (e) {
+      debugPrint('Tono: $e');
+    }
+  }
+
+  /// iPhone: las notificaciones solo pueden usar sonidos de la app o de
+  /// Library/Sounds, así que el tono elegido se copia ahí.
+  Future<void> _installTone(String id) async {
+    if (id == 'default' || kIsWeb || !Platform.isIOS) return;
+    try {
+      final dir = Directory(p.join((await getLibraryDirectory()).path, 'Sounds'));
+      if (!await dir.exists()) await dir.create(recursive: true);
+      final f = File(p.join(dir.path, 'klk_$id.wav'));
+      if (await f.exists()) return;
+      final data = await rootBundle.load('assets/sounds/$id.wav');
+      await f.writeAsBytes(data.buffer.asUint8List(), flush: true);
+    } catch (e) {
+      debugPrint('Instalar tono: $e');
+    }
   }
 
   @override
@@ -184,6 +232,10 @@ class Alerts with WidgetsBindingObserver {
       if (_foreground) {
         // En primer plano la pantalla ya enseña el aviso: solo el sonido.
         if (!s.sound) return;
+        if (s.tone != 'default') {
+          await playTone(s.tone);
+          return;
+        }
         await _plugin.show(
           chatId.hashCode & 0x3fffffff,
           title,
@@ -218,14 +270,17 @@ class Alerts with WidgetsBindingObserver {
             presentBadge: true,
             badgeNumber: badge,
             threadIdentifier: chatId,
+            sound: s.tone == 'default' ? null : 'klk_${s.tone}.wav',
           ),
+          // En Android el sonido va en el canal (y un canal no cambia de sonido): uno por tono.
           android: AndroidNotificationDetails(
-            'klk_msgs',
-            'Mensajes',
+            s.tone == 'default' ? 'klk_msgs' : 'klk_msgs_${s.tone}',
+            s.tone == 'default' ? 'Mensajes' : 'Mensajes (${toneName(s.tone)})',
             channelDescription: 'Mensajes nuevos de KLK',
             importance: Importance.high,
             priority: Priority.high,
             playSound: s.sound,
+            sound: s.tone == 'default' ? null : RawResourceAndroidNotificationSound('klk_${s.tone}'),
             number: badge,
           ),
         ),
@@ -240,12 +295,33 @@ class Alerts with WidgetsBindingObserver {
 @immutable
 class AlertSettings {
   final bool sound, show, preview, vibrate;
-  const AlertSettings({this.sound = true, this.show = true, this.preview = true, this.vibrate = true});
+  /// Tono de los mensajes: 'default' (el del móvil) o uno de [klkTones].
+  final String tone;
+  const AlertSettings({this.sound = true, this.show = true, this.preview = true, this.vibrate = true, this.tone = 'default'});
 
-  AlertSettings copyWith({bool? sound, bool? show, bool? preview, bool? vibrate}) => AlertSettings(
+  AlertSettings copyWith({bool? sound, bool? show, bool? preview, bool? vibrate, String? tone}) => AlertSettings(
         sound: sound ?? this.sound,
         show: show ?? this.show,
         preview: preview ?? this.preview,
         vibrate: vibrate ?? this.vibrate,
+        tone: tone ?? this.tone,
       );
 }
+
+/// Tonos de KLK (originales, hechos con tool/make_sounds.py). plus = solo con KLK Plus.
+class KlkTone {
+  final String id, name, emoji;
+  final bool plus;
+  const KlkTone(this.id, this.name, this.emoji, {this.plus = false});
+}
+
+const klkTones = [
+  KlkTone('default', 'Sonido del móvil', '📱'),
+  KlkTone('klk', '¡Klk! (marimba)', '🎵'),
+  KlkTone('guira', 'Güira', '🪇'),
+  KlkTone('tambora', 'Tambora', '🥁', plus: true),
+  KlkTone('merengue', 'Merengue', '🎶', plus: true),
+  KlkTone('acordeon', 'Acordeón', '🪗', plus: true),
+];
+
+String toneName(String id) => klkTones.firstWhere((t) => t.id == id, orElse: () => klkTones.first).name;

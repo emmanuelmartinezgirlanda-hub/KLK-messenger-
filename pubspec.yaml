@@ -95,6 +95,7 @@ flutter:
     - assets/brand/
     - assets/stickers/
     - assets/icon/alt/
+    - assets/sounds/
 
 flutter_launcher_icons:
   android: true

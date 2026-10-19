@@ -2,10 +2,53 @@ import 'package:flutter/material.dart';
 
 import '../../core/notify/alerts.dart';
 import '../../core/l10n/l10n.dart';
+import '../plus/plus_screen.dart';
+import '../plus/plus_state.dart';
 
 /// Ajustes → Notificaciones: sonido, avisos, vista previa y vibración.
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
+
+  static Future<void> _pickTone(BuildContext context, AlertSettings s) => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (ctx) => SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Text('Tono de los mensajes', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text('Sonidos dominicanos hechos para KLK. Toca ▶ para oírlos.'),
+            ),
+            for (final t in klkTones)
+              ListTile(
+                leading: Text(t.emoji, style: const TextStyle(fontSize: 26)),
+                title: Text(t.plus && !plusActive.value ? '${t.name}  💎' : t.name),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(
+                    tooltip: 'Escuchar',
+                    icon: const Icon(Icons.play_circle_outline),
+                    onPressed: () => Alerts.instance.playTone(t.id),
+                  ),
+                  if (Alerts.instance.settings.value.tone == t.id) const Icon(Icons.check_circle, color: Colors.green),
+                ]),
+                onTap: () {
+                  if (t.plus && !plusActive.value) {
+                    Navigator.pop(ctx);
+                    showPlusRequired(context, 'El tono ${t.name}');
+                    return;
+                  }
+                  Alerts.instance.update(Alerts.instance.settings.value.copyWith(tone: t.id));
+                  Alerts.instance.playTone(t.id);
+                  Navigator.pop(ctx);
+                },
+              ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +65,13 @@ class NotificationsScreen extends StatelessWidget {
             subtitle: Text(tr('Suena al llegar un mensaje')),
             value: s.sound,
             onChanged: (v) => alerts.update(s.copyWith(sound: v)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.music_note_outlined),
+            title: const Text('Tono de los mensajes'),
+            subtitle: Text(toneName(s.tone)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _pickTone(context, s),
           ),
           SwitchListTile(
             secondary: const Icon(Icons.notifications_active_outlined),
