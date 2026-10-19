@@ -87,3 +87,24 @@ workflows:
         script: flutter build apk --release --dart-define=KLK_SERVER="$KLK_SERVER" --dart-define=KLK_TURN_URL="$KLK_TURN_URL" --dart-define=KLK_TURN_USER="$KLK_TURN_USER" --dart-define=KLK_TURN_PASS="$KLK_TURN_PASS"
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
+
+  # ---------- Android: .aab firmado para Google Play ----------
+  # Necesita en Codemagic → Teams → Code signing identities → Android keystores
+  # una clave llamada "klk_upload" (se puede generar ahí mismo con "Generate keystore").
+  android-play:
+    name: KLK Android → Google Play (.aab)
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      android_signing:
+        - klk_upload
+    scripts:
+      - name: Preparar carpetas nativas
+        script: bash tool/prepare_native.sh
+      - name: Tests
+        script: flutter test
+      - name: Compilar .aab firmado
+        script: flutter build appbundle --release --build-number=$((BUILD_NUMBER + 10))
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab

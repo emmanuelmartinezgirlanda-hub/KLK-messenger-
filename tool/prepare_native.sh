@@ -84,6 +84,21 @@ for g in android/app/build.gradle android/app/build.gradle.kts; do
   fi
 done
 
+# Android: Google Play exige apuntar a Android 16 (API 36) desde agosto de 2026
+for g in android/app/build.gradle.kts android/app/build.gradle; do
+  if [ -f "$g" ]; then
+    sed -i.bak -E 's/targetSdk(Version)? *=? *flutter\.targetSdkVersion/targetSdk = 36/; s/compileSdk(Version)? *=? *flutter\.compileSdkVersion/compileSdk = 36/' "$g"
+  fi
+done
+
+# Android: firma de la versión para Google Play. Codemagic deja la clave en
+# CM_KEYSTORE_PATH (+ contraseñas); sin ella se firma con la clave de pruebas.
+G=android/app/build.gradle.kts
+if [ -f "$G" ] && ! grep -q "CM_KEYSTORE_PATH" "$G"; then
+  perl -0pi -e 's/\n([ \t]*)buildTypes \{/\n$1signingConfigs {\n$1    create("release") {\n$1        val ks = System.getenv("CM_KEYSTORE_PATH")\n$1        if (ks != null) {\n$1            storeFile = file(ks)\n$1            storePassword = System.getenv("CM_KEYSTORE_PASSWORD")\n$1            keyAlias = System.getenv("CM_KEY_ALIAS")\n$1            keyPassword = System.getenv("CM_KEY_PASSWORD")\n$1        }\n$1    }\n$1}\n$1buildTypes {/' "$G"
+  perl -0pi -e 's/signingConfig = signingConfigs\.getByName\("debug"\)/signingConfig = if (System.getenv("CM_KEYSTORE_PATH") != null) signingConfigs.getByName("release") else signingConfigs.getByName("debug")/' "$G"
+fi
+
 # Android: Face ID/huella (local_auth) necesita FlutterFragmentActivity
 for act in $(find android/app/src/main -name "MainActivity.kt" -o -name "MainActivity.java"); do
   sed -i.bak 's/io\.flutter\.embedding\.android\.FlutterActivity/io.flutter.embedding.android.FlutterFragmentActivity/; s/: FlutterActivity()/: FlutterFragmentActivity()/; s/extends FlutterActivity/extends FlutterFragmentActivity/' "$act"
