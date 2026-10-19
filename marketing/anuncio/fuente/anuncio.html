@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<style>
+:root{
+  --navy:#002D62; --navy2:#001A3D; --red:#CE1126; --green:#1F7A4D; --chatbg:#EAEFF5;
+  --mine:#D3E4FD; --ink:#0B1B33; --muted:#667781; --line:#E3E8EE; --tick:#3B8EF5;
+  --display:'Inter Display','Inter',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:540px;height:960px;overflow:hidden;background:var(--navy2)}
+body{font-family:var(--body);color:#fff;-webkit-font-smoothing:antialiased}
+#stage{position:absolute;inset:0;overflow:hidden;
+  background:radial-gradient(120% 70% at 50% 0%,#0A4A93 0%,var(--navy) 45%,var(--navy2) 100%)}
+.glow{position:absolute;width:520px;height:520px;border-radius:50%;filter:blur(60px);opacity:.35}
+.abs{position:absolute}
+.scene{position:absolute;inset:0;opacity:0}
+
+/* Captions */
+.cap{position:absolute;left:28px;right:28px;top:52px;display:flex;gap:14px;align-items:center;opacity:0}
+.cap .n{flex:0 0 46px;height:46px;border-radius:50%;background:var(--red);display:grid;place-items:center;
+  font:900 24px var(--display);box-shadow:0 0 0 4px #ffffff22}
+.cap h2{font:800 31px/1.08 var(--display);letter-spacing:-.5px;text-wrap:balance}
+.cap p{font:500 15.5px/1.3 var(--body);color:#C9D7EA;margin-top:4px}
+
+/* Phone */
+#phone{position:absolute;left:100px;top:200px;width:340px;height:712px;border-radius:52px;background:#0B0F14;
+  padding:11px;box-shadow:0 40px 80px #00000070,0 0 0 2px #2A3240 inset;opacity:0}
+#screen{position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#fff;color:var(--ink)}
+.notch{position:absolute;top:9px;left:50%;width:96px;height:27px;margin-left:-48px;border-radius:20px;background:#0B0F14;z-index:50}
+.status{position:absolute;top:0;left:0;right:0;height:44px;display:flex;justify-content:space-between;align-items:center;
+  padding:6px 26px 0;font:700 13px var(--body);z-index:40;color:var(--ink)}
+.status .r{display:flex;gap:5px;align-items:center}
+.bat{width:22px;height:11px;border:1.5px solid currentColor;border-radius:3px;padding:1px}.bat i{display:block;height:100%;width:75%;background:currentColor;border-radius:1px}
+.view{position:absolute;inset:0;padding-top:44px;background:#fff;opacity:0}
+
+/* Register */
+.reg{padding:34px 24px 0;text-align:center}
+.reg h3{font:800 21px var(--display);margin-top:6px}
+.reg .sub{color:var(--muted);font-size:13.5px;margin-top:6px;line-height:1.35}
+.field{margin-top:26px;display:flex;align-items:center;gap:10px;border-bottom:2px solid var(--navy);padding:10px 4px;font:600 21px var(--body);text-align:left}
+.field .cc{font-size:19px;color:var(--ink);display:flex;gap:6px;align-items:center;padding-right:10px;border-right:1px solid var(--line)}
+.btn{margin-top:30px;height:46px;border-radius:999px;background:var(--navy);color:#fff;display:grid;place-items:center;font:700 15.5px var(--body)}
+.codes{display:flex;gap:8px;justify-content:center;margin-top:28px}
+.codes b{width:38px;height:50px;border-radius:10px;border:2px solid var(--line);display:grid;place-items:center;font:800 23px var(--body);color:var(--navy)}
+.ok{width:74px;height:74px;border-radius:50%;background:var(--green);display:grid;place-items:center;margin:26px auto 0;opacity:0}
+
+/* Chat list */
+.appbar{height:56px;display:flex;align-items:center;gap:6px;padding:0 16px}
+.appbar img{height:34px}
+.appbar .t{font:800 19px var(--display);color:var(--navy)}
+.appbar .ic{margin-left:auto;display:flex;gap:16px;color:#3b4a54}
+.search{margin:4px 14px 8px;height:38px;border-radius:999px;background:#F0F2F5;display:flex;align-items:center;gap:8px;padding:0 14px;color:#8696a0;font-size:14px}
+.chips{display:flex;gap:6px;padding:2px 14px 6px}
+.chips span{white-space:nowrap;padding:5px 11px;border-radius:999px;background:#F0F2F5;color:#54656f;font:600 12.5px var(--body)}
+.chips span.on{background:#D3E4FD;color:var(--navy)}
+.row{display:flex;gap:12px;align-items:center;padding:9px 14px;position:relative}
+.av{flex:0 0 46px;height:46px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 17px var(--body)}
+.row .mid{flex:1;min-width:0;border-bottom:1px solid #F0F2F5;padding-bottom:9px}
+.row .top{display:flex;justify-content:space-between;align-items:baseline}
+.row .nm{font:700 15.5px var(--body)}
+.row .tm{font-size:11.5px;color:var(--muted)}
+.row .tm.u{color:var(--red);font-weight:700}
+.row .ls{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:3px}
+.row .ls span{font-size:13.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{min-width:20px;height:20px;border-radius:10px;background:var(--red);color:#fff;font:700 11.5px var(--body);display:grid;place-items:center;padding:0 6px}
+.navbar{position:absolute;bottom:0;left:0;right:0;height:70px;border-top:1px solid #E9EDEF;display:flex;justify-content:space-around;padding-top:8px;background:#fff}
+.navbar div{display:flex;flex-direction:column;align-items:center;gap:3px;font:600 11px var(--body);color:#54656f}
+.navbar .on i{background:#D3E4FD}
+.navbar i{width:52px;height:28px;border-radius:14px;display:grid;place-items:center}
+.fab{position:absolute;right:16px;bottom:86px;width:52px;height:52px;border-radius:16px;background:var(--navy);display:grid;place-items:center;box-shadow:0 6px 14px #002D6255}
+
+/* Chat */
+.chathead{height:58px;display:flex;align-items:center;gap:10px;padding:0 10px;background:#fff;border-bottom:1px solid #E9EDEF;position:relative;z-index:2}
+.chathead .av{flex-basis:38px;height:38px;font-size:15px}
+.chathead .nm{font:700 15.5px var(--body)}
+.chathead .st{font-size:12px;color:var(--green)}
+.chatbody{position:absolute;top:102px;bottom:58px;left:0;right:0;background:var(--chatbg);padding:12px 10px;display:flex;flex-direction:column;gap:7px;justify-content:flex-end;overflow:hidden}
+.chatbody::before{content:"";position:absolute;inset:0;opacity:.06;
+  background-image:radial-gradient(var(--navy) 1.2px,transparent 1.3px);background-size:18px 18px}
+.day{align-self:center;background:#fff;border-radius:8px;padding:4px 10px;font:600 11.5px var(--body);color:var(--muted);box-shadow:0 1px 1px #0000000d;position:relative}
+.enc{align-self:center;background:#FFF4C2;color:#5c4b00;border-radius:8px;padding:6px 10px;font-size:11.5px;text-align:center;max-width:260px;position:relative;line-height:1.3}
+.b{max-width:240px;padding:7px 10px 6px;border-radius:12px;font-size:14.5px;line-height:1.32;position:relative;box-shadow:0 1px 1px #0000000f}
+.b.th{align-self:flex-start;background:#fff;border-top-left-radius:3px}
+.b.me{align-self:flex-end;background:var(--mine);border-top-right-radius:3px}
+.b small{display:flex;justify-content:flex-end;gap:3px;align-items:center;font-size:10.5px;color:var(--muted);margin-top:2px}
+.ticks{color:var(--tick);font-weight:800;letter-spacing:-3px;padding-right:3px}
+.audio{display:flex;align-items:center;gap:8px;width:226px}
+.audio .play{width:30px;height:30px;border-radius:50%;background:var(--navy);display:grid;place-items:center;flex:0 0 30px}
+.wave{display:flex;gap:2px;align-items:center;height:28px;flex:1}
+.wave i{width:3px;border-radius:2px;background:#9fb3c8}
+.wave i.p{background:var(--navy)}
+.speed{font:800 11px var(--body);background:#E7EEF7;color:var(--navy);border-radius:10px;padding:3px 6px}
+.sticker{align-self:flex-end;width:150px;height:150px;position:relative}
+.sticker .s{position:absolute;inset:6px;border-radius:26px;background:linear-gradient(160deg,#0A4A93,var(--navy));border:5px solid #fff;
+  box-shadow:0 3px 10px #00000030;display:grid;place-items:center;overflow:hidden}
+.sticker .flag{font-size:62px;margin-top:-26px}
+.sticker .tx{position:absolute;bottom:12px;left:0;right:0;text-align:center;font:900 italic 21px var(--display);color:#FFD60A;
+  -webkit-text-stroke:5px #000;paint-order:stroke fill;letter-spacing:.3px}
+.composer{position:absolute;bottom:0;left:0;right:0;height:58px;background:var(--chatbg);display:flex;align-items:center;gap:8px;padding:0 8px 6px}
+.composer .in{flex:1;height:42px;border-radius:21px;background:#fff;display:flex;align-items:center;gap:10px;padding:0 14px;color:#8696a0;font-size:14.5px}
+.composer .mic{width:42px;height:42px;border-radius:50%;background:var(--navy);display:grid;place-items:center}
+
+/* Sheet */
+.dim{position:absolute;inset:0;background:#0B1B33;opacity:0;z-index:5}
+.sheet{position:absolute;left:0;right:0;bottom:0;height:430px;background:#fff;border-radius:24px 24px 0 0;z-index:6;padding:10px 20px 0;transform:translateY(110%)}
+.handle{width:36px;height:4px;border-radius:2px;background:#CBD2DA;margin:0 auto 14px}
+.sheet h4{font:800 19px var(--display);display:flex;align-items:center;gap:8px}
+.sheet .op{color:var(--muted);font-size:12.5px;margin:3px 0 14px}
+.inp{border:1.5px solid #9AA8B6;border-radius:10px;height:48px;display:flex;align-items:center;gap:10px;padding:0 12px;font:600 15.5px var(--body);position:relative}
+.inp label{position:absolute;top:-8px;left:10px;background:#fff;padding:0 4px;font:500 11px var(--body);color:var(--muted)}
+.opline{display:flex;align-items:center;gap:6px;margin:16px 0 10px;font:700 14.5px var(--body)}
+.amts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.amt{border:1.5px solid #C9D3DD;border-radius:10px;height:44px;display:grid;place-items:center;font:800 15px var(--body);position:relative;overflow:hidden}
+.amt .sel{position:absolute;inset:0;background:#D3E4FD;border:2px solid var(--navy);border-radius:9px;opacity:0;display:grid;place-items:center;color:var(--navy)}
+.pay{margin-top:18px;height:50px;border-radius:999px;background:#C9D3DD;color:#fff;display:grid;place-items:center;font:700 16px var(--body);position:relative;overflow:hidden}
+.pay .act{position:absolute;inset:0;background:var(--navy);display:grid;place-items:center;opacity:0}
+.done{position:absolute;inset:0;background:#fff;border-radius:24px 24px 0 0;display:flex;flex-direction:column;align-items:center;padding-top:46px;opacity:0}
+.done .ck{width:84px;height:84px;border-radius:50%;background:var(--green);display:grid;place-items:center}
+.done h5{font:800 21px var(--display);margin-top:16px}
+.done p{color:var(--muted);font-size:13.5px;margin-top:6px}
+
+/* QR */
+.qrview{background:#fff;padding:60px 22px 0;text-align:center}
+.qrcard{margin-top:46px;background:#F0F4F9;border-radius:26px;padding:54px 18px 22px;position:relative}
+.qrcard .me{position:absolute;top:-38px;left:50%;margin-left:-38px;width:76px;height:76px;border-radius:50%;background:#C0703F;border:4px solid #fff;display:grid;place-items:center;font:800 28px var(--body);color:#fff}
+.qrcard h5{font:800 21px var(--display)}
+.qrcard .s{color:var(--muted);font-size:13px;margin:3px 0 14px}
+.qrbox{background:#fff;border-radius:20px;padding:12px;display:inline-block;position:relative}
+.qrbox canvas{display:block;width:196px;height:196px}
+.qrbox img{position:absolute;left:50%;top:50%;width:52px;margin:-23px 0 0 -26px;background:#fff;border-radius:8px;padding:3px}
+.scanbtn{margin-top:22px;height:48px;border-radius:999px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font:700 15.5px var(--body)}
+
+/* Lock scene */
+.lockwrap{position:absolute;left:0;right:0;top:250px;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 40px}
+.ring{position:absolute;top:0;left:50%;width:170px;height:170px;margin-left:-85px;border-radius:50%;border:3px solid #6EA8FF;opacity:0}
+.lockico{width:170px;height:170px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#1C5BA6,var(--navy) 70%);display:grid;place-items:center;box-shadow:0 20px 50px #00000060,0 0 0 6px #ffffff14}
+.lockwrap h2{font:900 40px/1.05 var(--display);margin-top:36px;letter-spacing:-1px;text-wrap:balance}
+.lockwrap p{font:500 18px/1.4 var(--body);color:#C9D7EA;margin-top:14px;text-wrap:balance}
+.pills{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:30px}
+.pill{background:#ffffff14;border:1px solid #ffffff2a;border-radius:999px;padding:9px 15px;font:700 14.5px var(--body);opacity:0;display:flex;gap:7px;align-items:center}
+
+/* Intro / outro */
+.center{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;text-align:center}
+.bigtitle{font:900 46px/1.02 var(--display);letter-spacing:-1.4px;text-wrap:balance}
+.lead{font:500 19px/1.35 var(--body);color:#C9D7EA;margin-top:14px;text-wrap:balance}
+.stores{display:flex;gap:12px;margin-top:30px}
+.store{background:#fff;color:var(--navy);border-radius:16px;padding:12px 20px;display:flex;align-items:center;gap:10px;font:800 17px var(--body)}
+.tags{display:flex;gap:8px;margin-top:26px;font:700 14px var(--body);color:#fff}
+.tags span{padding:7px 13px;border-radius:999px;background:var(--red)}
+.tap{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:#002D62;opacity:0;z-index:60;pointer-events:none}
+/* Audio a texto */
+.ctx{position:absolute;left:24px;width:200px;background:#fff;border-radius:14px;box-shadow:0 10px 30px #0b1b3340;z-index:8;padding:6px 0;opacity:0}
+.ctx div{display:flex;gap:10px;align-items:center;padding:9px 14px;font:600 14px var(--body);color:var(--ink)}
+.ctx .hl{background:#E7EEF7}
+.tr{height:0;overflow:hidden;opacity:0;margin-top:0;border-top:1px solid #E3E8EE;font-size:13.5px;line-height:1.35;color:var(--ink)}
+.tr b{display:block;font:700 11px var(--body);color:var(--green);margin:6px 0 2px}
+/* Pelota y noticias */
+.ntitle{padding:14px 18px 2px;font:800 20px var(--display);color:var(--ink)}
+.nsub{padding:0 18px 10px;font-size:12.5px;color:var(--muted)}
+.ncard{margin:4px 12px;background:#fff;border-radius:18px;box-shadow:0 2px 10px #0b1b3314;overflow:hidden}
+.nrow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #F0F2F5;position:relative}
+.nrow:last-child{border-bottom:0}
+.nrow .ic{flex:0 0 42px;height:42px;border-radius:50%;background:#EEF2F7;display:grid;place-items:center;font-size:21px}
+.nrow .t{font:700 15px var(--body)} .nrow .d{font-size:12.5px;color:var(--muted);margin-top:2px}
+.nrow svg{margin-left:auto;flex:0 0 auto}
+.score{margin:12px 12px 0;border-radius:18px;background:linear-gradient(135deg,#0A4A93,var(--navy));color:#fff;padding:14px 16px;opacity:0}
+.score .l{font:700 11.5px var(--body);color:#C9D7EA}
+.score .m{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font:800 17px var(--display)}
+.score .m span{font:900 26px var(--display)}
+/* Extras */
+.xwrap{position:absolute;left:34px;right:34px;top:250px;display:flex;flex-direction:column;gap:18px}
+.xrow{display:flex;gap:16px;align-items:center;background:#ffffff12;border:1px solid #ffffff26;border-radius:22px;padding:18px 18px;opacity:0}
+.xrow .i{flex:0 0 62px;height:62px;border-radius:18px;display:grid;place-items:center;font-size:32px}
+.xrow h3{font:800 22px/1.1 var(--display)}
+.xrow p{font:500 15px/1.3 var(--body);color:#C9D7EA;margin-top:4px}
+.flagbar{position:absolute;left:0;right:0;bottom:0;height:10px;display:flex}
+.flagbar i{flex:1}
+</style></head>
+<body>
+<div id="stage">
+  <div class="glow" style="left:-200px;top:520px;background:#CE1126"></div>
+  <div class="glow" style="right:-220px;top:-160px;background:#2E7BE0"></div>
+
+  <!-- 1. Intro -->
+  <div class="scene" id="intro">
+    <div class="center" style="top:150px">
+      <img id="introLogo" src="klk_logo.png" style="width:380px;height:380px">
+      <div class="bigtitle" id="introT" style="margin-top:10px;opacity:0">La app de mensajes<br>de los dominicanos</div>
+      <div class="lead" id="introL" style="opacity:0">Estés donde estés, tu gente siempre cerca 🇩🇴</div>
+    </div>
+  </div>
+
+  <!-- Captions -->
+  <div class="cap" id="cap1"><div class="n">1</div><div><h2>Regístrate con tu número</h2><p>Un SMS y listo. Sin correos ni contraseñas.</p></div></div>
+  <div class="cap" id="cap2"><div class="n">2</div><div><h2>Escríbele a tu gente</h2><p>Chats, grupos y comunidades por país.</p></div></div>
+  <div class="cap" id="cap3"><div class="n">3</div><div><h2>Audios, fotos y stickers</h2><p>Crea tus propios stickers con tus fotos.</p></div></div>
+  <div class="cap" id="cap5"><div class="n">8</div><div><h2>Remesas y recargas a RD <span style="display:inline-block;vertical-align:middle;background:#FFD60A;color:#000;font:800 12px var(--body);padding:4px 9px;border-radius:999px;letter-spacing:.5px">MUY PRONTO</span></h2><p>Envía dinero y saldo a tu gente desde el chat.</p></div></div>
+  <div class="cap" id="capA"><div class="n">4</div><div><h2>¿No puedes escuchar? Léelo</h2><p>Tus audios se pasan a texto en tu propio móvil.</p></div></div>
+  <div class="cap" id="capB"><div class="n">6</div><div><h2>Pelota y noticias de RD</h2><p>La liga dominicana, Grandes Ligas y los periódicos, a un toque.</p></div></div>
+  <div class="cap" id="cap6"><div class="n">9</div><div><h2>Comparte tu código QR</h2><p>Te añaden sin escribir tu número.</p></div></div>
+
+  <!-- 4. Lock -->
+  <div class="scene" id="lock">
+    <div class="cap" id="cap4" style="opacity:1"><div class="n">5</div><div><h2>Privada de verdad</h2><p>Con el mismo cifrado que usan las apps más seguras.</p></div></div>
+    <div class="lockwrap">
+      <div class="ring" id="ring1"></div><div class="ring" id="ring2"></div>
+      <div class="lockico" id="lockI">
+        <svg width="78" height="78" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5" fill="#fff" stroke="#fff"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.6" fill="#002D62" stroke="none"/></svg>
+      </div>
+      <h2 id="lockT">Solo tú y tu gente leen tus mensajes</h2>
+      <p id="lockP">Ni KLK puede verlos. Cifrado de punta a punta en cada chat.</p>
+      <div class="pills">
+        <div class="pill" id="pl1">🔒 PIN de seguridad</div>
+        <div class="pill" id="pl2">⏱️ Mensajes temporales</div>
+        <div class="pill" id="pl3">🙈 Chats ocultos</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Extras -->
+  <div class="scene" id="extras">
+    <div class="cap" style="opacity:1"><div class="n">7</div><div><h2>Y mucho más</h2><p>Detalles pensados para tu día a día.</p></div></div>
+    <div class="xwrap">
+      <div class="xrow" id="x1"><div class="i" style="background:#2E7BE0">📅</div><div><h3>Mensajes programados</h3><p>Escribe hoy el «feliz cumpleaños» y que llegue a las 12 en punto.</p></div></div>
+      <div class="xrow" id="x2"><div class="i" style="background:#1F7A4D">🌐</div><div><h3>Traductor en el chat</h3><p>Traduce mensajes sin enviarlos a ningún servidor.</p></div></div>
+      <div class="xrow" id="x3"><div class="i" style="background:#CE1126">🚨</div><div><h3>Botón de pánico</h3><p>Borra todo de tu móvil en un segundo.</p></div></div>
+    </div>
+  </div>
+
+  <!-- 7. Outro -->
+  <div class="scene" id="outro">
+    <div class="center" style="top:120px">
+      <img id="outLogo" src="klk_logo.png" style="width:330px;height:330px">
+      <div class="bigtitle" id="outT">¡Descárgala ya!</div>
+      <div class="lead" id="outL">KLK messenger: hecha por y para dominicanos</div>
+      <div class="stores" id="outS"><div style="display:flex;align-items:center;gap:10px;background:#000;color:#fff;border:2px solid #ffffff55;border-radius:14px;padding:9px 18px 9px 14px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><div style="text-align:left;line-height:1.05"><div style="font:600 11px var(--body);opacity:.85">Descárgala en el</div><div style="font:800 21px var(--display);letter-spacing:-.3px">App Store</div></div></div><div style="display:flex;align-items:center;gap:10px;background:#000;color:#fff;border:2px solid #ffffff55;border-radius:14px;padding:9px 18px 9px 14px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><div style="text-align:left;line-height:1.05"><div style="font:600 11px var(--body);opacity:.85">Disponible en</div><div style="font:800 21px var(--display);letter-spacing:-.3px">Google Play</div></div></div></div>
+      <div class="tags" id="outG"><span>Gratis</span><span style="background:#fff;color:#002D62">Privada</span><span>Dominicana 🇩🇴</span></div>
+    </div>
+  </div>
+
+  <!-- Phone -->
+  <div id="phone"><div id="screen">
+    <div class="notch"></div>
+    <div class="status"><span>9:41</span><span class="r">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+      <span class="bat"><i></i></span></span></div>
+
+    <!-- v1: número -->
+    <div class="view" id="vNum"><div class="reg">
+      <img src="klk_header.png" style="height:64px">
+      <h3>Tu número de teléfono</h3>
+      <div class="sub">KLK messenger te enviará un SMS<br>con un código para entrar.</div>
+      <div class="field"><span class="cc">🇩🇴 +1</span><span id="numT"></span></div>
+      <div class="btn">Siguiente</div>
+    </div></div>
+
+    <!-- v2: código -->
+    <div class="view" id="vCode"><div class="reg">
+      <h3 style="margin-top:20px">Escribe el código</h3>
+      <div class="sub">Lo enviamos al +1 809 555 1234</div>
+      <div class="codes"><b id="c0"></b><b id="c1"></b><b id="c2"></b><b id="c3"></b><b id="c4"></b><b id="c5"></b></div>
+      <div class="ok" id="okC"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <div class="sub" id="okT" style="opacity:0;font-weight:700;color:var(--green);font-size:15px;margin-top:12px">¡Bienvenido a KLK!</div>
+    </div></div>
+
+    <!-- v3: lista -->
+    <div class="view" id="vList">
+      <div class="appbar"><img src="klk_header.png"><span class="t">messenger</span>
+        <span class="ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></span></div>
+      <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Buscar</div>
+      <div class="chips"><span class="on">Todos</span><span>No leídos</span><span>Grupos</span></div>
+      <div id="rows"></div>
+      <div class="fab"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M4 4h16v12H8l-4 4z"/><path d="M12 7v6M9 10h6" stroke="#002D62" stroke-width="2"/></svg></div>
+      <div class="navbar">
+        <div class="on"><i><svg width="22" height="22" viewBox="0 0 24 24" fill="#002D62"><path d="M4 4h16v12H8l-4 4z"/></svg></i>Chats</div>
+        <div><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#54656f" stroke-width="2"><circle cx="12" cy="12" r="8" stroke-dasharray="4 3"/></svg></i>Estados</div>
+        <div><i><svg width="22" height="22" viewBox="0 0 24 24" fill="#54656f"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 19c0-3 3-5 6-5s6 2 6 5zM10 19c0-3 3-5 6-5s6 2 6 5z"/></svg></i>Comunidades</div>
+        <div><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#54656f" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></i>Ajustes</div>
+      </div>
+    </div>
+
+    <!-- v4: chat -->
+    <div class="view" id="vChat">
+      <div class="chathead">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b4a54" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg>
+        <div class="av" style="background:#B5477A">Y</div>
+        <div><div class="nm">Yokasta</div><div class="st">en línea</div></div>
+        <span style="margin-left:auto;display:flex;gap:16px;color:#3b4a54"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></svg><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></span>
+      </div>
+      <div class="chatbody" id="cbody">
+        <div class="day">HOY</div>
+        <div class="enc">🔒 Los mensajes están cifrados de punta a punta. Nadie fuera de este chat puede leerlos.</div>
+        <div class="b th" id="m1">¡Klk mi pana! ¿Qué lo que? 👋<small>9:41</small></div>
+        <div class="b me" id="m2">Tranquilo, aquí en Madrid 😎 ¿Y la familia?<small>9:41 <span class="ticks">✓✓</span></small></div>
+        <div class="b th" id="m3"><div class="audio"><div class="play"><svg width="12" height="14" viewBox="0 0 12 14" fill="#fff"><path d="M1 1l10 6-10 6z"/></svg></div><div class="wave" id="wave"></div><span class="speed">1.5×</span></div><div class="tr" id="tr"><b>📝 Texto del audio</b><span id="trT"></span></div><small>0:12 · 9:42</small></div>
+        <div class="sticker" id="m4"><div class="s"><div class="flag">🇩🇴</div><div class="tx">¡TAMO ACTIVO!</div></div></div>
+        <div class="b me" id="m5" style="height:0;padding:0;margin-top:-7px;overflow:hidden;opacity:0">📱 ¡Te puse una recarga de RD$200 a tu Claro! 🇩🇴<small>9:43 <span class="ticks">✓✓</span></small></div>
+      </div>
+      <div class="composer"><div class="in">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1" fill="#8696a0"/><circle cx="15" cy="10" r="1" fill="#8696a0"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0"/></svg>Mensaje
+        <svg style="margin-left:auto" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="mic"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="#fff" stroke-width="2" fill="none"/></svg></div></div>
+      <div class="ctx" id="ctx"><div>↩️ Responder</div><div id="ctxT">📝 Pasar a texto</div><div>⭐ Destacar</div><div>➡️ Reenviar</div></div>
+      <div class="dim" id="dim"></div>
+      <div class="sheet" id="sheet">
+        <div class="handle"></div>
+        <h4><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1F7A4D" stroke-width="2.2"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>Recarga a RD</h4>
+        <div class="op">Claro, Altice y Viva</div>
+        <div class="inp"><label>Número de RD</label>📞 809 555 1234</div>
+        <div class="opline"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0B1B33" stroke-width="2"><path d="M12 10v11M8 21h8M5 7a9 9 0 0 1 14 0M8 9.5a5 5 0 0 1 8 0"/></svg>Claro</div>
+        <div class="amts">
+          <div class="amt">RD$100</div><div class="amt">RD$200<div class="sel" id="selA">RD$200</div></div><div class="amt">RD$300</div>
+          <div class="amt">RD$500</div><div class="amt">RD$1000</div><div class="amt">RD$150</div>
+        </div>
+        <div class="pay">Elige cuánto<div class="act" id="payA">🔒 Pagar</div></div>
+        <div class="done" id="doneV">
+          <div class="ck"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+          <h5>¡Recarga hecha! RD$200</h5><p>Claro · +1 809 555 1234</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- v5: QR -->
+    <div class="view" id="vQR"><div class="qrview">
+      <div style="font:800 18px var(--display)">Mi código QR</div>
+      <div class="qrcard"><div class="me">E</div>
+        <h5>Emmanuel</h5><div class="s">Contacto de KLK messenger</div>
+        <div class="qrbox"><canvas id="qr" width="392" height="392"></canvas><img src="klk_header.png"></div>
+      </div>
+      <div class="scanbtn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16"/></svg>Escanear</div>
+    </div></div>
+
+    <!-- v6: Pelota y noticias -->
+    <div class="view" id="vNews" style="background:#F3F6FA">
+      <div class="ntitle">Comunidades</div>
+      <div class="nsub">Dominicanos por país, pelota y noticias</div>
+      <div class="ncard">
+        <div style="padding:12px 14px 6px;font:800 15.5px var(--body)">⚾ Pelota y noticias de RD</div>
+        <div class="nrow" id="nr0"><div class="ic">⚾</div><div><div class="t">Pelota invernal (LIDOM)</div><div class="d">Calendario, resultados y posiciones</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.2"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></div>
+        <div class="nrow" id="nr1"><div class="ic">⚾</div><div><div class="t">Dominicanos en Grandes Ligas</div><div class="d">MLB en español</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.2"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></div>
+        <div class="nrow" id="nr2"><div class="ic">📰</div><div><div class="t">Diario Libre</div><div class="d">Noticias de RD</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.2"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></div>
+        <div class="nrow" id="nr3"><div class="ic">📰</div><div><div class="t">Listín Diario</div><div class="d">Noticias de RD</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.2"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></div>
+      </div>
+      <div class="ncard" style="margin-top:12px">
+        <div class="nrow"><div class="ic" style="background:#D3E4FD">🇪🇸</div><div><div class="t">Dominicanos en España</div><div class="d">1.284 miembros</div></div></div>
+        <div class="nrow"><div class="ic" style="background:#D3E4FD">🇺🇸</div><div><div class="t">Dominicanos en EE. UU.</div><div class="d">Únete</div></div></div>
+      </div>
+      <div class="navbar">
+        <div><i><svg width="22" height="22" viewBox="0 0 24 24" fill="#54656f"><path d="M4 4h16v12H8l-4 4z"/></svg></i>Chats</div>
+        <div><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#54656f" stroke-width="2"><circle cx="12" cy="12" r="8" stroke-dasharray="4 3"/></svg></i>Estados</div>
+        <div class="on"><i><svg width="22" height="22" viewBox="0 0 24 24" fill="#002D62"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 19c0-3 3-5 6-5s6 2 6 5zM10 19c0-3 3-5 6-5s6 2 6 5z"/></svg></i>Comunidades</div>
+        <div><i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#54656f" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></i>Ajustes</div>
+      </div>
+    </div>
+
+    <div class="tap" id="tap"></div>
+  </div></div>
+
+  <div class="flagbar"><i style="background:#002D62"></i><i style="background:#fff"></i><i style="background:#CE1126"></i></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const used=new Set(); let uid=0;
+// A(): animación con tiempo absoluto (segundos). La primera de cada elemento+propiedad rellena hacia atrás.
+// Escenas estiradas para que quepa la voz: tiempo original -> tiempo nuevo.
+const WO=[0,4,9.05,14.4,21,25.3,31.6,35.5,40], WN=[0,5,10.3,16.1,22.7,27.6,33.9,38.1,42.6];
+function W0(t){for(let i=1;i<WO.length;i++){if(t<=WO[i]){const f=(t-WO[i-1])/(WO[i]-WO[i-1]);return WN[i-1]+f*(WN[i]-WN[i-1])}}return WN[WN.length-1]+(t-40)}
+// Escenas nuevas: G1 audio a texto (tras el chat), G2 pelota y noticias + G3 extras (tras privacidad).
+const G1=window.G1??6.4, G2=window.G2??7.0, G3=window.G3??7.2;
+function W(t){ if(t<=20.9) return W0(t); if(t<25.3) return W0(t)+G1; return W0(t)+G1+G2+G3; }
+const Q0=W0(20.9), P0=W0(25.3)+G1, X0=P0+G2;
+// N(): animación en tiempo nuevo (sin W) y sin relleno: fuera de su tramo manda la línea antigua.
+function N(el,kf,start,dur,ease='cubic-bezier(.2,.8,.2,1)',fill='none'){
+  if(typeof el==='string')el=$(el);
+  el.animate(kf,{delay:start*1000,duration:dur*1000,fill,easing:ease});
+}
+function A(el,kf,start,dur,ease='cubic-bezier(.2,.8,.2,1)'){
+  start=W(start);
+  if(typeof el==='string')el=$(el);
+  if(!el.dataset.k)el.dataset.k=++uid;
+  const props=Object.keys(kf[0]).filter(k=>k!=='offset').sort().join(',');
+  const key=el.dataset.k+'|'+props;
+  const fill=used.has(key)?'forwards':'both'; used.add(key);
+  el.animate(kf,{delay:start*1000,duration:dur*1000,fill,easing:ease});
+}
+const fadeIn=(el,t,d=.45,y=14)=>A(el,[{opacity:0,transform:`translateY(${y}px)`},{opacity:1,transform:'translateY(0)'}],t,d);
+const fadeOut=(el,t,d=.35)=>A(el,[{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(-10px)'}],t,d,'ease-in');
+const show=(el,a,b)=>{fadeIn(el,a);fadeOut(el,b)};
+function view(id,a,b){ // pantallas del móvil
+  const el=$(id);
+  A(el,[{opacity:0,transform:'translateX(40px)'},{opacity:1,transform:'translateX(0)'}],a,.4);
+  if(b!=null)A(el,[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-40px)'}],b,.35,'ease-in');
+}
+function tap(x,y,t){
+  const el=$('#tap').cloneNode(); $('#screen').appendChild(el);
+  el.style.left=x+'px';el.style.top=y+'px';
+  A(el,[{opacity:.0,transform:'scale(.3)'},{opacity:.28,transform:'scale(.6)',offset:.3},{opacity:0,transform:'scale(1.5)'}],t,.55,'ease-out');
+}
+function tapRaw(x,y,t,d=.55){
+  const el=$('#tap').cloneNode(); $('#screen').appendChild(el);
+  el.style.left=x+'px';el.style.top=y+'px';
+  N(el,[{opacity:.0,transform:'scale(.3)'},{opacity:.28,transform:'scale(.6)',offset:.3},{opacity:0,transform:'scale(1.5)'}],t,d,'ease-out');
+}
+function type(el,text,t,cps=11){
+  el=$(el);
+  [...text].forEach((ch,i)=>{const s=document.createElement('span');s.textContent=ch;el.appendChild(s);
+    A(s,[{opacity:0},{opacity:1}],t+i/cps,.05,'linear');});
+}
+const pop=(el,t,d=.5)=>A(el,[{opacity:0,transform:'scale(.6)'},{opacity:1,transform:'scale(1.06)',offset:.7},{opacity:1,transform:'scale(1)'}],t,d);
+
+// ---- Datos ----
+const chats=[
+  ['Mami ❤️','#CE1126','M','Bendición mijo, ¿ya comiste? 🙏','9:38',2],
+  ['Yokasta','#B5477A','Y','¡Klk mi pana! ¿Qué lo que? 👋','9:41',1],
+  ['Los Primos 🇩🇴','#1F7A4D','LP','Junior: ¿Quién va pal colmado? 🍻','9:12',5],
+  ['Junior (NY)','#C0703F','J','🎤 Nota de voz (0:34)','Ayer',0],
+  ['Dominicanos en España','#002D62','DE','Comunidad · 1.284 miembros','Ayer',0],
+  ['Notas para mí','#667781','📝','Lista: plátanos, salami, queso…','Lun',0],
+];
+$('#rows').innerHTML=chats.map((c,i)=>`<div class="row" id="r${i}"><div class="av" style="background:${c[1]};${c[2].length>2?'font-size:20px':''}">${c[2]}</div><div class="mid"><div class="top"><span class="nm">${c[0]}</span><span class="tm ${c[5]?'u':''}">${c[4]}</span></div><div class="ls"><span>${c[3]}</span>${c[5]?`<b class="badge">${c[5]}</b>`:''}</div></div></div>`).join('');
+const hs=[8,14,22,12,26,18,9,20,27,15,10,22,17,8,13,24,19,11,7,16,23,12];
+$('#wave').innerHTML=hs.map((h,i)=>`<i style="height:${h}px" class="${i<7?'p':''}"></i>`).join('');
+// QR decorativo
+(()=>{const c=$('#qr'),x=c.getContext('2d'),N=29,s=392/N;let r=7;const rnd=()=>(r=(r*16807)%2147483647)/2147483647;
+ x.fillStyle='#fff';x.fillRect(0,0,392,392);x.fillStyle='#002D62';
+ const finder=(cx,cy)=>{for(let i=0;i<7;i++)for(let j=0;j<7;j++){const e=i==0||j==0||i==6||j==6||(i>=2&&i<=4&&j>=2&&j<=4);if(e)x.fillRect((cx+i)*s,(cy+j)*s,s+.5,s+.5)}};
+ for(let i=0;i<N;i++)for(let j=0;j<N;j++){const inF=(i<8&&j<8)||(i>N-9&&j<8)||(i<8&&j>N-9);const mid=Math.abs(i-14)<5&&Math.abs(j-14)<5;if(!inF&&!mid&&rnd()<.5)x.fillRect(i*s,j*s,s+.5,s+.5)}
+ finder(0,0);finder(N-7,0);finder(0,N-7);})();
+
+// ---- Guion (segundos) ----
+const T=40;
+// 1. Intro 0–4
+A('#intro',[{opacity:1},{opacity:1}],0,.01);
+A('#introLogo',[{opacity:0,transform:'scale(.4) rotate(-8deg)'},{opacity:1,transform:'scale(1.07) rotate(2deg)',offset:.65},{opacity:1,transform:'scale(1) rotate(0)'}],.2,.9);
+A('#introLogo',[{transform:'scale(1) rotate(0)'},{transform:'scale(1.04) rotate(-1deg)'}],1.1,2.6,'ease-in-out');
+fadeIn('#introT',1.1,.55,20); fadeIn('#introL',1.7,.55,16);
+A('#intro',[{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.94)'}],3.7,.45,'ease-in');
+
+// Teléfono entra 4.0
+A('#phone',[{opacity:0,transform:'translateY(160px) scale(.92)'},{opacity:1,transform:'translateY(0) scale(1)'}],4.0,.7);
+// 1. Registro 4.2–9
+show('#cap1',4.2,9.0);
+view('#vNum',4.3,6.75);
+type('#numT','809 555 1234',5.0,10);
+tap(170,345,6.35);
+view('#vCode',6.8,8.95);
+'482916'.split('').forEach((d,i)=>{const b=$('#c'+i);b.textContent=d;A(b,[{color:'transparent',borderColor:'#E3E8EE'},{color:'#002D62',borderColor:'#002D62'}],7.1+i*.16,.12,'linear')});
+pop('#okC',8.15,.45); fadeIn('#okT',8.35,.35,6);
+
+// 2. Lista 9–14.4
+show('#cap2',9.1,14.3);
+view('#vList',9.0,14.35);
+chats.forEach((c,i)=>fadeIn('#r'+i,9.35+i*.12,.4,18));
+tap(150,300,13.6);
+A('#r1',[{background:'#fff0'},{background:'#E7EEF7'}],13.65,.2,'linear');
+
+// 3. Chat 14.4–21
+show('#cap3',14.5,20.9);
+view('#vChat',14.4,null);
+['#m1','#m2','#m3','#m4'].forEach((m,i)=>A(m,[{opacity:0,transform:'translateY(16px) scale(.96)'},{opacity:1,transform:'translateY(0) scale(1)'}],15.0+[0,.9,1.9,3.1][i],.4));
+// reproducción del audio
+$('#wave').querySelectorAll('i').forEach((b,i)=>{if(i>=7)A(b,[{background:'#9fb3c8'},{background:'#002D62'}],17.6+(i-7)*.12,.1,'linear')});
+
+// 4. Privacidad 21–25.3 (pantalla completa)
+A('#phone',[{opacity:1,transform:'translateY(0) scale(1)'},{opacity:0,transform:'translateY(60px) scale(.94)'}],20.95,.45,'ease-in');
+A('#lock',[{opacity:0},{opacity:1}],21.2,.35);
+pop('#lockI',21.3,.6);
+[0,1].forEach(k=>A(k?'#ring2':'#ring1',[{opacity:.8,transform:'scale(1)'},{opacity:0,transform:'scale(1.9)'}],21.7+k*.7,1.4,'ease-out'));
+[0,1].forEach(k=>A(k?'#ring2':'#ring1',[{opacity:.8,transform:'scale(1)'},{opacity:0,transform:'scale(1.9)'}],23.1+k*.7,1.4,'ease-out'));
+fadeIn('#lockT',21.7,.5,18); fadeIn('#lockP',22.1,.5,14);
+['#pl1','#pl2','#pl3'].forEach((p,i)=>pop(p,22.7+i*.25,.4));
+A('#lock',[{opacity:1},{opacity:0}],25.0,.35,'ease-in');
+
+// 5. Recarga 25.3–31.6
+A('#phone',[{opacity:0,transform:'translateY(60px) scale(.94)'},{opacity:1,transform:'translateY(0) scale(1)'}],25.3,.55);
+show('#cap5',25.4,31.5);
+tap(282,660,26.0); // botón +
+A('#dim',[{opacity:0},{opacity:.4}],26.25,.3,'linear');
+A('#sheet',[{transform:'translateY(110%)'},{transform:'translateY(0)'}],26.25,.5);
+tap(170,459,27.4);
+A('#selA',[{opacity:0},{opacity:1}],27.45,.15,'linear');
+A('#payA',[{opacity:0},{opacity:1}],27.5,.2,'linear');
+tap(170,575,28.4);
+A('#payA',[{filter:'brightness(1)'},{filter:'brightness(1.5)'},{filter:'brightness(1)'}],28.4,.3,'linear');
+A('#doneV',[{opacity:0},{opacity:1}],28.75,.3,'linear');
+pop('#doneV .ck',28.8,.5);
+A('#sheet',[{transform:'translateY(0)'},{transform:'translateY(110%)'}],30.15,.45,'ease-in');
+A('#dim',[{opacity:.4},{opacity:0}],30.15,.4,'linear');
+A('#m5',[{height:'0px',padding:'0px 10px',marginTop:'-7px',opacity:0},{height:'64px',padding:'7px 10px 6px',marginTop:'0px',opacity:1}],30.5,.45);
+A('#vChat',[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-40px)'}],31.55,.35,'ease-in');
+
+// 6. QR 31.6–35.4
+show('#cap6',31.6,35.3);
+view('#vQR',31.6,null);
+pop('.qrbox',32.0,.5);
+A('#phone',[{opacity:1,transform:'translateY(0) scale(1)'},{opacity:0,transform:'translateY(80px) scale(.9)'}],35.2,.5,'ease-in');
+
+// 7. Final 35.6–40
+A('#outro',[{opacity:0},{opacity:1}],35.6,.3,'linear');
+A('#outLogo',[{opacity:0,transform:'scale(.5)'},{opacity:1,transform:'scale(1.06)',offset:.7},{opacity:1,transform:'scale(1)'}],35.7,.7);
+fadeIn('#outT',36.2,.5,20); fadeIn('#outL',36.55,.5,14); fadeIn('#outS',36.9,.5,14); fadeIn('#outG',37.25,.5,14);
+A('#outLogo',[{transform:'scale(1)'},{transform:'scale(1.035)'}],36.4,3.6,'ease-in-out');
+
+// ===== Escenas nuevas =====
+// 4. Audio a texto (Q0 .. Q0+G1), en el mismo chat
+N('#capA',[{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'translateY(0)',offset:.06},{opacity:1,transform:'translateY(0)',offset:.95},{opacity:0,transform:'translateY(-10px)'}],Q0+.05,G1-.1);
+(()=>{
+  const cb=$('#cbody'), m=$('#m3');
+  const top=cb.offsetTop+m.offsetTop, left=cb.offsetLeft+m.offsetLeft;
+  tapRaw(left+80,top+22,Q0+.6,.9);                       // mantener pulsado el audio
+  const ctx=$('#ctx'), ct=top-172; ctx.style.top=ct+'px';
+  N(ctx,[{opacity:0,transform:'scale(.85)'},{opacity:1,transform:'scale(1)',offset:.15},{opacity:1,transform:'scale(1)',offset:.85},{opacity:0,transform:'scale(.95)'}],Q0+1.15,1.3);
+  N('#ctxT',[{background:'#fff0'},{background:'#E7EEF7'}],Q0+1.95,.2,'linear','forwards');
+  tapRaw(24+90,ct+6+38+19,Q0+1.9,.55);
+})();
+N('#tr',[{height:'0px',opacity:0,marginTop:'0px'},{height:'96px',opacity:1,marginTop:'6px'}],Q0+2.5,.45,'cubic-bezier(.2,.8,.2,1)','forwards');
+(()=>{const txt='Oye, el domingo hay sancocho en casa de mami. ¡No faltes, que te estamos esperando! 🍲';
+  [...txt].forEach((ch,i)=>{const s=document.createElement('span');s.textContent=ch;$('#trT').appendChild(s);
+    N(s,[{opacity:0},{opacity:1}],Q0+2.8+i*.035,.05,'linear','both');});})();
+
+// 6. Pelota y noticias (P0 .. P0+G2)
+N('#phone',[{opacity:0,transform:'translateY(60px) scale(.94)'},{opacity:1,transform:'translateY(0) scale(1)',offset:.07},{opacity:1,transform:'translateY(0) scale(1)',offset:.94},{opacity:0,transform:'translateY(60px) scale(.94)'}],P0,G2);
+N('#vNews',[{opacity:1},{opacity:1}],P0,G2,'linear');
+N('#capB',[{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'translateY(0)',offset:.06},{opacity:1,transform:'translateY(0)',offset:.93},{opacity:0,transform:'translateY(-10px)'}],P0+.1,G2-.2);
+['#nr0','#nr1','#nr2','#nr3'].forEach((r,i)=>N(r,[{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'translateY(0)'}],P0+.6+i*.18,.4,'cubic-bezier(.2,.8,.2,1)','both'));
+(()=>{const r=$('#nr0'), r2=$('#nr2');
+  tapRaw(150,r.offsetTop+30,P0+2.6,.55);
+  N('#nr0',[{background:'#fff'},{background:'#E7EEF7'},{background:'#fff'}],P0+2.65,.6,'linear','none');
+  tapRaw(150,r2.offsetTop+30,P0+4.4,.55);
+  N('#nr2',[{background:'#fff'},{background:'#E7EEF7'},{background:'#fff'}],P0+4.45,.6,'linear','none');
+})();
+
+// 7. Extras (X0 .. X0+G3), pantalla completa
+N('#extras',[{opacity:0},{opacity:1,offset:.05},{opacity:1,offset:.95},{opacity:0}],X0,G3,'linear');
+['#x1','#x2','#x3'].forEach((x,i)=>N(x,[{opacity:0,transform:'translateX(40px)'},{opacity:1,transform:'translateX(0)'}],X0+.5+i*1.6,.5,'cubic-bezier(.2,.8,.2,1)','both'));
+
+window.TOTAL=42.6+G1+G2+G3;
+window.seek=t=>{document.getAnimations().forEach(a=>{a.pause();a.currentTime=t*1000})};
+seek(0);
+</script>
+</body></html>
