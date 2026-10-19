@@ -1,0 +1,15 @@
+09.0 [0.85] ¿No puedes escuchar un audio? Leé lo que lo que lo pasa texto.
+09.1 [1.00] ¿No puedes escuchar un audio? Léelo. ¿Qué lo que lo pasa a texto?
+09.2 [1.00] ¿No puedes escuchar un audio? ¡Léelo! Que lo que lo pasa a texto.
+09.3 [0.96] ¿No puedes escuchar un audio? Leelo que lo que lo pasa texto.
+==> 09 (1.00) fin=3.36
+10.0 [1.00] Sigue la pelota dominicana y las grandes ligas y lee los periódicos de tu país a un toque.
+10.1 [1.00] Sigue la pelota dominicana y las grandes ligas y lee los periódicos de tu país a un toque.
+10.2 [0.92] Sí que la pelota dominicana y las grandes ligas y leé los periódicos de tu país a un toque.
+10.3 [0.97] Sigue en la pelota dominicana y las grandes ligas y lee los periódicos de tu país a un toque.
+==> 10 (1.00) fin=5.42
+11.0 [1.00] Programa tus mensajes, traduce tus chats y con el botón de pánico lo borras todo en un segundo.
+11.1 [1.00] programa tus mensajes, traduce tus chats y con el botón de pánico lo borras todo en un segundo.
+11.2 [1.00] programa tus mensajes, traduce tus chats y con el botón de pánico lo borras todo en un segundo.
+11.3 [1.00] programa tus mensajes, traduce tus chats y con el botón de pánico lo borras todo en un segundo.
+==> 11 (1.00) fin=5.88
