@@ -25,8 +25,15 @@ const countries = <Country>[
 ];
 
 /// Une prefijo y número en formato E.164: "+18095551234".
+/// Si ya viene con su prefijo ("+1 202…", "0034 612…" o "1 202…" en EE. UU.),
+/// no se le pone otra vez (así entra también quien escribe el número completo).
 String toE164(Country c, String local) {
-  final digits = local.replaceAll(RegExp(r'\D'), '');
+  final raw = local.trim();
+  final digits = raw.replaceAll(RegExp(r'\D'), '');
+  if (raw.startsWith('+')) return '+$digits';
+  if (digits.startsWith('00') && digits.length > 9) return '+${digits.substring(2)}';
+  final code = c.dialCode.substring(1);
+  if (code == '1' && digits.length == 11 && digits.startsWith('1')) return '+$digits';
   return '${c.dialCode}$digits';
 }
 

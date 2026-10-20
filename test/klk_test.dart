@@ -155,6 +155,11 @@ void main() {
 
   test('Números E.164', () {
     expect(toE164(countries.first, '809-555-1234'), '+18095551234');
+    expect(toE164(countries.first, '+12025550147'), '+12025550147');
+    expect(toE164(countries.first, '+1 202 555 0147'), '+12025550147');
+    expect(toE164(countries.first, '12025550147'), '+12025550147');
+    expect(toE164(countries[3], '0034 612 34 56 78'), '+34612345678');
+    expect(toE164(countries[3], '612 34 56 78'), '+34612345678');
     expect(isValidE164('+18095551234'), isTrue);
     expect(isValidE164('8095551234'), isFalse);
     expect(prettyPhone('+18095551234'), '+1 809 555 1234');
