@@ -30,7 +30,7 @@ workflows:
         bundle_identifier: com.klkapp.klk
       vars:
         # Pon "1" cuando actives "Push Notifications" en el App ID (developer.apple.com)
-        KLK_PUSH: "0"
+        KLK_PUSH: "1"
     scripts:
       - name: Preparar carpetas nativas
         script: bash tool/prepare_native.sh
