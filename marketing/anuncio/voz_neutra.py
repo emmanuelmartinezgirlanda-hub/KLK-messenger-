@@ -31,7 +31,7 @@ for i, text in lines:
     for take in range(4):
         torch.manual_seed(2000 * int(i) + take)
         wav = model.generate(text, language_id="es", audio_prompt_path="ref.wav",
-                             exaggeration=0.5, cfg_weight=0.5, temperature=0.7)
+                             exaggeration=float(os.environ.get("EXAG", "0.5")), cfg_weight=0.5, temperature=0.7)
         p = f"out/takes/{i}_{take}.wav"
         sf.write(p, wav.squeeze(0).cpu().numpy().astype(np.float32), model.sr)
         r = w.transcribe(p, language="es", fp16=False, word_timestamps=True)
