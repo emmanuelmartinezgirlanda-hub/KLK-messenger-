@@ -1,0 +1,80 @@
+01.0 [0.91] ¿Qué es lo que mi gente?
+01.1 [0.52] ¿Qué no qué, mi gente? ¡Ay, ay, ay!
+01.2 [1.00] ¿Qué lo que, mi gente?
+01.3 [0.91] ¿Qué es lo que, mi gente?
+==> 01 (1.00) fin=1.2
+02.0 [0.57] ¡Qué loqué, manito!
+02.1 [0.89] ¿Qué es lo que? Manito.
+02.2 [0.89] ¿Qué es lo que? Manito.
+02.3 [0.89] ¿Qué es lo que manito?
+==> 02 (0.89) fin=1.32
+03.0 [0.00] Díace.
+03.1 [0.00] ¡Piace!
+03.2 [0.00] Díace
+03.3 [0.00] Día C
+==> 03 (0.00) fin=0.54
+04.0 [-0.10] da motivo.
+04.1 [0.90] tamo activo.
+04.2 [-0.10] da motivo.
+04.3 [0.90] Tamo activo.
+==> 04 (0.90) fin=0.96
+05.0 [0.90] ¡Ay, mi madre!
+05.1 [0.90] ¡Ay, mi madre!
+05.2 [0.57] ¡Ay mi madre! ¡Ay mi madre!
+05.3 [0.90] ¡Ay, mi madre!
+==> 05 (0.90) fin=0.76
+06.0 [0.50] hombre no
+06.1 [0.00] HOMBENO!
+06.2 [0.50] Hombe no.
+06.3 [0.50] Hombe, no.
+==> 06 (0.50) fin=0.9
+07.0 [1.00] Wepa.
+07.1 [-0.10] ¡Uepa!
+07.2 [0.00] weba.
+07.3 [1.00] Wepa.
+==> 07 (1.00) fin=0.48
+08.0 [0.57] ¿Tú estás loco?
+08.1 [1.00] ¿Tú está loco?
+08.2 [0.67] ¿Tú estás loco?
+08.3 [1.00] ¡Tú está loco!
+==> 08 (1.00) fin=1.0
+09.0 [0.65] Eso es así. Eso sí.
+09.1 [0.90] Eso es así.
+09.2 [1.00] Eso es así.
+09.3 [0.90] Eso es así.
+==> 09 (1.00) fin=0.7
+10.0 [0.90] ¡Tá bueno ya!
+10.1 [0.57] Está bueno ya.
+10.2 [0.67] Está bueno ya.
+10.3 [1.00] ¡Tá bueno ya!
+==> 10 (1.00) fin=0.64
+11.0 [1.00] Concho.
+11.1 [1.00] Concho
+11.2 [1.00] Concho.
+11.3 [1.00] Concho
+==> 11 (1.00) fin=0.48
+12.0 [1.00] bendiciones.
+12.1 [1.00] bendiciones.
+12.2 [1.00] bendiciones.
+12.3 [1.00] bendiciones.
+==> 12 (1.00) fin=0.64
+13.0 [0.89] ja ja ja ja ja
+13.1 [0.90] ja ja ja ja
+13.2 [0.00] jajaja
+13.3 [0.00] Ha, ha, ha, ha, ha.
+==> 13 (0.90) fin=1.68
+14.0 [0.90] Tranquilo, que eso se resuelve.
+14.1 [1.00] Tranquilo, que eso se resuelve.
+14.2 [0.90] Tranquilo que eso se resuelve.
+14.3 [1.00] Tranquilo, que eso se resuelve.
+==> 14 (1.00) fin=2.14
+15.0 [1.00] Dímelo, cantante.
+15.1 [0.90] Dímelo cantante.
+15.2 [1.00] Dímelo cantante.
+15.3 [0.90] ¡Dímelo, cantante!
+==> 15 (1.00) fin=1.14
+16.0 [1.00] Suave, suave.
+16.1 [0.03] Suave, suave, cuentamente suecho y ser que ha meído a leía de sentaido. Está levanto y tres puro de la veria de sentaido. Capitulo al explése y ventaido.
+16.2 [1.00] Suave, suave.
+16.3 [0.90] Suave, suave.
+==> 16 (1.00) fin=1.18
