@@ -10,6 +10,7 @@ import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/media_bubbles.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
+import '../settings/about_screen.dart';
 import 'contact_actions.dart';
 
 /// Lo que la pantalla de info le pide al chat que haga al cerrarse
@@ -302,6 +303,21 @@ class ContactInfoScreen extends ConsumerWidget {
                     fontSize: 13.5,
                     color: seen == tr('en línea') ? cs.secondary : muted,
                     fontWeight: seen == tr('en línea') ? FontWeight.w600 : null)),
+          ),
+        if (app.aboutOf(chatId) case final about?)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(40, 10, 40, 0),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(aboutIcon(about.text), size: 17, color: cs.primary),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  '${about.text}${aboutUntilLabel(about, now) == null ? '' : ' · ${aboutUntilLabel(about, now)}'}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ]),
           ),
         const SizedBox(height: 18),
         if (!chat.isNotes)

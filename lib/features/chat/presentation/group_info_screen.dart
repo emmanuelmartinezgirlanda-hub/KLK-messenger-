@@ -189,7 +189,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final seen = presenceLabel(app.presence[m.id], now);
     final online = seen == tr('en línea');
     // Si no lo tengo guardado, enseño su número (como WhatsApp).
-    final sub = seen ?? (direct == null && name != prettyPhone(m.phone) ? prettyPhone(m.phone) : null);
+    final about = app.aboutOf(m.id)?.text;
+    final sub = about ?? seen ?? (direct == null && name != prettyPhone(m.phone) ? prettyPhone(m.phone) : null);
     return ListTile(
       leading: Stack(clipBehavior: Clip.none, children: [
         ChatAvatar(id: m.id, title: name, photoPath: direct?.avatarPath, radius: 21),
@@ -211,7 +212,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: sub == null || sub.isEmpty
           ? null
-          : Text(sub, style: TextStyle(color: online ? cs.secondary : muted)),
+          : Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: online && about == null ? cs.secondary : muted)),
       trailing: direct == null ? Text(tr('~ no guardado'), style: TextStyle(fontSize: 11.5, color: muted)) : null,
       onTap: () => _memberSheet(m, direct),
     );

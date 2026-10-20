@@ -22,6 +22,7 @@ import '../../core/security/secure_store.dart';
 import '../home/tabs_provider.dart';
 import 'backup_screen.dart';
 import '../plus/plus_screen.dart';
+import 'about_screen.dart';
 import 'notifications_screen.dart';
 import 'translator_settings_screen.dart';
 import '../../core/translate/translator.dart';
@@ -378,6 +379,28 @@ class _ProfileHeader extends ConsumerWidget {
                 ),
               ),
             ),
+            Builder(builder: (context) {
+              final about = app.profile.activeAbout(DateTime.now());
+              final until = about == null ? null : aboutUntilLabel(about, DateTime.now());
+              return InkWell(
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutScreen())),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(children: [
+                    Icon(about == null ? Icons.add_circle_outline_rounded : aboutIcon(about.text),
+                        size: 15, color: cs.secondary),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        about == null ? 'Pon tu info (Ausente, En el trabajo…)' : '${about.text}${until == null ? '' : ' · $until'}',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: cs.secondary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ]),
+                ),
+              );
+            }),
           ]),
         ),
         IconButton(

@@ -691,6 +691,7 @@ class Payload {
   final String? birthday; // profile: "MM-DD"
   final List<String>? mentions; // text en grupos: ids mencionados con @
   final Map<String, dynamic>? link; // text: vista previa del enlace
+  final Map<String, dynamic>? about; // profile: mi «Info» ({t, u})
 
   const Payload({
     required this.kind,
@@ -712,6 +713,7 @@ class Payload {
     this.birthday,
     this.mentions,
     this.link,
+    this.about,
   });
 
   List<int> encode() => utf8.encode(jsonEncode({
@@ -734,6 +736,7 @@ class Payload {
         if (birthday != null) 'bd': birthday,
         if (mentions != null && mentions!.isNotEmpty) 'mn': mentions,
         if (link != null) 'lp': link,
+        if (about != null) 'ab': about,
       }));
 
   factory Payload.decode(List<int> bytes) {
@@ -759,6 +762,7 @@ class Payload {
       birthday: j['bd'] as String?,
       mentions: (j['mn'] as List?)?.whereType<String>().toList(),
       link: map('lp'),
+      about: map('ab'),
     );
   }
 }
@@ -768,23 +772,66 @@ class Profile {
   final String name;
   final String? photoPath;
   final String? birthday; // "MM-DD" (sin año: nadie necesita saber tu edad)
-  const Profile({this.name = '', this.photoPath, this.birthday});
+  final About? about; // «Info»: Ausente, En el trabajo…
+  const Profile({this.name = '', this.photoPath, this.birthday, this.about});
 
-  Profile copyWith({String? name, String? photoPath, bool clearPhoto = false, String? birthday, bool clearBirthday = false}) =>
+  Profile copyWith({
+    String? name,
+    String? photoPath,
+    bool clearPhoto = false,
+    String? birthday,
+    bool clearBirthday = false,
+    About? about,
+    bool clearAbout = false,
+  }) =>
       Profile(
         name: name ?? this.name,
         photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
         birthday: clearBirthday ? null : (birthday ?? this.birthday),
+        about: clearAbout ? null : (about ?? this.about),
       );
 
-  Map<String, dynamic> toJson() =>
-      {'name': name, if (photoPath != null) 'photo': photoPath, if (birthday != null) 'bd': birthday};
+  /// Mi «Info» si sigue vigente.
+  About? activeAbout(DateTime now) => (about?.activeAt(now) ?? false) ? about : null;
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        if (photoPath != null) 'photo': photoPath,
+        if (birthday != null) 'bd': birthday,
+        if (about != null) 'ab': about!.toJson(),
+      };
   factory Profile.fromJson(Map<String, dynamic> j) => Profile(
         name: j['name'] as String? ?? '',
         photoPath: resolveMediaPath(j['photo'] as String?),
         birthday: j['bd'] as String?,
+        about: About.tryParse(j['ab']),
       );
 }
+
+/// «Info» de una persona (como el de WhatsApp): un texto corto y, si quiere,
+/// hasta cuándo dura (p. ej. «De viaje» durante 1 semana).
+class About {
+  final String text;
+  final DateTime? until; // null = hasta que lo cambie
+  const About(this.text, {this.until});
+
+  static const maxLength = 80;
+
+  bool activeAt(DateTime now) => text.trim().isNotEmpty && (until == null || until!.isAfter(now));
+
+  Map<String, dynamic> toJson() => {'t': text, if (until != null) 'u': until!.millisecondsSinceEpoch};
+
+  static About? tryParse(Object? j) {
+    if (j is! Map) return null;
+    final t = j['t'];
+    if (t is! String || t.trim().isEmpty) return null;
+    final u = j['u'];
+    final text = t.trim();
+    return About(text.length > maxLength ? text.substring(0, maxLength) : text,
+        until: u is num ? DateTime.fromMillisecondsSinceEpoch(u.toInt()) : null);
+  }
+}
+
 
 /// "MM-DD" válido (p. ej. "02-29" sí, "13-01" no).
 bool isValidBirthday(String? s) {

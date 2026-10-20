@@ -853,6 +853,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> _receiveProfile(Payload p, {required String from}) async {
     final db = _db!;
+    _setAboutOf(from, About.tryParse(p.about));
     await db.setBirthday(from, isValidBirthday(p.birthday) ? p.birthday : null);
     final name = (p.text ?? '').trim();
     final current = await db.chat(from);
@@ -2088,6 +2089,8 @@ class AppController extends ChangeNotifier {
     bool removePhoto = false,
     String? birthday,
     bool removeBirthday = false,
+    About? about,
+    bool removeAbout = false,
   }) async {
     String? newPhoto;
     if (photoSourcePath != null) newPhoto = await MediaStore.importFile(photoSourcePath);
@@ -2097,6 +2100,8 @@ class AppController extends ChangeNotifier {
       clearPhoto: removePhoto,
       birthday: isValidBirthday(birthday) ? birthday : null,
       clearBirthday: removeBirthday,
+      about: about,
+      clearAbout: removeAbout,
     );
     await _store.write(_profileKey, jsonEncode(profile.toJson()));
     notifyListeners();
@@ -2116,7 +2121,12 @@ class AppController extends ChangeNotifier {
       final targets = chats.where(
           (c) => !c.isGroup && !c.blocked && c.identityKey != null && (onlyChatId == null || c.id == onlyChatId));
       for (final c in targets) {
-        await _sendEncrypted(c.id, Payload(kind: 'profile', text: profile.name, media: photo, birthday: profile.birthday),
+        await _sendEncrypted(c.id, Payload(
+                kind: 'profile',
+                text: profile.name,
+                media: photo,
+                birthday: profile.birthday,
+                about: profile.activeAbout(DateTime.now())?.toJson()),
             ref: 'x-${_uuid.v4()}');
       }
     } catch (e) {
@@ -2252,7 +2262,40 @@ class AppController extends ChangeNotifier {
     unawaited(_store.write(_seenOfKey, jsonEncode(_seenOf)).catchError((_) {}));
   }
 
+  // «Info» de mis contactos (Ausente, En el trabajo…). Se guarda en el móvil.
+  static const _aboutKey = 'klk.about';
+  Map<String, About> _aboutOf = {};
+
+  /// «Info» vigente de un contacto (null si no tiene o ya caducó).
+  About? aboutOf(String accountId) {
+    final a = _aboutOf[accountId];
+    return a != null && a.activeAt(DateTime.now()) ? a : null;
+  }
+
+  void _setAboutOf(String accountId, About? a) {
+    if (a == null) {
+      if (_aboutOf.remove(accountId) == null) return;
+    } else {
+      _aboutOf[accountId] = a;
+    }
+    final now = DateTime.now();
+    _aboutOf.removeWhere((_, v) => !v.activeAt(now));
+    unawaited(_store
+        .write(_aboutKey, jsonEncode(_aboutOf.map((k, v) => MapEntry(k, v.toJson()))))
+        .catchError((_) {}));
+  }
+
   Future<void> _loadLastSeen() async {
+    try {
+      final raw = await _store.read(_aboutKey);
+      if (raw != null && raw.isNotEmpty) {
+        final m = jsonDecode(raw) as Map;
+        _aboutOf = {
+          for (final e in m.entries)
+            if (About.tryParse(e.value) case final a?) e.key as String: a,
+        };
+      }
+    } catch (_) {}
     try {
       _myLastSeen = DateTime.tryParse(await _store.read(_lastSeenKey) ?? '');
     } catch (_) {}
