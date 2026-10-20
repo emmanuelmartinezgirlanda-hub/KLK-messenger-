@@ -15,8 +15,36 @@ class StickerPack {
   final List<KlkSticker> stickers;
   /// Solo se pueden enviar con KLK Plus (todos los ven al recibirlos).
   final bool plus;
-  const StickerPack(this.name, this.icon, this.stickers, {this.plus = false});
+  /// Stickers con sonido: la imagen de siempre y una voz (assets/sounds/stickers/<id>.m4a).
+  final bool sound;
+  const StickerPack(this.name, this.icon, this.stickers, {this.plus = false, this.sound = false});
 }
+
+/// Así viaja un sticker con sonido: el mismo sticker (las versiones viejas
+/// ven la imagen) y este «mime» para que suene.
+const soundStickerMime = 'klk/sound';
+
+String soundStickerAsset(String id) => 'assets/sounds/stickers/$id.m4a';
+
+/// Stickers con sonido: imagen del pack Criollos + nuestra voz.
+const soundStickers = StickerPack('Con sonido', '🔊', [
+  KlkSticker('klk', '¡Qué lo que, mi gente!'),
+  KlkSticker('quelloque', '¡Qué lo que, manito!'),
+  KlkSticker('diache', '¡Diache!'),
+  KlkSticker('tamoactivo', '¡Tamo activo!'),
+  KlkSticker('aymimadre', '¡Ay mi madre!'),
+  KlkSticker('ombe', '¡Ombe, no!'),
+  KlkSticker('wepa', '¡Wepa!'),
+  KlkSticker('tutaloco', '¿Tú \'tá loco?'),
+  KlkSticker('eseasi', '¡Eso e\' así!'),
+  KlkSticker('tabuenoya', 'Ta\' bueno ya'),
+  KlkSticker('concho', '¡Concho!'),
+  KlkSticker('bendicion', '¡Bendiciones!'),
+  KlkSticker('jajaja', '¡Jajajá!'),
+  KlkSticker('tranquilo', 'Tranquilo, eso se resuelve'),
+  KlkSticker('dimelo', '¡Dímelo, cantante!'),
+  KlkSticker('suave', '¡Suave, suave!'),
+], sound: true);
 
 const stickerPacks = [
   StickerPack('Criollos', '🇩🇴', [

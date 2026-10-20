@@ -352,6 +352,8 @@ String? firstUrl(String text) {
   return u;
 }
 
+const voiceStickerPrefix = 'klk-sticker:';
+
 /// Nombre que llevan los stickers propios (los demás usan el id del sticker del pack).
 const customStickerName = 'custom';
 
@@ -428,6 +430,11 @@ class MessageMedia {
   /// Sticker hecho por el usuario (viaja como archivo cifrado, igual que una foto).
   bool get isCustomSticker => type == MediaType.sticker && name == customStickerName;
 
+  /// Sticker con la voz del usuario: viaja como nota de voz (las versiones
+  /// viejas la oyen como un audio normal) con el sticker en el nombre.
+  bool get isVoiceSticker => type == MediaType.audio && (name?.startsWith(voiceStickerPrefix) ?? false);
+  String get voiceStickerId => isVoiceSticker ? name!.substring(voiceStickerPrefix.length) : '';
+
   /// ¿Sigue compartiéndose la ubicación en tiempo real?
   bool liveActive(DateTime now) => type == MediaType.live && !liveEnded && (liveUntil?.isAfter(now) ?? false);
 
@@ -446,6 +453,7 @@ class MessageMedia {
 
   String get label {
     if (viewOnce) return type == MediaType.video ? '🎥 Vídeo · ver una vez' : '📷 Foto · ver una vez';
+    if (isVoiceSticker) return '🔊 Sticker con sonido';
     return switch (type) {
       MediaType.image => '📷 Foto',
       MediaType.video => '🎥 Vídeo',

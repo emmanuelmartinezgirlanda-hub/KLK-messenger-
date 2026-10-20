@@ -10,6 +10,7 @@ import '../../messaging/custom_stickers.dart';
 import '../../messaging/stickers.dart';
 import 'chat_avatar.dart';
 import 'group_info_screen.dart';
+import 'sound_sticker.dart';
 import 'sticker_editor.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../plus/plus_screen.dart';
@@ -54,7 +55,7 @@ class _StickerPickerState extends State<_StickerPicker> {
     super.dispose();
   }
 
-  Widget _grid(List<KlkSticker> list) => GridView.builder(
+  Widget _grid(List<KlkSticker> list, {bool sound = false, String prefix = ''}) => GridView.builder(
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, mainAxisSpacing: 4, crossAxisSpacing: 4),
         itemCount: list.length,
@@ -63,7 +64,10 @@ class _StickerPickerState extends State<_StickerPicker> {
           final locked = isPlusSticker(st.id) && !plusActive.value;
           return InkWell(
             borderRadius: BorderRadius.circular(18),
-            onTap: () => locked ? showPlusRequired(context, 'Este sticker') : Navigator.pop(context, st.id),
+            onTap: () => locked
+                ? showPlusRequired(context, 'Este sticker')
+                : Navigator.pop(context, sound ? 'snd:${st.id}' : '$prefix${st.id}'),
+            onLongPress: sound ? () => SoundStickerPlayer.play(st.id) : null,
             child: Tooltip(
               message: st.label,
               child: Stack(children: [
@@ -76,6 +80,7 @@ class _StickerPickerState extends State<_StickerPicker> {
                 ),
                 if (locked)
                   const Positioned(right: 4, top: 4, child: PlusMark(size: 20)),
+                if (sound) const Positioned(right: 2, bottom: 2, child: SoundBadge()),
               ]),
             ),
           );
@@ -91,9 +96,9 @@ class _StickerPickerState extends State<_StickerPicker> {
       child: SizedBox(
         height: MediaQuery.sizeOf(context).height * 0.72,
         child: DefaultTabController(
-          length: stickerPacks.length + 1,
+          length: stickerPacks.length + 2,
           // La pestaña 0 es "Míos"; los packs van después
-          initialIndex: (widget.initialPack + 1).clamp(0, stickerPacks.length).toInt(),
+          initialIndex: (widget.initialPack + 1).clamp(0, stickerPacks.length + 1).toInt(),
           child: Column(children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
@@ -141,12 +146,14 @@ class _StickerPickerState extends State<_StickerPicker> {
                 tabs: [
                   Tab(height: 38, text: tr('⭐ Míos')),
                   for (final p in stickerPacks) Tab(height: 38, text: '${p.icon} ${p.name}'),
+                  Tab(height: 38, text: '${soundStickers.icon} ${soundStickers.name}'),
                 ],
               ),
               Expanded(
                 child: TabBarView(children: [
                   const _MyStickers(),
                   for (final pack in stickerPacks) _grid(pack.stickers),
+                  SoundStickerTab(grid: _grid),
                 ]),
               ),
             ],

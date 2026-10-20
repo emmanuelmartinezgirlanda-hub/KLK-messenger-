@@ -12,6 +12,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../messaging/models.dart';
 import '../../messaging/stickers.dart';
+import 'sound_sticker.dart';
 import '../../../core/l10n/l10n.dart';
 
 /// Contenido multimedia dentro de una burbuja.
@@ -61,6 +62,12 @@ class MediaContent extends StatelessWidget {
     return switch (media.type) {
       MediaType.image => _ImageThumb(path: path!),
       MediaType.video => _VideoThumb(path: path!, durationMs: media.durationMs),
+      MediaType.audio when media.isVoiceSticker => SoundSticker(
+          id: media.voiceStickerId,
+          messageId: message.id,
+          filePath: path,
+          autoplay: !message.isMine && DateTime.now().difference(message.createdAt).inSeconds < 20,
+        ),
       MediaType.audio => Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           VoiceNotePlayer(
             path: path!,
@@ -79,7 +86,9 @@ class MediaContent extends StatelessWidget {
       MediaType.sticker => media.isCustomSticker
           ? Image.file(File(path!), width: 150, height: 150, fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => Image.asset(stickerAsset(null), width: 150, height: 150))
-          : Image.asset(stickerAsset(media.name), width: 150, height: 150),
+          : media.mime == soundStickerMime
+              ? SoundSticker(id: media.name ?? 'klk', messageId: message.id, autoplay: !message.isMine && DateTime.now().difference(message.createdAt).inSeconds < 20)
+              : Image.asset(stickerAsset(media.name), width: 150, height: 150),
       MediaType.trip => _TripCard(media: media, fg: fg),
       MediaType.poll => PollCard(media: media, fg: fg, onVote: onVote),
       MediaType.live => _LiveCard(media: media, fg: fg, mine: message.isMine, onStop: onStopLive),

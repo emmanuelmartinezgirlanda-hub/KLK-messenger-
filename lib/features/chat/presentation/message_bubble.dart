@@ -78,7 +78,7 @@ class MessageBubble extends StatelessWidget {
     final style = Theme.of(context).extension<BubbleStyle>()!;
     final mine = message.isMine;
     final media = message.media;
-    final isSticker = !message.deleted && media?.type == MediaType.sticker;
+    final isSticker = !message.deleted && (media?.type == MediaType.sticker || (media?.isVoiceSticker ?? false));
     final bg = mine ? style.mine : style.theirs;
     final fg = isSticker ? cs.onSurface : (mine ? style.mineText : style.theirsText);
     final r = Radius.circular(style.radius);

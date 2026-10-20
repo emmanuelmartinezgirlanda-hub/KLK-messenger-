@@ -26,10 +26,12 @@ import '../../theming/domain/klk_theme.dart';
 import '../../theming/wallpapers.dart';
 import 'chat_avatar.dart';
 import 'chat_sheets.dart';
+import 'sound_sticker.dart';
 import '../../contacts/contact_actions.dart';
 import '../../contacts/contact_info_screen.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../messaging/custom_stickers.dart';
+import '../../messaging/stickers.dart';
 import 'media_bubbles.dart';
 import 'message_bubble.dart';
 import 'starred_screen.dart';
@@ -399,6 +401,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             final id = await pickSticker(context);
             if (id != null && id.startsWith('file:')) {
               await _sendCustomSticker(id.substring(5));
+            } else if (id != null && id.startsWith('rec:')) {
+              final voice = await recordVoiceSticker(context, id.substring(4));
+              if (voice != null) {
+                await _sendMedia(MessageMedia(
+                  type: MediaType.audio,
+                  name: '$voiceStickerPrefix${id.substring(4)}',
+                  localPath: voice.path,
+                  mime: 'audio/mp4',
+                  durationMs: voice.ms,
+                  size: await File(voice.path).length(),
+                ));
+              }
+            } else if (id != null && id.startsWith('snd:')) {
+              await _sendMedia(MessageMedia(type: MediaType.sticker, name: id.substring(4), mime: soundStickerMime));
             } else if (id != null) {
               await _sendMedia(MessageMedia(type: MediaType.sticker, name: id));
             }

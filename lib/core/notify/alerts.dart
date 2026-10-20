@@ -157,8 +157,9 @@ class Alerts with WidgetsBindingObserver {
       final dir = Directory(p.join((await getLibraryDirectory()).path, 'Sounds'));
       if (!await dir.exists()) await dir.create(recursive: true);
       final f = File(p.join(dir.path, 'klk_$id.wav'));
-      if (await f.exists()) return;
       final data = await rootBundle.load('assets/sounds/$id.wav');
+      // Si cambió el tono (versión nueva de KLK), se vuelve a copiar.
+      if (await f.exists() && await f.length() == data.lengthInBytes) return;
       await f.writeAsBytes(data.buffer.asUint8List(), flush: true);
     } catch (e) {
       debugPrint('Instalar tono: $e');

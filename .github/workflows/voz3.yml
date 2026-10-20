@@ -4,7 +4,6 @@ on:
     branches: [main]
     paths:
       - "marketing/anuncio/guion_neutro.txt"
-      - "marketing/anuncio/voz_neutra.py"
       - ".github/workflows/voz3.yml"
   workflow_dispatch:
 permissions:
