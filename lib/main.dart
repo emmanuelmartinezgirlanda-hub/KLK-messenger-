@@ -111,7 +111,13 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
       ],
       // Al cambiar de idioma se vuelve a construir toda la app con los textos nuevos
       builder: (context, child) => Stack(key: ValueKey(lang), children: [
-        if (child != null) child,
+        // Tocar fuera de un campo de texto quita el teclado (en toda la app)
+        if (child != null)
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: child,
+          ),
         if (_locked && phase == AppPhase.ready) LockScreen(onUnlocked: () => setState(() => _locked = false)),
       ]),
       home: switch (phase) {

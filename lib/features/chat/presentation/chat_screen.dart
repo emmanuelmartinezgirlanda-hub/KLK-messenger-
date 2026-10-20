@@ -1129,7 +1129,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final title = chat?.title ?? '';
     final zone = chat == null ? null : zoneForPhone(chat.phone);
-    final seen = (chat?.isGroup ?? true) ? null : presenceLabel(app.presence[widget.chatId], DateTime.now());
+    final seen = (chat?.isGroup ?? true) || !ref.watch(privacyProvider).canSeeOthersLastSeen
+        ? null
+        : presenceLabel(app.presence[widget.chatId], DateTime.now());
     final status = (chat?.isNotes ?? false)
         ? 'Mensajes para ti · solo en este móvil'
         : recording
@@ -1138,7 +1140,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ? tr('escribiendo…')
             : (chat?.isGroup ?? false)
                 ? (chat != null && chat.members.isNotEmpty ? '${chat.members.length + 1} miembros' : 'Grupo')
-                : (seen ?? prettyPhone(chat?.phone ?? ''));
+                : (seen ?? '');
     final live = typing || recording || seen == tr('en línea');
 
     return Scaffold(
@@ -1214,6 +1216,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700)),
+              if (status.isNotEmpty)
               Text(
                 status,
                 maxLines: 1,

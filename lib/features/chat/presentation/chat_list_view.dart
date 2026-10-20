@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
@@ -83,6 +84,7 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
       SizedBox(
         height: 44,
         child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           children: [
@@ -111,7 +113,7 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
     ];
 
     if (all.isEmpty && app.archivedChats.isEmpty) {
-      return ListView(children: [
+      return ListView(keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, children: [
         ...top,
         Padding(
           padding: const EdgeInsets.fromLTRB(32, 48, 32, 32),
@@ -136,6 +138,7 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
     // Solo un chat deslizado a la vez (como en WhatsApp)
     return SlidableAutoCloseBehavior(
       child: ListView.builder(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.only(bottom: 96),
       itemCount: top.length + (chats.isEmpty ? 1 : chats.length),
       itemBuilder: (context, i) {
@@ -180,10 +183,32 @@ class _AnnouncementCard extends StatelessWidget {
   final VoidCallback onClose;
   const _AnnouncementCard({required this.news, required this.onClose});
 
+  static final _linkRe = RegExp(r'(https?://[^\s]+|www\.[^\s]+|\b[a-z0-9-]+\.(?:com|net|org|do|app)\b[^\s]*)', caseSensitive: false);
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
+    final m = _linkRe.firstMatch(news.body);
+    final link = m?.group(0);
+    Future<void> open() async {
+      if (link == null) return;
+      final url = link.startsWith('http') ? link : 'https://$link';
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+
+    final bodyStyle = TextStyle(fontSize: 14, color: cs.onSurface.withValues(alpha: 0.8));
+    final body = m == null
+        ? Text(news.body, style: bodyStyle)
+        : Text.rich(TextSpan(style: bodyStyle, children: [
+            TextSpan(text: news.body.substring(0, m.start)),
+            TextSpan(
+                text: link,
+                style: TextStyle(color: cs.primary, decoration: TextDecoration.underline, fontWeight: FontWeight.w600)),
+            TextSpan(text: news.body.substring(m.end)),
+          ]));
+    return GestureDetector(
+      onTap: link == null ? null : open,
+      child: Container(
       margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
       padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
       decoration: BoxDecoration(
@@ -202,7 +227,7 @@ class _AnnouncementCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('KLK · ${news.title}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             const SizedBox(height: 3),
-            Text(news.body, style: TextStyle(fontSize: 14, color: cs.onSurface.withValues(alpha: 0.8))),
+            body,
           ]),
         ),
         IconButton(
@@ -212,6 +237,7 @@ class _AnnouncementCard extends StatelessWidget {
           onPressed: onClose,
         ),
       ]),
+      ),
     );
   }
 }

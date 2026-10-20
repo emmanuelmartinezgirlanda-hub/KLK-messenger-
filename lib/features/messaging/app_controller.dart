@@ -644,6 +644,7 @@ class AppController extends ChangeNotifier {
               lastSeen: e == null ? null : DateTime.fromMillisecondsSinceEpoch(e * 1000),
               at: DateTime.now(),
             );
+            if (e != null) _rememberLastSeen(from, e);
             notifyListeners();
           }
         case 'typing' || 'recording':
@@ -2187,11 +2188,59 @@ class AppController extends ChangeNotifier {
     _myLastSeen = DateTime.now();
     unawaited(_store.write(_lastSeenKey, _myLastSeen!.toIso8601String()).catchError((_) {}));
     unawaited(_announcePresence());
+    unawaited(_leaveLastSeen());
+  }
+
+  // Las preguntas de "¿estás en línea?" solo llegan si el otro tiene KLK abierta.
+  // Para que se vea la última conexión aunque esté cerrada, al salir de KLK dejo
+  // (cifrada y guardada en el servidor hasta que la recojan) mi hora de salida a
+  // los chats recientes que tienen permiso para verla según mi privacidad.
+  DateTime _lastLeftAt = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _seenOfKey = 'klk.presence.seen';
+  Map<String, int> _seenOf = {}; // accountId -> última conexión (segundos)
+
+  Future<void> _leaveLastSeen() async {
+    if (isDemo || _api == null) return;
+    final now = DateTime.now();
+    if (now.difference(_lastLeftAt) < const Duration(minutes: 5)) return;
+    _lastLeftAt = now;
+    final week = now.subtract(const Duration(days: 7));
+    final recent = chats
+        .where((c) => !c.isGroup && !c.blocked && !c.isNotes && c.identityKey != null && c.updatedAt.isAfter(week))
+        .take(25)
+        .toList();
+    final me = _myPresence();
+    for (final c in recent) {
+      if (!_sharesPresenceWith(c.id)) continue;
+      try {
+        await _sendEncrypted(c.id, me, ref: 'x-seen-${_uuid.v4()}');
+      } catch (_) {}
+    }
+  }
+
+  void _rememberLastSeen(String accountId, int secs) {
+    if ((_seenOf[accountId] ?? 0) >= secs) return;
+    _seenOf[accountId] = secs;
+    unawaited(_store.write(_seenOfKey, jsonEncode(_seenOf)).catchError((_) {}));
   }
 
   Future<void> _loadLastSeen() async {
     try {
       _myLastSeen = DateTime.tryParse(await _store.read(_lastSeenKey) ?? '');
+    } catch (_) {}
+    try {
+      final raw = await _store.read(_seenOfKey);
+      if (raw != null && raw.isNotEmpty) {
+        _seenOf = (jsonDecode(raw) as Map).map((k, v) => MapEntry(k as String, (v as num).toInt()));
+        for (final e in _seenOf.entries) {
+          presence.putIfAbsent(
+              e.key,
+              () => Presence(
+                  online: false,
+                  lastSeen: DateTime.fromMillisecondsSinceEpoch(e.value * 1000),
+                  at: DateTime.fromMillisecondsSinceEpoch(e.value * 1000)));
+        }
+      }
     } catch (_) {}
   }
 
