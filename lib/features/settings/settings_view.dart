@@ -94,7 +94,7 @@ class SettingsView extends ConsumerWidget {
           ),
         if (!app.isDemo)
           ListTile(
-            leading: const Text('💎', style: TextStyle(fontSize: 24)),
+            leading: const PlusMark(size: 34),
             title: const Text('KLK Plus', style: TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(app.plus ? 'Activo · iconos, temas y stickers exclusivos' : 'Iconos, temas y stickers exclusivos'),
             trailing: const Icon(Icons.chevron_right),

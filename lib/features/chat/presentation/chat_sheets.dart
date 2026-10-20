@@ -75,7 +75,7 @@ class _StickerPickerState extends State<_StickerPicker> {
                   ),
                 ),
                 if (locked)
-                  const Positioned(right: 4, top: 4, child: Text('💎', style: TextStyle(fontSize: 16))),
+                  const Positioned(right: 4, top: 4, child: PlusMark(size: 20)),
               ]),
             ),
           );

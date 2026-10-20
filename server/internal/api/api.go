@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 
+	"github.com/klk-app/klk-server/internal/appstore"
 	"github.com/klk-app/klk-server/internal/auth"
 	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
@@ -50,6 +51,9 @@ type Server struct {
 
 	// PlusCodes activan KLK Plus (dueño y pruebas). Vacío = sin códigos.
 	PlusCodes []PlusCode
+	// Apple comprueba las compras de Plus hechas en el iPhone (nil = apagado).
+	Apple         *appstore.Verifier
+	AppleBundleID string
 
 	// Topups: recargas de móvil a RD (nil = apagadas).
 	Topups *Topups
@@ -87,6 +91,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("DELETE /v1/account", s.authed(s.deleteAccount))
 	mux.HandleFunc("GET /v1/plus", s.authed(s.plusStatus))
 	mux.HandleFunc("POST /v1/plus/redeem", s.limited(s.authed(s.plusRedeem)))
+	mux.HandleFunc("POST /v1/plus/apple", s.limited(s.authed(s.plusApple)))
 	mux.HandleFunc("PUT /v1/push-token", s.limited(s.authed(s.setPushToken)))
 	mux.HandleFunc("DELETE /v1/push-token", s.authed(s.deletePushToken))
 	mux.HandleFunc("GET /privacidad", s.privacyPage)

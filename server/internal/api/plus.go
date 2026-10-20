@@ -95,3 +95,70 @@ func (s *Server) plusRedeem(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, plusView{Active: true, Until: &until})
 }
+
+// POST /v1/plus/apple {"jws":["…"]}: compras (o renovaciones) de KLK Plus
+// hechas con Apple. Apple cobra y nos paga; aquí solo comprobamos la firma.
+func (s *Server) plusApple(w http.ResponseWriter, r *http.Request) {
+	dev := deviceFrom(r)
+	var req struct {
+		JWS []string `json:"jws"`
+	}
+	if !readJSON(w, r, &req) {
+		return
+	}
+	if s.Apple == nil || len(req.JWS) == 0 || len(req.JWS) > 20 {
+		writeErr(w, http.StatusBadRequest, "bad_purchase", "compra no válida")
+		return
+	}
+	now := time.Now()
+	best := time.Time{}
+	taken := false
+	for _, j := range req.JWS {
+		tx, err := s.Apple.Verify(j, now)
+		if err != nil || tx.BundleID != s.AppleBundleID || !strings.HasPrefix(tx.ProductID, "klk.plus") ||
+			tx.RevocationDate != 0 || tx.OriginalTransactionID == "" {
+			continue
+		}
+		if tx.AppAccountToken != "" && !strings.EqualFold(tx.AppAccountToken, dev.AccountID) {
+			taken = true
+			continue
+		}
+		exp := tx.Expires()
+		if !exp.After(now) {
+			continue
+		}
+		owner, err := s.store.ClaimAppleSub(r.Context(), tx.OriginalTransactionID, dev.AccountID, exp)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+			return
+		}
+		if owner != dev.AccountID {
+			taken = true
+			continue
+		}
+		if exp.After(best) {
+			best = exp
+		}
+	}
+	if best.IsZero() {
+		if taken {
+			writeErr(w, http.StatusConflict, "other_account", "esa suscripción es de otra cuenta de KLK")
+			return
+		}
+		writeErr(w, http.StatusBadRequest, "bad_purchase", "no hay una suscripción activa")
+		return
+	}
+	cur, err := s.store.PlusUntil(r.Context(), dev.AccountID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	until := best
+	if cur.After(until) {
+		until = cur // p. ej. un código de 10 años
+	} else if err := s.store.SetPlusUntil(r.Context(), dev.AccountID, until); err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	writeJSON(w, http.StatusOK, plusView{Active: true, Until: &until})
+}

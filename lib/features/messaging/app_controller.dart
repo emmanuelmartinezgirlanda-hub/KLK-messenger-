@@ -2005,6 +2005,34 @@ class AppController extends ChangeNotifier {
     } catch (e) {
       debugPrint('Plus: $e');
     }
+    // Renovaciones de Apple: si la suscripción sigue activa, se la paso al servidor.
+    if (!plusActive.value && KlkNative.supportsStore) {
+      try {
+        final jws = await KlkNative.storeEntitlements();
+        if (jws.isNotEmpty) await _savePlus(await _api!.plusApple(jws));
+      } catch (e) {
+        debugPrint('Plus Apple: $e');
+      }
+    }
+  }
+
+  /// Productos de KLK Plus en el App Store (se crean en App Store Connect).
+  static const plusProducts = ['klk.plus.mensual', 'klk.plus.anual'];
+
+  /// Compra KLK Plus con Apple. Apple cobra; el servidor comprueba la compra.
+  Future<void> buyPlus(String productId) async {
+    if (_api == null) throw const ApiException(0, 'demo', 'Entra con tu número para comprar KLK Plus.');
+    final jws = await KlkNative.storeBuy(productId, accountId: session?.accountId);
+    await _savePlus(await _api!.plusApple([jws]));
+  }
+
+  /// «Restaurar compras»: recupera una suscripción ya pagada con este Apple ID.
+  Future<bool> restorePlus() async {
+    if (_api == null) return false;
+    final jws = await KlkNative.storeEntitlements(sync: true);
+    if (jws.isEmpty) return false;
+    await _savePlus(await _api!.plusApple(jws));
+    return plusActive.value;
   }
 
   /// Activa Plus con un código (solo en versiones de prueba). Lanza ApiException si no vale.

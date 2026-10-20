@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/klk-app/klk-server/internal/api"
+	"github.com/klk-app/klk-server/internal/appstore"
 	"github.com/klk-app/klk-server/internal/auth"
 	"github.com/klk-app/klk-server/internal/blob"
 	"github.com/klk-app/klk-server/internal/push"
@@ -148,6 +149,11 @@ func main() {
 		PerIPMax:   envInt("KLK_SMS_IP_MAX", 10),
 	}
 	apiServer.PlusCodes = api.ParsePlusCodes(os.Getenv("KLK_PLUS_CODES"))
+	apiServer.Apple = appstore.NewApple()
+	apiServer.AppleBundleID = "com.klkapp.klk"
+	if v := os.Getenv("KLK_APPLE_BUNDLE_ID"); v != "" {
+		apiServer.AppleBundleID = v
+	}
 	apiServer.Legal = api.Legal{Owner: os.Getenv("KLK_OWNER_NAME"), SupportEmail: os.Getenv("KLK_SUPPORT_EMAIL")}
 	apiServer.Topups = topupConfig()
 	if apiServer.Topups != nil {

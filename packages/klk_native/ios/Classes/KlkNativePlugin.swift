@@ -34,6 +34,7 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    if PlusStore.handle(call, result: result) { return }
     switch call.method {
     case "transcribe":
       guard let args = call.arguments as? [String: Any], let path = args["path"] as? String else {

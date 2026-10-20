@@ -64,7 +64,11 @@ class ThemePickerScreen extends ConsumerWidget {
                 .toList(),
           ),
           const SizedBox(height: 24),
-          Text('KLK Plus 💎', style: Theme.of(context).textTheme.titleMedium),
+          Row(children: [
+            Text('KLK Plus', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(width: 8),
+            const PlusMark(size: 20),
+          ]),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,

@@ -234,6 +234,10 @@ class ApiClient {
   Future<Map<String, dynamic>> redeemPlus(String code) async =>
       await _send('POST', '/v1/plus/redeem', {'code': code}) as Map<String, dynamic>;
 
+  /// Compras de KLK Plus hechas con Apple (el servidor comprueba la firma).
+  Future<Map<String, dynamic>> plusApple(List<String> jws) async =>
+      await _send('POST', '/v1/plus/apple', {'jws': jws}) as Map<String, dynamic>;
+
   /// Dónde avisar a este móvil cuando llegue un mensaje (el aviso no lleva el mensaje).
   Future<void> setPushToken(String platform, String token, String lang) =>
       _send('PUT', '/v1/push-token', {'platform': platform, 'token': token, 'lang': lang});

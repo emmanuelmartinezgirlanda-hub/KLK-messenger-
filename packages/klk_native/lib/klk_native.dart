@@ -153,4 +153,53 @@ class KlkNative {
   /// Se emite cada vez que el usuario hace una captura de pantalla (iPhone).
   static Stream<void> get screenshots =>
       supported ? _shots.receiveBroadcastStream().map((_) {}) : const Stream.empty();
+
+  // ---------- KLK Plus con Apple (StoreKit 2) ----------
+
+  /// ¿Se puede comprar Plus con Apple en este móvil?
+  static bool get supportsStore => supported;
+
+  /// Productos de Apple: [{id, price, title, unit, count, trialUnit, trialCount}].
+  static Future<List<Map<String, dynamic>>> storeProducts(List<String> ids) async {
+    if (!supported) return const [];
+    try {
+      final list = await _channel.invokeListMethod<Map<Object?, Object?>>('storeProducts', {'ids': ids});
+      return [for (final m in list ?? const <Map<Object?, Object?>>[]) m.map((k, v) => MapEntry('$k', v))];
+    } on MissingPluginException {
+      return const [];
+    } on PlatformException {
+      return const [];
+    }
+  }
+
+  /// Compra: abre la hoja de pago de Apple. Devuelve la compra firmada (JWS).
+  static Future<String> storeBuy(String productId, {String? accountId}) async {
+    try {
+      final jws = await _channel.invokeMethod<String>('storeBuy', {'id': productId, 'account': accountId});
+      if (jws == null) throw const KlkNativeException('store', 'No se pudo comprar');
+      return jws;
+    } on PlatformException catch (e) {
+      throw KlkNativeException(e.code, e.message ?? 'No se pudo comprar');
+    } on MissingPluginException {
+      throw const KlkNativeException('unsupported', 'Actualiza KLK para comprar Plus.');
+    }
+  }
+
+  /// Suscripciones activas (JWS). [sync] = «Restaurar compras» (pide Apple ID).
+  static Future<List<String>> storeEntitlements({bool sync = false}) async {
+    if (!supported) return const [];
+    try {
+      return await _channel.invokeListMethod<String>('storeEntitlements', {'sync': sync}) ?? const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Abre «Gestionar suscripción» de Apple (cancelar, cambiar plan).
+  static Future<void> storeManage() async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod('storeManage');
+    } catch (_) {}
+  }
 }

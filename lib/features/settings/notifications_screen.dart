@@ -25,7 +25,10 @@ class NotificationsScreen extends StatelessWidget {
             for (final t in klkTones)
               ListTile(
                 leading: Text(t.emoji, style: const TextStyle(fontSize: 26)),
-                title: Text(t.plus && !plusActive.value ? '${t.name}  💎' : t.name),
+                title: Row(children: [
+                  Flexible(child: Text(t.name)),
+                  if (t.plus && !plusActive.value) ...[const SizedBox(width: 8), const PlusMark(size: 18)],
+                ]),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   IconButton(
                     tooltip: 'Escuchar',

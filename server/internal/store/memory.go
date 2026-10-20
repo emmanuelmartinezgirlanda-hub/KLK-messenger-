@@ -28,6 +28,7 @@ type Memory struct {
 	topups      map[string]Topup
 	push        map[devKey]PushToken
 	plus        map[string]time.Time
+	appleSubs   map[string]string // originalTransactionId -> cuenta
 }
 
 type memAttachment struct {
