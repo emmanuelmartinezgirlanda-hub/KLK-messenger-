@@ -474,6 +474,12 @@ class AppController extends ChangeNotifier {
       unawaited(_ensureSignalKeys());
     } catch (e) {
       debugPrint('WebSocket: $e');
+      if (await _checkSessionReplaced(e)) {
+        _ws = null;
+        online = false;
+        notifyListeners();
+        return;
+      }
       // ¿No conecta porque el dueño bloqueó la cuenta? (como mucho 1 vez por minuto)
       if (DateTime.now().difference(_bannedCheckedAt) > const Duration(minutes: 1)) {
         _bannedCheckedAt = DateTime.now();
@@ -483,13 +489,57 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// Este número se abrió en otro dispositivo (KLK, por ahora, es de un solo
+  /// dispositivo por número) y el servidor ya no acepta la sesión de aquí.
+  bool sessionReplaced = false;
+
+  /// ¿La conexión falló porque el servidor ya no acepta mi sesión?
+  Future<bool> _checkSessionReplaced(Object error) async {
+    if (!error.toString().contains('401') || _api == null) return false;
+    try {
+      await _api!.plusStatus();
+      return false;
+    } on ApiException catch (e) {
+      if (e.status != 401) return false;
+      sessionReplaced = true;
+      _retry?.cancel();
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Volver a entrar con mi número en este dispositivo. Los chats NO se borran:
+  /// se usan la misma base de datos y las mismas claves de este móvil.
+  Future<void> signInAgain() async {
+    final old = session;
+    _retry?.cancel();
+    _tick?.cancel();
+    await _ws?.sink.close();
+    _ws = null;
+    online = false;
+    await _db?.close();
+    _db = null;
+    _api = null;
+    _messages.clear();
+    _outbox.clear();
+    await _store.clearSession();
+    pendingPhone = old?.phone;
+    pendingServer = old?.server ?? '';
+    session = null;
+    sessionReplaced = false;
+    phase = AppPhase.onboarding;
+    notifyListeners();
+  }
+
   void _onDisconnect() {
     _ws = null;
     if (online) {
       online = false;
       notifyListeners();
     }
-    if (session == null || session!.isDemo || (_retry?.isActive ?? false)) return;
+    if (sessionReplaced || session == null || session!.isDemo || (_retry?.isActive ?? false)) return;
     _retry = Timer(Duration(seconds: _backoff), _connect);
     _backoff = min(_backoff * 2, 30);
   }

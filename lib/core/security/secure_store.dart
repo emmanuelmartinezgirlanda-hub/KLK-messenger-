@@ -61,6 +61,9 @@ class SecureStore {
     return s == null ? null : Session.fromJson(jsonDecode(s) as Map<String, dynamic>);
   }
 
+  /// Quita solo la sesión (los chats y las claves se quedan) para volver a entrar.
+  Future<void> clearSession() => _storage.delete(key: _sessionKey);
+
   Future<void> saveSession(Session s) => _storage.write(key: _sessionKey, value: jsonEncode(s.toJson()));
 
   /// Semilla privada de la clave de identidad (32 bytes, base64).

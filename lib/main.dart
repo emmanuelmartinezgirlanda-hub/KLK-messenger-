@@ -13,6 +13,7 @@ import 'features/home/home_screen.dart';
 import 'features/messaging/app_controller.dart';
 import 'features/lock/app_lock.dart';
 import 'features/onboarding/welcome_screen.dart';
+import 'features/onboarding/session_closed_screen.dart';
 import 'features/privacy/presentation/privacy_provider.dart';
 import 'features/theming/domain/klk_theme.dart';
 import 'features/theming/presentation/theme_provider.dart';
@@ -90,6 +91,7 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final theme = ref.watch(themeProvider);
     final phase = ref.watch(appProvider.select((a) => a.phase));
+    final replaced = ref.watch(appProvider.select((a) => a.sessionReplaced));
     final lang = ref.watch(languageProvider) ?? deviceLanguage();
     setCurrentLanguage(lang);
 
@@ -116,6 +118,7 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
         AppPhase.loading => const _Splash(),
         AppPhase.ready when !_lockChecked => const _Splash(),
         AppPhase.onboarding => const WelcomeScreen(),
+        AppPhase.ready when replaced => const SessionClosedScreen(),
         AppPhase.ready => const HomeScreen(),
       },
     );
