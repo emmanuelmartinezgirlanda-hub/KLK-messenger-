@@ -39,6 +39,9 @@ if command -v plutil >/dev/null; then
   addkey NSSpeechRecognitionUsageDescription "KLK pasa a texto las notas de voz dentro de tu iPhone, sin enviarlas a ningún servidor."
   # Que la llamada siga sonando si sales un momento de KLK
   plutil -replace UIBackgroundModes -json '["audio"]' "$PLIST"
+  # Cifrado: solo algoritmos estándar (exento) y sin Francia. Así App Store
+  # Connect no vuelve a preguntar «Falta información de exportación».
+  plutil -replace ITSAppUsesNonExemptEncryption -bool NO "$PLIST"
 fi
 # iOS 15.5 mínimo: lo exige el traductor de Google ML Kit
 sed -i.bak "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 15.5;/g" ios/Runner.xcodeproj/project.pbxproj
