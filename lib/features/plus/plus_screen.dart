@@ -468,8 +468,11 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                       : null,
                 ),
             ]),
+            // «Muy pronto» solo en pruebas: Apple no deja anunciar en la pantalla
+            // de pago cosas que aún no existen (se cobra solo por lo que ya hay).
+            if (_test) ...[
             const SizedBox(height: 16),
-            const _Title('Muy pronto en Plus'),
+            const _Title('Muy pronto en Plus (solo lo ves en pruebas)'),
             _Group(children: [
               for (final (icon, t) in _soon)
                 ListTile(
@@ -485,6 +488,7 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                   ),
                 ),
             ]),
+            ],
 
             // Solo en versiones de prueba (TestFlight / APK de pruebas): las tiendas
             // no permiten activar funciones de pago con códigos.
