@@ -5,11 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/util/phone.dart';
 import '../../messaging/models.dart';
 import '../../messaging/custom_stickers.dart';
 import '../../messaging/stickers.dart';
 import 'chat_avatar.dart';
+import 'group_info_screen.dart';
 import 'sticker_editor.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../plus/plus_screen.dart';
@@ -562,34 +562,8 @@ Future<int?> pickDisappearing(BuildContext context, int? current) => showModalBo
     );
 
 /// Información del grupo: miembros.
-Future<void> showGroupInfo(BuildContext context, Chat chat) => showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(ctx).height * 0.6,
-          child: Column(children: [
-            ChatAvatar(id: chat.id, title: chat.title, radius: 36),
-            const SizedBox(height: 8),
-            Text(chat.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-            Text('${chat.members.length + 1} participantes'),
-            const Divider(height: 24),
-            Expanded(
-              child: ListView(children: [
-                ListTile(leading: CircleAvatar(child: Text(tr('TÚ'))), title: Text(tr('Tú'))),
-                for (final m in chat.members)
-                  ListTile(
-                    leading: ChatAvatar(id: m.id, title: m.name.isEmpty ? m.phone : m.name, radius: 20),
-                    title: Text(m.name.isEmpty ? prettyPhone(m.phone) : m.name),
-                    subtitle: m.phone.isEmpty ? null : Text(prettyPhone(m.phone)),
-                  ),
-              ]),
-            ),
-          ]),
-        ),
-      ),
-    );
+Future<void> showGroupInfo(BuildContext context, Chat chat) =>
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoScreen(chatId: chat.id)));
 
 /// Remesas y recargas: se integrarán con proveedores autorizados.
 Future<void> showMoneyInfo(BuildContext context, {required bool recharge}) => showModalBottomSheet(
