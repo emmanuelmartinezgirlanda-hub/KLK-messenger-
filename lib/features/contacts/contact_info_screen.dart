@@ -355,7 +355,7 @@ class ContactInfoScreen extends ConsumerWidget {
                 scrollDirection: Axis.horizontal,
                 itemCount: media.length > 12 ? 12 : media.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 6),
-                itemBuilder: (_, i) => _MediaThumb(message: media[i], size: 84),
+                itemBuilder: (_, i) => MediaThumb(message: media[i], size: 84),
               ),
             ),
         ]),
@@ -404,10 +404,10 @@ class ContactInfoScreen extends ConsumerWidget {
   }
 }
 
-class _MediaThumb extends StatelessWidget {
+class MediaThumb extends StatelessWidget {
   final Message message;
   final double size;
-  const _MediaThumb({required this.message, required this.size});
+  const MediaThumb({super.key, required this.message, required this.size});
 
   @override
   Widget build(BuildContext context) {
@@ -482,7 +482,7 @@ class SharedMediaScreen extends ConsumerWidget {
                       crossAxisCount: 3, mainAxisSpacing: 2, crossAxisSpacing: 2),
                   itemCount: media.length,
                   itemBuilder: (_, i) => LayoutBuilder(
-                      builder: (_, c) => _MediaThumb(message: media[i], size: c.maxWidth)),
+                      builder: (_, c) => MediaThumb(message: media[i], size: c.maxWidth)),
                 ),
           docs.isEmpty
               ? empty(tr('Aquí saldrán los documentos que os enviéis.'))

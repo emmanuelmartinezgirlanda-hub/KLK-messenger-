@@ -69,8 +69,11 @@ class _CommunitiesViewState extends ConsumerState<CommunitiesView> {
     }
   }
 
-  void _open(Community c) =>
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: c.chatId)));
+  Future<void> _open(Community c) async {
+    await ref.read(appProvider).ensureCommunityChat(c);
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: c.chatId)));
+  }
 
   Widget _tile(Community c, {bool mine = false}) {
     final cs = Theme.of(context).colorScheme;

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../core/config.dart';
 import '../../core/network/api_client.dart';
@@ -13,6 +12,7 @@ import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../messaging/app_controller.dart';
 import '../../core/l10n/l10n.dart';
+import '../../core/util/share.dart';
 
 /// Enlace de mi contacto: https://servidor/c/18095551234?n=Emmanuel
 /// Si lo abre alguien sin KLK, la página le explica cómo descargarla.
@@ -51,14 +51,14 @@ class MyQrScreen extends ConsumerWidget {
         title: Text(tr('Mi código QR')),
         centerTitle: true,
         actions: [
-          IconButton(
+          Builder(builder: (context) => IconButton(
             tooltip: tr('Compartir'),
             icon: const Icon(Icons.ios_share),
             onPressed: link.isEmpty
                 ? null
-                : () => Share.share('¡Klk! Escríbeme por KLK messenger 🇩🇴\n$link',
+                : () => shareText(context, '¡Klk! Escríbeme por KLK messenger 🇩🇴\n$link',
                     subject: 'Mi contacto de KLK messenger'),
-          ),
+          )),
         ],
       ),
       body: SafeArea(
@@ -117,15 +117,15 @@ class MyQrScreen extends ConsumerWidget {
             label: Text(tr('Escanear'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 10),
-          OutlinedButton.icon(
+          Builder(builder: (context) => OutlinedButton.icon(
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48), shape: const StadiumBorder()),
             onPressed: link.isEmpty
                 ? null
-                : () => Share.share('¡Klk! Escríbeme por KLK messenger 🇩🇴\n$link',
+                : () => shareText(context, '¡Klk! Escríbeme por KLK messenger 🇩🇴\n$link',
                     subject: 'Mi contacto de KLK messenger'),
             icon: const Icon(Icons.share_outlined),
             label: Text(tr('Compartir mi enlace')),
-          ),
+          )),
         ]),
       ),
     );

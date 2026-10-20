@@ -1768,6 +1768,13 @@ class AppController extends ChangeNotifier {
         ];
       } else {
         communities = [for (final j in await _api!.communities()) Community.fromJson(j)];
+        // Si el servidor dice que estoy dentro pero el chat no está en este móvil
+        // (otro móvil, reinstalación…), lo creo para poder escribir.
+        var added = false;
+        for (final c in communities.where((c) => c.joined)) {
+          if (await ensureCommunityChat(c, reload: false)) added = true;
+        }
+        if (added) await _reloadChats();
       }
     } catch (e) {
       communitiesError = e.toString();
@@ -1775,6 +1782,27 @@ class AppController extends ChangeNotifier {
       communitiesLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Crea el chat de una comunidad en este móvil si falta. Devuelve si lo creó.
+  Future<bool> ensureCommunityChat(Community c, {bool reload = true}) async {
+    final db = _db;
+    if (db == null) return false;
+    final existing = await db.chat(c.chatId);
+    if (existing != null) {
+      if (existing.title != c.title) {
+        await db.setTitle(c.chatId, c.title);
+        if (reload) await _reloadChats();
+      }
+      return false;
+    }
+    await db.upsertChat(Chat(id: c.chatId, title: c.title, isGroup: true, members: const [], updatedAt: DateTime.now()));
+    await _system(c.chatId,
+        '${c.flag} Estás en la comunidad. Lo que escribas aquí lo verán todos sus miembros; tu número no se muestra.');
+    _communitySynced.remove(c.chatId);
+    unawaited(_syncCommunityMembers(c.chatId));
+    if (reload) await _reloadChats();
+    return true;
   }
 
   /// Unirme o salirme de una comunidad. Al unirme aparece su chat en mi lista.

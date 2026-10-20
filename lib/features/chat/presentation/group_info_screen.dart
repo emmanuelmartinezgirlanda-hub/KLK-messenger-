@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/util/phone.dart';
+import '../../communities/community.dart';
 import '../../contacts/contact_info_screen.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
@@ -30,6 +33,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   String _nameOf(GroupMember m, Chat? direct) {
     if (direct != null && direct.title.isNotEmpty) return direct.title;
     if (m.name.isNotEmpty) return m.name;
+    if (m.phone.isEmpty) return tr('Miembro de la comunidad');
     return prettyPhone(m.phone);
   }
 
@@ -38,7 +42,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     try {
       final id = app.chatById(m.id) != null
           ? m.id
-          : await app.startChatWithPhone(m.phone, m.name, knownAccountId: m.id.startsWith('demo') ? null : m.id);
+          : await app.startChatWithPhone(m.phone, _nameOf(m, null),
+              knownAccountId: m.id.startsWith('demo') ? null : m.id);
       if (!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: id, startAction: action)));
     } on ApiException catch (e) {
@@ -99,6 +104,18 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       return Scaffold(appBar: AppBar(), body: Center(child: Text(tr('Este grupo ya no existe'))));
     }
     final now = DateTime.now();
+    final community = isCommunityChat(chat.id);
+    final media = app
+        .messagesFor(chat.id)
+        .where((m) =>
+            !m.deleted &&
+            (m.media?.type == MediaType.image || m.media?.type == MediaType.video) &&
+            !(m.media?.viewOnce ?? false) &&
+            m.media?.localPath != null &&
+            File(m.media!.localPath!).existsSync())
+        .toList()
+        .reversed
+        .toList();
     final q = _q.trim().toLowerCase();
     final members = [...chat.members]..sort((a, b) {
         // Primero los que tengo guardados, luego por nombre.
@@ -124,9 +141,46 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
         ),
         const SizedBox(height: 4),
-        Text('${tr('Grupo')} · ${chat.members.length + 1} ${tr('participantes')}',
+        Text('${community ? tr('Comunidad') : tr('Grupo')} · ${chat.members.length + 1} ${community ? tr('miembros') : tr('participantes')}',
             textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: muted)),
+        if (community)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 10, 32, 0),
+            child: Text(tr('Lo que escribas aquí lo ven todos los miembros. Los números de teléfono no se muestran.'),
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: muted)),
+          ),
         const SizedBox(height: 18),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: Material(
+            color: cs.surfaceContainerHighest.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: Text(tr('Fotos, vídeos y archivos'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('${media.length}', style: TextStyle(color: muted)),
+                  Icon(Icons.chevron_right_rounded, color: muted),
+                ]),
+                onTap: () => Navigator.of(context)
+                    .push(MaterialPageRoute(builder: (_) => SharedMediaScreen(chatId: chat.id))),
+              ),
+              if (media.isNotEmpty)
+                SizedBox(
+                  height: 96,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: media.length > 15 ? 15 : media.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    itemBuilder: (_, i) => MediaThumb(message: media[i], size: 84),
+                  ),
+                ),
+            ]),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           child: Material(
@@ -138,7 +192,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
                 child: Row(children: [
                   Expanded(
-                    child: Text('${chat.members.length + 1} ${tr('participantes')}',
+                    child: Text('${chat.members.length + 1} ${community ? tr('miembros') : tr('participantes')}',
                         style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: muted)),
                   ),
                   IconButton(
@@ -213,7 +267,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       subtitle: sub == null || sub.isEmpty
           ? null
           : Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: online && about == null ? cs.secondary : muted)),
-      trailing: direct == null ? Text(tr('~ no guardado'), style: TextStyle(fontSize: 11.5, color: muted)) : null,
+      trailing: direct == null && !isCommunityChat(widget.chatId) ? Text(tr('~ no guardado'), style: TextStyle(fontSize: 11.5, color: muted)) : null,
       onTap: () => _memberSheet(m, direct),
     );
   }
