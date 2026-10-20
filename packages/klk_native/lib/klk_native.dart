@@ -97,7 +97,10 @@ class KlkNative {
   /// pruebas compilado con --dart-define=KLK_TEST=true). Las tiendas no permiten
   /// activar funciones de pago con códigos, así que eso solo sale en pruebas.
   static Future<bool> isTestBuild() async {
-    if (Platform.isAndroid) return const bool.fromEnvironment('KLK_TEST');
+    // Solo las compilaciones de prueba (KLK_TEST=true). Ojo: los revisores de
+    // Apple también tienen recibo de «sandbox», así que eso solo no basta.
+    if (!const bool.fromEnvironment('KLK_TEST')) return false;
+    if (Platform.isAndroid) return true;
     if (!supported) return false;
     try {
       return await _channel.invokeMethod<bool>('isTestFlight') ?? false;

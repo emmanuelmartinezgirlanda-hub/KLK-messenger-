@@ -40,8 +40,11 @@ workflows:
         script: xcode-project use-profiles
       - name: Compilar IPA firmada
         script: |
+          # KLK_TEST=true: solo estas versiones de prueba enseñan el código de Plus
+          # y lo que viene «muy pronto». Para la App Store usa la rama "appstore".
           flutter build ipa --release \
-            --build-number=$((BUILD_NUMBER + 10)) \
+            --build-number=$((PROJECT_BUILD_NUMBER + 10)) \
+            --dart-define=KLK_TEST=true \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
@@ -49,6 +52,50 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+
+  # ---------- iPhone para la App Store (sin cosas de prueba) ----------
+  # Se lanza subiendo a la rama "appstore". Esta es la versión que se elige en
+  # App Store Connect para enviar a revisión.
+  ios-appstore:
+    name: KLK iOS → App Store
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'appstore'
+          include: true
+          source: true
+    integrations:
+      app_store_connect: codemagic key
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.klkapp.klk
+      vars:
+        KLK_PUSH: "1"
+    scripts:
+      - name: Preparar carpetas nativas
+        script: bash tool/prepare_native.sh
+      - name: Tests
+        script: flutter test
+      - name: Firma de código
+        script: xcode-project use-profiles
+      - name: Compilar IPA firmada
+        script: |
+          flutter build ipa --release \
+            --build-number=$((PROJECT_BUILD_NUMBER + 10)) \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
 
   # ---------- iPhone sin cuenta de pago: IPA sin firmar (ya la hace GitHub) ----------
   ios-ipa-sin-firmar:
