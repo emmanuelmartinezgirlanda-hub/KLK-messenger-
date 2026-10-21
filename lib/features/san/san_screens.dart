@@ -136,6 +136,29 @@ class _SanCreateScreenState extends ConsumerState<SanCreateScreen> {
     });
   }
 
+  /// Añadir gente que no está en el chat: de mis contactos de KLK o solo un nombre.
+  Future<void> _addPeople() async {
+    final app = ref.read(appProvider);
+    final have = {for (final p in _people) p.id};
+    final contacts = app.chats
+        .where((c) => !c.isGroup && !c.isNotes && !c.blocked && !c.id.startsWith('community:') && !have.contains(c.id))
+        .toList()
+      ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    final picked = await showModalBottomSheet<List<_Person>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _AddPeopleSheet(contacts: contacts),
+    );
+    if (picked == null || picked.isEmpty) return;
+    setState(() {
+      for (final p in picked) {
+        if (!_people.any((x) => x.id == p.id)) _people.add(p);
+      }
+      _rebuildOrder();
+    });
+  }
+
   San _build() {
     final app = ref.read(appProvider);
     return San(
@@ -319,9 +342,18 @@ class _SanCreateScreenState extends ConsumerState<SanCreateScreen> {
               ),
           ]),
         ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46), shape: const StadiumBorder()),
+          onPressed: _addPeople,
+          icon: const Icon(Icons.person_add_alt_1_rounded),
+          label: Text(tr('Añadir más personas')),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
-          child: Text(tr('Con 2 números, esa persona pone el doble y cobra dos veces.'),
+          child: Text(
+              '${tr('Con 2 números, esa persona pone el doble y cobra dos veces.')} '
+              '${tr('Puedes añadir gente que no está en este chat (o que no tiene KLK): tú llevas sus pagos. Solo ven el san los de este chat; para que lo vean todos, créalo en un grupo.')}',
               style: TextStyle(fontSize: 12.5, color: muted)),
         ),
         Row(children: [
@@ -964,6 +996,139 @@ class _PayRow extends StatelessWidget {
         const SizedBox(width: 6),
         Icon(icon, color: color),
       ]),
+    );
+  }
+}
+
+/// Hoja para añadir personas al san (contactos de KLK o un nombre a mano).
+class _AddPeopleSheet extends StatefulWidget {
+  final List<Chat> contacts;
+  const _AddPeopleSheet({required this.contacts});
+
+  @override
+  State<_AddPeopleSheet> createState() => _AddPeopleSheetState();
+}
+
+class _AddPeopleSheetState extends State<_AddPeopleSheet> {
+  final _name = TextEditingController();
+  final _chosen = <String>{};
+  final _typed = <_Person>[];
+  String _q = '';
+  final _rnd = Random();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _addTyped() {
+    final n = _name.text.trim();
+    if (n.isEmpty) return;
+    setState(() {
+      _typed.add(_Person('x:${DateTime.now().microsecondsSinceEpoch}${_rnd.nextInt(999)}', n));
+      _name.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final muted = cs.onSurface.withValues(alpha: 0.6);
+    final q = _q.trim().toLowerCase();
+    final list = widget.contacts.where((c) => q.isEmpty || c.title.toLowerCase().contains(q)).toList();
+    final count = _chosen.length + _typed.length + (_name.text.trim().isEmpty ? 0 : 1);
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.75,
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(tr('Añadir al san'), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _name,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      hintText: tr('Escribe un nombre (no necesita KLK)'),
+                      prefixIcon: const Icon(Icons.person_outline_rounded),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onSubmitted: (_) => _addTyped(),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(onPressed: _addTyped, icon: const Icon(Icons.add_rounded)),
+              ]),
+            ),
+            if (_typed.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final p in _typed)
+                    InputChip(label: Text(p.name), onDeleted: () => setState(() => _typed.remove(p))),
+                ]),
+              ),
+            if (widget.contacts.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(tr('O elige de tus contactos de KLK'),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: muted)),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: tr('Buscar'),
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onChanged: (v) => setState(() => _q = v),
+                ),
+              ),
+            ],
+            Expanded(
+              child: ListView(children: [
+                for (final c in list)
+                  CheckboxListTile(
+                    value: _chosen.contains(c.id),
+                    onChanged: (v) => setState(() => v == true ? _chosen.add(c.id) : _chosen.remove(c.id)),
+                    secondary: ChatAvatar(id: c.id, title: c.title, photoPath: c.avatarPath, radius: 18),
+                    title: Text(c.title),
+                  ),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: _verde, minimumSize: const Size.fromHeight(50)),
+                onPressed: count == 0
+                    ? null
+                    : () {
+                        _addTyped();
+                        Navigator.pop(context, [
+                          for (final c in widget.contacts.where((c) => _chosen.contains(c.id))) _Person(c.id, c.title),
+                          ..._typed,
+                        ]);
+                      },
+                child: Text(count == 0 ? tr('Elige o escribe a alguien') : '${tr('Añadir')} ($count)'),
+              ),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }
