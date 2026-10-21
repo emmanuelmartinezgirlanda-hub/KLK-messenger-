@@ -1,0 +1,80 @@
+01.0 [0.69] que lo que me señalé, la apta mensaje es hecha por y para los dominicanos.
+01.1 [0.90] que lo que me sende la app de mensajes hecha por y para los dominicanos.
+01.2 [0.90] que lo que me sender, la app de mensajes hecha por y para los dominicanos.
+01.3 [0.90] que lo que me señalera la app de mensajes hecha por y para los dominicanos.
+==> 01 (0.90) fin=4.12
+02.0 [0.88] Entra con tu número, te llega un código por ese MS y listo.
+02.1 [1.00] Entra con tu número, te llega un código por SMS y listo.
+02.2 [1.00] Entra con tu número, te llega un código por SMS y listo.
+02.3 [0.88] Entra con tu número, te llega un código por ese MS y listo.
+==> 02 (1.00) fin=4.2
+03.0 [0.89] Jats, grupos y comunidades de dominicanos en cada país.
+03.1 [1.00] chats, grupos y comunidades de dominicanos en cada país.
+03.2 [1.00] chats, grupos y comunidades de dominicanos en cada país.
+03.3 [1.00] chats, grupos y comunidades de dominicanos en cada país.
+==> 03 (1.00) fin=3.34
+04.0 [0.93] Tóca un grupo y besa a todos sus miembros, sus fotos y sus vídeos.
+04.1 [0.93] toca un grupo y besa a todos sus miembros, sus fotos y sus vídeos.
+04.2 [1.00] Toca un grupo y ves a todos sus miembros, sus fotos y sus vídeos.
+04.3 [0.93] Toca un grupo y besa a todos sus miembros, sus fotos y sus vídeos.
+==> 04 (1.00) fin=3.86
+05.0 [1.00] manda audios y si no puedes escucharlos, leelos que lo que los pasa a texto.
+05.1 [0.90] manda odios y si no puedes escucharlos, leelos que lo que los pasa texto.
+05.2 [1.00] manda audios. Y si no puedes escucharlos, leelos que lo que los pasa a texto.
+05.3 [1.00] Manda audios y si no puedes escucharlos, leelos, que lo que los pasa a texto.
+==> 05 (1.00) fin=4.76
+06.0 [0.94] stickers criollos, crea los tuyos con tus fotos y ahora con sonido hasta con tu propia voz.
+06.1 [0.88] ¡Stickers criollos! ¡Clea los tuyos con tus fotos! ¡Y ahora con sonido, hasta con tu propia voz!
+06.2 [0.94] stickers criollos, crea los tuyos con tus fotos y ahora con sonido hasta con tu propia voz.
+06.3 [0.94] stickers criollos. Crea los tuyos con tus fotos y ahora con sonido hasta con tu propia voz.
+==> 06 (0.94) fin=6.0
+07.0 [0.90] llamadas y videoyamadas cifradas con subtítulos traducidos a tu idioma.
+07.1 [0.90] llamadas y videoyamadas cifradas con subtítulos traducidos a tu idioma.
+07.2 [0.90] llamadas y videoyamadas cifradas, con subtítulos traducidos a tu idioma.
+07.3 [0.90] llamadas y videoyamadas cifradas con subtítulos traducidos a tu idioma.
+==> 07 (0.90) fin=4.5
+08.0 [1.00] Haces un san con tu gente que lo que sortea los turnos y lleva la cuenta de quién pagó.
+08.1 [1.00] Haces un san con tu gente que lo que sortea los turnos y lleva la cuenta de quien pagó.
+08.2 [0.92] ¿Haces un san con tu gente? Que lo que sorté a los turnos y lleva la cuenta de quien pagó.
+08.3 [0.92] Haces un san con tu gente que lo que sorte a los turnos y lleva la cuenta de quien pagó.
+==> 08 (1.00) fin=4.76
+09.0 [1.00] Pon tu estado ausente en el trabajo o viendo pelota.
+09.1 [0.84] Pon tu estado ausente en el trabajo obiendo pelota.
+09.2 [0.67] Ponto Estado, ausente en el trabajo, obiendo pelota.
+09.3 [0.84] Ponto estado ausente en el trabajo o viendo pelota.
+==> 09 (1.00) fin=3.78
+10.0 [1.00] Sigue la pelota dominicana, las grandes ligas y los periódicos de tu país.
+10.1 [1.00] Sigue la pelota dominicana, las grandes ligas y los periódicos de tu país.
+10.2 [1.00] Sigue la pelota dominicana, las grandes ligas y los periódicos de tu país.
+10.3 [0.96] Sigue en la pelota dominicana, las grandes ligas y los periódicos de tu país.
+==> 10 (1.00) fin=3.96
+11.0 [0.86] y es privada de verdad, cifrado de punta a punta, pin, chat so cultos y botón de pánico.
+11.1 [0.94] y es privada de verdad, cifrado de punta a punta, ping, chats ocultos y botón de pánico.
+11.2 [1.00] y es privada de verdad, cifrado de punta a punta, pin, chats ocultos y botón de pánico.
+11.3 [1.00] y es privada de verdad, cifrado de punta a punta, pin, chats ocultos y botón de pánico.
+==> 11 (1.00) fin=5.84
+12.0 [1.00] Además, mensajes programados, traductor, encuestas, ubicación en vivo y tonos de tambora y guirá.
+12.1 [0.93] Además, mensajes programados, traductor, encuestas, ubicación en vivo y tonos de tambora y guida.
+12.2 [1.00] Además, mensajes programados, traductor, encuestas, ubicación en vivo y tonos de tambora y guira.
+12.3 [1.00] Además, mensajes programados, traductor, encuestas, ubicación en vivo y tonos de tambora y guira.
+==> 12 (1.00) fin=6.96
+13.0 [0.86] con que lo que plus temas y con los stickers exclusivos.
+13.1 [1.00] con que lo que plus, temas, iconos y stickers exclusivos.
+13.2 [0.84] con que Loque Plus, temas, iconos y stickers exclusivos.
+13.3 [0.63] con Queloque Plus, temas y con los stickers exclusivos.
+==> 13 (1.00) fin=3.58
+14.0 [1.00] y muy pronto envía dinero y recargas desde el mismo chat.
+14.1 [0.91] y muy pronto envía dinero y becargas desde el mismo chat.
+14.2 [0.91] y muy pronto envía dinero y becargas desde el mismo chat.
+14.3 [1.00] y muy pronto envía dinero y recargas desde el mismo chat.
+==> 14 (1.00) fin=3.34
+15.0 [0.90] comparte tu código cuére y te añaden en un segundo.
+15.1 [1.00] Comparte tu código QR y te añaden en un segundo.
+15.2 [1.00] Comparte tu código QR y te añaden en un segundo.
+15.3 [1.00] Comparte tu código QR y te añaden en un segundo.
+==> 15 (1.00) fin=2.96
+16.0 [0.77] en iPhone, Android y tu computadora. Que lo que me enseñé descarga la gratis.
+16.1 [0.80] en iPhone, Android y tu computadora, que lo que Mesenier descarga la gratis.
+16.2 [0.74] en iPhone, Android y tu computadora, que lo que me se enlleve descarga la gratis.
+16.3 [0.71] en iPhone, Android y tu computadora. Que lo que me es en gel descarga la gratis.
+==> 16 (0.80) fin=5.1
