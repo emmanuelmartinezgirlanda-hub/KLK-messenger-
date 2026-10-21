@@ -292,7 +292,7 @@ function topupsHtml(t,list){
   t=t||{mode:"off",stats:{}};const st=t.stats||{};
   const mode={off:"🔴 Apagadas",test:"🟡 MODO PRUEBA (no se cobra ni se recarga de verdad)",live:"🟢 Encendidas (dinero de verdad)"}[t.mode]||t.mode;
   const money=c=>eur.format((c||0)/100);
-  const rows=list.slice(0,40).map(x=>`<div class="item"><div><b>${esc(x.operator)} RD$${nf.format(x.localAmount)}</b> · ${esc(x.phone)}${x.test?' <span class="muted small">(prueba)</span>':""}
+  const rows=list.slice(0,40).map(x=>`<div class="item"><div><b>${esc(x.operator)} ${esc(({DOP:"RD$",USD:"US$",EUR:"€",GBP:"£"})[x.localCurrency]||x.localCurrency||"RD$")} ${nf.format(x.localAmount)}</b> · ${esc(x.phone)}${x.test?' <span class="muted small">(prueba)</span>':""}
     <div class="muted small">${dt(x.createdAt)} · ${esc(topupState[x.status]||x.status)}${x.stuck?' · <b style="color:#CE1126">⚠️ revisar en Reloadly</b>':""}${x.error?" · "+esc(x.error):""}</div></div>
     <div style="text-align:right"><b>${money(x.priceCents)}</b>${x.costCents?`<div class="muted small">coste ${money(x.costCents)}</div>`:""}</div></div>`).join("");
   return `<div class="card"><p><b>${mode}</b></p>

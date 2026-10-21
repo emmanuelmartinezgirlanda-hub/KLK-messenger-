@@ -18,8 +18,20 @@ type Fake struct {
 func (*Fake) Sandbox() bool { return true }
 
 func (*Fake) Detect(_ context.Context, phone string) (Operator, error) {
-	if !IsDominican(phone) {
-		return Operator{}, ErrNotDominican
+	iso := CountryOf(phone)
+	if iso == "" {
+		return Operator{}, ErrUnsupportedCountry
+	}
+	if iso != "DO" {
+		cur, rate := "USD", 1.08
+		switch iso {
+		case "ES", "IT", "IE", "FR", "DE", "NL", "BE", "PT", "AT", "GR", "AD":
+			cur, rate = "EUR", 1
+		case "GB":
+			cur, rate = "GBP", 0.86
+		}
+		return Operator{ID: 900, Name: "Operador de prueba " + iso, Rate: rate, Min: 1, Max: 100,
+			LocalAmounts: true, LocalCurrency: cur}, nil
 	}
 	name := "Claro República Dominicana"
 	switch phone[len(phone)-1] {

@@ -48,8 +48,8 @@ type Provider interface {
 }
 
 var (
-	ErrNotDominican = errors.New("solo se puede recargar números de RD (809, 829, 849)")
-	ErrNoOperator   = errors.New("no encontramos la compañía de ese número")
+	ErrUnsupportedCountry = errors.New("todavía no hacemos recargas a números de ese país")
+	ErrNoOperator         = errors.New("no encontramos la compañía de ese número")
 	// ErrRejected: el proveedor dijo que no (no se cobra; se devuelve el pago).
 	ErrRejected = errors.New("la compañía no aceptó la recarga")
 )
@@ -68,8 +68,26 @@ func IsDominican(phone string) bool {
 	return a == "809" || a == "829" || a == "849"
 }
 
-// Presets: los montos en pesos que se ofrecen en la app.
+// Presets: los montos en pesos que se ofrecen en la app (RD).
 var Presets = []float64{50, 100, 150, 200, 300, 500, 1000}
+
+// senderPresets: para otros países, montos parecidos a 5, 10, 15… en la moneda
+// de la cuenta (euros/dólares), pasados a la moneda del país y redondeados.
+var senderPresets = []float64{5, 10, 15, 20, 30, 50}
+
+func (o Operator) presets() []float64 {
+	if o.LocalCurrency == "" || o.LocalCurrency == "DOP" || o.Rate <= 0 {
+		return Presets
+	}
+	var out []float64
+	for _, p := range senderPresets {
+		v := niceRound(p * o.Rate)
+		if len(out) == 0 || v > out[len(out)-1] {
+			out = append(out, v)
+		}
+	}
+	return out
+}
 
 // Choices devuelve los montos (en pesos) que se pueden ofrecer para este operador.
 func (o Operator) Choices(maxLocal float64) []float64 {
@@ -85,7 +103,7 @@ func (o Operator) Choices(maxLocal float64) []float64 {
 		}
 		return out
 	}
-	for _, a := range Presets {
+	for _, a := range o.presets() {
 		if (o.Min <= 0 || a >= o.Min) && (o.Max <= 0 || a <= o.Max) && (maxLocal <= 0 || a <= maxLocal) {
 			out = append(out, a)
 		}

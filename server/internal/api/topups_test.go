@@ -80,9 +80,13 @@ func TestTopupDemoFlow(t *testing.T) {
 	a := e.register("+34600000001", 1)
 	b := e.register("+34600000002", 2)
 
-	// Solo números de RD.
-	if s := e.do("GET", "/v1/topups/quote?phone=%2B34600000009", a.token, nil, nil); s != 400 {
-		t.Fatalf("número no dominicano: %d", s)
+	// RD y los países con diáspora; un país sin recargas da 400.
+	if s := e.do("GET", "/v1/topups/quote?phone=%2B861234567890", a.token, nil, nil); s != 400 {
+		t.Fatalf("país sin recargas: %d", s)
+	}
+	var es quote
+	if s := e.do("GET", "/v1/topups/quote?phone=%2B34600000009", a.token, nil, &es); s != 200 || len(es.Options) == 0 {
+		t.Fatalf("móvil de España: %d %+v", s, es)
 	}
 	var q quote
 	if s := e.do("GET", "/v1/topups/quote?phone=%2B18295551231", a.token, nil, &q); s != 200 {

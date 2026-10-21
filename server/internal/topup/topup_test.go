@@ -85,3 +85,26 @@ func TestReloadly(t *testing.T) {
 		t.Fatalf("rechazo: %v", err)
 	}
 }
+
+func TestCountryOf(t *testing.T) {
+	for phone, want := range map[string]string{
+		"+18095551234": "DO", "+17875551234": "PR", "+14165551234": "CA", "+12125551234": "US",
+		"+34612345678": "ES", "+353861234567": "IE", "+5999612345": "CW", "+2975601234": "AW",
+		"+861234567890": "", "+1809": "",
+	} {
+		if got := CountryOf(phone); got != want {
+			t.Errorf("%s: %q, quería %q", phone, got, want)
+		}
+	}
+	eur := Operator{Rate: 1, LocalCurrency: "EUR", Min: 1, Max: 100}
+	if c := eur.Choices(0); len(c) == 0 || c[0] != 5 || c[len(c)-1] != 50 {
+		t.Fatalf("montos en euros: %v", c)
+	}
+	mxn := Operator{Rate: 19.7, LocalCurrency: "MXN", Min: 10, Max: 2000}
+	if c := mxn.Choices(0); len(c) == 0 || c[0] != 100 {
+		t.Fatalf("montos en pesos mexicanos: %v", c)
+	}
+	if FormatLocal("DOP", 500) != "RD$ 500" || FormatLocal("EUR", 10) != "€ 10" {
+		t.Fatal("formato")
+	}
+}

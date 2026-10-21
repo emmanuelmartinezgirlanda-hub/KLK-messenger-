@@ -60,8 +60,8 @@ func (s *Server) topupsOn(w http.ResponseWriter) bool {
 func (s *Server) detect(w http.ResponseWriter, r *http.Request, phone string) (topup.Operator, bool) {
 	op, err := s.Topups.Provider.Detect(r.Context(), phone)
 	switch {
-	case errors.Is(err, topup.ErrNotDominican):
-		writeErr(w, http.StatusBadRequest, "not_dominican", err.Error())
+	case errors.Is(err, topup.ErrUnsupportedCountry):
+		writeErr(w, http.StatusBadRequest, "not_supported", err.Error())
 	case errors.Is(err, topup.ErrNoOperator):
 		writeErr(w, http.StatusNotFound, "no_operator", err.Error())
 	case err != nil:
@@ -172,7 +172,7 @@ func (s *Server) topupCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	base := s.baseURL(r)
-	title := fmt.Sprintf("Recarga %s RD$%.0f · %s", shortOperator(op.Name), req.Amount, maskPhone(t.Phone))
+	title := fmt.Sprintf("Recarga %s %s · %s", shortOperator(op.Name), topup.FormatLocal(op.LocalCurrency, req.Amount), maskPhone(t.Phone))
 	co, err := s.Topups.Payments.Checkout(r.Context(), t.ID, title, price, t.Currency,
 		base+"/topup/done?id="+t.ID, base+"/topup/cancel?id="+t.ID)
 	if err != nil {
@@ -417,6 +417,6 @@ func (s *Server) topupTestPay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	renderTopupPage(w, http.StatusOK, topupPageData{Test: true, Emoji: "📱",
-		Title: fmt.Sprintf("Recarga %s RD$%.0f", shortOperator(t.OperatorName), t.LocalAmount),
+		Title: fmt.Sprintf("Recarga %s %s", shortOperator(t.OperatorName), topup.FormatLocal(t.LocalCurrency, t.LocalAmount)),
 		Body:  "Para el número " + maskPhone(t.Phone) + ".", Form: true, Price: price})
 }

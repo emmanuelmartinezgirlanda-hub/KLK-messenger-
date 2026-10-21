@@ -195,11 +195,12 @@ func (o reloadlyOperator) toOperator() Operator {
 }
 
 func (r *Reloadly) Detect(ctx context.Context, phone string) (Operator, error) {
-	if !IsDominican(phone) {
-		return Operator{}, ErrNotDominican
+	iso := CountryOf(phone)
+	if iso == "" {
+		return Operator{}, ErrUnsupportedCountry
 	}
 	var o reloadlyOperator
-	path := "/operators/auto-detect/phone/" + url.PathEscape(strings.TrimPrefix(phone, "+")) + "/countries/DO"
+	path := "/operators/auto-detect/phone/" + url.PathEscape(strings.TrimPrefix(phone, "+")) + "/countries/" + iso
 	if err := r.call(ctx, http.MethodGet, path, nil, &o); err != nil {
 		var re *reloadlyErr
 		if errors.As(err, &re) && (re.Status == http.StatusNotFound || re.Status == http.StatusBadRequest) {
@@ -217,7 +218,7 @@ func (r *Reloadly) Send(ctx context.Context, s SendRequest) (SendResult, error) 
 	in := map[string]any{
 		"operatorId":       s.OperatorID,
 		"customIdentifier": s.OrderID, // evita recargas dobles si se reintenta
-		"recipientPhone":   map[string]string{"countryCode": "DO", "number": strings.TrimPrefix(s.Phone, "+")},
+		"recipientPhone":   map[string]string{"countryCode": CountryOf(s.Phone), "number": strings.TrimPrefix(s.Phone, "+")},
 	}
 	if s.SenderAmount > 0 {
 		in["amount"] = math.Round(s.SenderAmount*100) / 100
