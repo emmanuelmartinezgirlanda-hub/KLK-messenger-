@@ -41,14 +41,6 @@ const _perks = [
   _Perk(Icons.verified_rounded, [Color(0xFFFFD86B), Color(0xFFE0A030)], 'Insignia Plus', 'Sale al lado de tu nombre.'),
 ];
 
-const _soon = [
-  (Icons.summarize_rounded, 'Resumen de chats largos'),
-  (Icons.devices_rounded, 'Varios dispositivos a la vez'),
-  (Icons.backup_rounded, 'Copia de seguridad automática'),
-  (Icons.family_restroom_rounded, 'Plan Familia (hasta 5 personas)'),
-  (Icons.currency_exchange_rounded, 'Menos comisión en remesas y recargas'),
-  (Icons.sports_baseball_rounded, 'Pelota en vivo con avisos de tu equipo'),
-];
 
 /// Cuadrito con el icono (como los de Ajustes del iPhone).
 class _IconTile extends StatelessWidget {
@@ -468,28 +460,6 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                       : null,
                 ),
             ]),
-            // «Muy pronto» solo en pruebas: Apple no deja anunciar en la pantalla
-            // de pago cosas que aún no existen (se cobra solo por lo que ya hay).
-            if (_test) ...[
-            const SizedBox(height: 16),
-            const _Title('Muy pronto en Plus (solo lo ves en pruebas)'),
-            _Group(children: [
-              for (final (icon, t) in _soon)
-                ListTile(
-                  dense: true,
-                  leading: Icon(icon, color: muted),
-                  title: Text(t),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                        color: _oro.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(20)),
-                    child: const Text('Pronto',
-                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _oroOscuro)),
-                  ),
-                ),
-            ]),
-            ],
-
             // Solo en versiones de prueba (TestFlight / APK de pruebas): las tiendas
             // no permiten activar funciones de pago con códigos.
             if (_test) ...[
