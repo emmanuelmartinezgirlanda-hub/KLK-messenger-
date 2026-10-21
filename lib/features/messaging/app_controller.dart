@@ -32,6 +32,7 @@ import '../privacy/domain/privacy_settings.dart';
 import '../privacy/presentation/privacy_provider.dart';
 import '../communities/community.dart';
 import '../plus/plus_state.dart';
+import '../san/san.dart';
 import 'demo_data.dart';
 import 'models.dart';
 
@@ -689,6 +690,20 @@ class AppController extends ChangeNotifier {
           }
         case 'group':
           await _system(chatId, '👥 ${senderName.isEmpty ? 'Alguien' : senderName} te añadió al grupo «${g?['n'] ?? ''}»');
+        case 'san':
+          {
+            final m = await db.message(p.target ?? '');
+            final media = m?.media;
+            final ev = p.san;
+            if (m != null && media != null && ev != null && media.type == MediaType.san && m.chatId == chatId) {
+              final next = San.tryParse(media.san)?.apply(ev, from);
+              if (next != null) {
+                final updated = m.copyWith(media: media.copyWith(san: next.toJson()));
+                await db.updateMessage(updated);
+                unawaited(_scheduleSan(updated));
+              }
+            }
+          }
         case 'vote':
           {
             final m = await db.message(p.target ?? '');
@@ -794,8 +809,22 @@ class AppController extends ChangeNotifier {
     final id = p.id;
     if (id == null || await db.hasMessage(id)) return;
     final ts = DateTime.tryParse(f['ts'] as String? ?? '')?.toLocal() ?? DateTime.now();
-    final media = p.media == null ? null : MessageMedia.fromJson(p.media!);
-    final exp = p.exp;
+    var media = p.media == null ? null : MessageMedia.fromJson(p.media!);
+    if (media?.type == MediaType.san) {
+      // El organizador de un san es siempre quien lo envía (y empieza sin pagos).
+      final san = San.tryParse(media!.san);
+      if (san == null) return;
+      final fixed = San(
+          name: san.name,
+          amount: san.amount,
+          currency: san.currency,
+          period: san.period,
+          start: san.start,
+          organizer: from,
+          slots: san.slots);
+      media = media.copyWith(san: fixed.toJson());
+    }
+    final exp = media?.type == MediaType.san ? null : p.exp;
     final msg = Message(
       id: id,
       chatId: chatId,
@@ -813,6 +842,7 @@ class AppController extends ChangeNotifier {
     final mentioned = isGroup && (p.mentions?.contains(myId) ?? false);
     await db.addMessage(msg, countUnread: openChatId != chatId);
     if (media?.needsDownload ?? false) unawaited(_downloadMedia(msg));
+    if (media?.type == MediaType.san) unawaited(_scheduleSan(msg));
     _typingUntil.remove(chatId);
     _recordingUntil.remove(chatId);
 
@@ -1224,7 +1254,8 @@ class AppController extends ChangeNotifier {
   /// El archivo se cifra en el móvil con una clave propia, se sube cifrado y la
   /// clave viaja dentro del mensaje (cifrado de punta a punta).
   Future<String> sendMedia(String chatId, MessageMedia media, {String caption = '', Message? replyTo}) async {
-    final timer = _timerOf(chatId);
+    // El san no desaparece aunque el chat tenga mensajes temporales.
+    final timer = media.type == MediaType.san ? null : _timerOf(chatId);
     final now = DateTime.now();
     final m = Message(
       id: _uuid.v4(),
@@ -1316,6 +1347,68 @@ class AppController extends ChangeNotifier {
     try {
       await _sendToChat(m.chatId, Payload(kind: 'vote', target: m.id, options: mine), ref: 'x-${_uuid.v4()}');
     } catch (_) {}
+  }
+
+  // ---------- San (ahorro en grupo) ----------
+
+  /// Envía un san nuevo al chat (yo soy el organizador).
+  Future<String> sendSan(String chatId, San san) async {
+    final id = await sendMedia(chatId, MessageMedia(type: MediaType.san, san: san.toJson()));
+    final m = await _db!.message(id);
+    if (m != null) unawaited(_scheduleSan(m));
+    return id;
+  }
+
+  /// Un cambio en un san: confirmar pago, avisar "ya pagué", terminarlo…
+  /// Se aplica aquí y se avisa (cifrado) a todo el grupo.
+  Future<bool> sanAction(Message msg, Map<String, dynamic> ev) async {
+    final m = await _db!.message(msg.id) ?? msg;
+    final media = m.media;
+    if (media == null || media.type != MediaType.san) return false;
+    final next = San.tryParse(media.san)?.apply(ev, myId);
+    if (next == null) return false;
+    final updated = m.copyWith(media: media.copyWith(san: next.toJson()));
+    await _db!.updateMessage(updated);
+    await _refresh();
+    unawaited(_scheduleSan(updated));
+    if (isDemo || isNotesChat(m.chatId)) return true;
+    try {
+      await _sendToChat(m.chatId, Payload(kind: 'san', target: m.id, san: ev), ref: 'x-${_uuid.v4()}');
+    } catch (e) {
+      debugPrint('San: $e');
+    }
+    return true;
+  }
+
+  /// Avisos en el móvil: el día antes de pagar y el día que me toca cobrar.
+  Future<void> _scheduleSan(Message m) async {
+    final san = San.tryParse(m.media?.san);
+    if (san == null) return;
+    final now = DateTime.now();
+    final mine = san.slotsOf(myId);
+    final chat = chatById(m.chatId);
+    for (var r = 0; r < san.rounds; r++) {
+      final payId = 'san-pay-${m.id}-$r'.hashCode & 0x3fffffff;
+      final getId = 'san-get-${m.id}-$r'.hashCode & 0x3fffffff;
+      final day = san.dateOf(r);
+      final payAt = DateTime(day.year, day.month, day.day - 1, 10);
+      final getAt = DateTime(day.year, day.month, day.day, 9);
+      final active = !san.finished(now) && mine.isNotEmpty && r >= san.currentRound(now) && r < san.currentRound(now) + 4;
+      final owe = mine.where((s) => san.payOf(r, s) != SanPay.paid).length;
+      if (active && owe > 0 && payAt.isAfter(now)) {
+        await Alerts.instance.scheduleAt(payId, '🤝 Mañana toca el san «${san.name}»',
+            'Te toca poner ${san.money(san.amount * owe)} para ${san.slots[r].name}.', payAt, chatId: m.chatId);
+      } else {
+        await Alerts.instance.cancelScheduled(payId);
+      }
+      if (active && san.slots[r].id == myId && getAt.isAfter(now)) {
+        await Alerts.instance.scheduleAt(getId, '🎉 ¡Hoy te toca el san!',
+            '«${san.name}»${chat == null ? '' : ' en ${chat.title}'}: te llevas ${san.money(san.pot)}.', getAt,
+            chatId: m.chatId);
+      } else {
+        await Alerts.instance.cancelScheduled(getId);
+      }
+    }
   }
 
   // ---------- Mensajes fijados ----------

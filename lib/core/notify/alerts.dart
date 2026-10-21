@@ -8,6 +8,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:timezone/timezone.dart' as tz;
+
+import '../util/phone.dart' show ensureTimeZones;
 
 import '../security/secure_store.dart';
 
@@ -182,12 +185,54 @@ class Alerts with WidgetsBindingObserver {
   Future<void> _clearShown() async {
     if (!_canNotify) return;
     try {
-      await _plugin.cancelAll();
+      // Solo los avisos ya mostrados: los programados (recordatorios del san) se quedan.
+      final shown = await _plugin.getActiveNotifications();
+      for (final n in shown) {
+        final id = n.id;
+        if (id != null && !_scheduled.contains(id)) await _plugin.cancel(id);
+      }
     } catch (_) {}
     await setBadge(unreadTotal?.call() ?? 0);
   }
 
   bool get _canNotify => _ready && !kIsWeb && (Platform.isIOS || Platform.isAndroid);
+
+  final _scheduled = <int>{};
+
+  /// Programa un recordatorio (p. ej. "mañana toca el san").
+  Future<void> scheduleAt(int id, String title, String body, DateTime when, {String? chatId}) async {
+    if (!_canNotify || !when.isAfter(DateTime.now())) return;
+    try {
+      ensureTimeZones();
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        tz.TZDateTime.from(when, tz.UTC),
+        const NotificationDetails(
+          iOS: DarwinNotificationDetails(presentAlert: true, presentBanner: true, presentList: true, presentSound: true),
+          android: AndroidNotificationDetails('klk_reminders', 'Recordatorios',
+              channelDescription: 'Recordatorios del san y otros avisos programados',
+              importance: Importance.high, priority: Priority.high),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        payload: chatId,
+      );
+      _scheduled.add(id);
+    } catch (e) {
+      debugPrint('Recordatorio: $e');
+    }
+  }
+
+  Future<void> cancelScheduled(int id) async {
+    if (!_canNotify) return;
+    _scheduled.remove(id);
+    try {
+      final pending = await _plugin.pendingNotificationRequests();
+      if (pending.any((p) => p.id == id)) await _plugin.cancel(id);
+    } catch (_) {}
+  }
 
   /// Pone el número rojo en el icono de KLK (iOS).
   Future<void> setBadge(int n) async {

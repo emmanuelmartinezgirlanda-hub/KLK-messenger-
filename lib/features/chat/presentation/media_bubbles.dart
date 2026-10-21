@@ -13,6 +13,7 @@ import 'package:video_player/video_player.dart';
 import '../../messaging/models.dart';
 import '../../messaging/stickers.dart';
 import 'sound_sticker.dart';
+import '../../san/san_screens.dart';
 import '../../../core/l10n/l10n.dart';
 
 /// Contenido multimedia dentro de una burbuja.
@@ -92,6 +93,7 @@ class MediaContent extends StatelessWidget {
       MediaType.trip => _TripCard(media: media, fg: fg),
       MediaType.poll => PollCard(media: media, fg: fg, onVote: onVote),
       MediaType.live => _LiveCard(media: media, fg: fg, mine: message.isMine, onStop: onStopLive),
+      MediaType.san => SanCard(message: message),
     };
   }
 }

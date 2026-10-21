@@ -117,11 +117,16 @@ bool _tzReady = false;
 }
 
 /// Hora actual en una zona, p. ej. "4:52 p. m.".
-DateTime nowIn(String zone) {
+/// Carga las zonas horarias (una vez).
+void ensureTimeZones() {
   if (!_tzReady) {
     tzdata.initializeTimeZones();
     _tzReady = true;
   }
+}
+
+DateTime nowIn(String zone) {
+  ensureTimeZones();
   final t = tz.TZDateTime.now(tz.getLocation(zone));
   return DateTime(t.year, t.month, t.day, t.hour, t.minute);
 }

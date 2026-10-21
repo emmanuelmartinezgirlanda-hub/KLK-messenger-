@@ -27,6 +27,9 @@ import '../../theming/wallpapers.dart';
 import 'chat_avatar.dart';
 import 'chat_sheets.dart';
 import 'sound_sticker.dart';
+import '../../communities/community.dart';
+import '../../san/san.dart';
+import '../../san/san_screens.dart';
 import '../../contacts/contact_actions.dart';
 import '../../contacts/contact_info_screen.dart';
 import '../../../core/l10n/l10n.dart';
@@ -385,6 +388,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           }
         case 'live':
           await _shareLive();
+        case 'san':
+          {
+            final san = await Navigator.of(context)
+                .push<San>(MaterialPageRoute(builder: (_) => SanCreateScreen(chatId: widget.chatId)));
+            if (san != null) await _app.sendSan(widget.chatId, san);
+          }
         case 'poll':
           {
             final poll = await pickPoll(context);
@@ -594,6 +603,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               item(Icons.location_on, 'Ubicación', const Color(0xFF1F7A4D), 'location'),
               item(Icons.share_location, 'En vivo', const Color(0xFF00897B), 'live'),
               item(Icons.poll_outlined, 'Encuesta', const Color(0xFF3949AB), 'poll'),
+              if (!isCommunityChat(widget.chatId) && !_app.isNotesChat(widget.chatId))
+                item(Icons.handshake_rounded, 'San', const Color(0xFF1F7A4D), 'san'),
               item(Icons.looks_one_outlined, 'Ver una vez', const Color(0xFF0E4D64), 'viewonce'),
               item(Icons.emoji_emotions_outlined, 'Stickers', const Color(0xFFFFB627), 'sticker'),
               item(Icons.flight_takeoff, "Bajando pa' RD", const Color(0xFF002D62), 'trip'),
