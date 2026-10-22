@@ -31,6 +31,7 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     events.setStreamHandler(instance)
     let caps = FlutterEventChannel(name: "klk/captions", binaryMessenger: registrar.messenger())
     caps.setStreamHandler(instance.captions)
+    registrar.register(GlassViewFactory(), withId: "klk/glass")
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

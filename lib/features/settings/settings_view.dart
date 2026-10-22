@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../contacts/invite.dart';
 import '../../core/brand/klk_logo.dart';
 import '../../core/config.dart';
 import '../../core/network/api_client.dart';
@@ -101,6 +102,13 @@ class SettingsView extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlusScreen())),
           ),
+        ListTile(
+          leading: const Icon(Icons.person_add_alt_1_rounded),
+          title: Text(tr('Invitar a un amigo'), style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(tr('Manda KLK por WhatsApp, Instagram o SMS')),
+          trailing: const Icon(Icons.ios_share_rounded),
+          onTap: () => inviteFriends(context),
+        ),
         const Divider(),
         ListTile(
           leading: const Icon(Icons.language_rounded),

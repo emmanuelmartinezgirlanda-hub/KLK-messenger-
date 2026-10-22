@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'invite.dart';
+
 import '../../core/util/phone.dart';
 
 /// Un contacto de la agenda con su número ya en formato E.164.
@@ -60,8 +62,7 @@ class DeviceContacts {
 
   /// Abre Mensajes con una invitación para unirse a KLK.
   static Future<void> invite(String phone) async {
-    const text = '¡Klk! Estoy usando KLK, la app de mensajería de los dominicanos en el mundo. '
-        'Es privada y gratis. Descárgala y escríbeme 🇩🇴';
+    final text = inviteMessage();
     final sep = Platform.isIOS ? '&' : '?';
     final uri = Uri.parse('sms:$phone${sep}body=${Uri.encodeComponent(text)}');
     await launchUrl(uri);

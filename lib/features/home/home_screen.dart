@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/features.dart';
 import '../../core/notify/alerts.dart';
+import '../../core/ui/native_glass.dart';
 import '../calls/calls_view.dart';
 import '../chat/presentation/archived_screen.dart';
 import '../chat/presentation/chat_avatar.dart';
@@ -341,6 +342,24 @@ class _GlassNavBar extends StatelessWidget {
     final active = dark ? Colors.white : const Color(0xFF111418);
     final pill = dark ? Colors.white.withValues(alpha: 0.13) : Colors.black.withValues(alpha: 0.07);
 
+    final row = Row(children: [
+      for (final it in items)
+        Expanded(
+          child: _NavButton(
+            item: it,
+            isSelected: it.tab == selected,
+            idle: idle,
+            active: active,
+            pill: pill,
+            badgeColor: cs.secondary,
+            onTap: () {
+              if (it.tab != selected) HapticFeedback.selectionClick();
+              onSelect(it.tab);
+            },
+          ),
+        ),
+    ]);
+
     return SafeArea(
       top: false,
       minimum: const EdgeInsets.only(bottom: 10),
@@ -350,45 +369,38 @@ class _GlassNavBar extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(34),
             boxShadow: [
-              BoxShadow(color: Colors.black.withValues(alpha: dark ? 0.45 : 0.14), blurRadius: 30, offset: const Offset(0, 12)),
+              if (!nativeGlassAvailable)
+                BoxShadow(color: Colors.black.withValues(alpha: dark ? 0.45 : 0.14), blurRadius: 30, offset: const Offset(0, 12)),
             ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(34),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-              child: Container(
-                height: 66,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: glass,
-                  borderRadius: BorderRadius.circular(34),
-                  border: Border.all(color: edge),
-                ),
-                child: Row(children: [
-                  for (final it in items)
-                    Expanded(
-                      child: _NavButton(
-                        item: it,
-                        isSelected: it.tab == selected,
-                        idle: idle,
-                        active: active,
-                        pill: pill,
-                        badgeColor: cs.secondary,
-                        onTap: () {
-                          if (it.tab != selected) HapticFeedback.selectionClick();
-                          onSelect(it.tab);
-                        },
-                      ),
-                    ),
-                ]),
-              ),
-            ),
+            // iPhone con iOS 26: el cristal de verdad de Apple. Si no, desenfoque propio.
+            child: nativeGlassAvailable
+                ? Stack(children: [
+                    Positioned.fill(child: NativeGlass(radius: 34, dark: dark)),
+                    _bar(edge, Colors.transparent, row),
+                  ])
+                : BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                    child: _bar(edge, glass, row),
+                  ),
           ),
         ),
       ),
     );
   }
+
+  Widget _bar(Color edge, Color fill, Widget row) => Container(
+        height: 66,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(34),
+          border: Border.all(color: edge),
+        ),
+        child: row,
+      );
 }
 
 class _NavButton extends StatelessWidget {

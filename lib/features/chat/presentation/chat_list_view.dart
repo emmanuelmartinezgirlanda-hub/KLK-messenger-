@@ -13,6 +13,7 @@ import 'chat_screen.dart';
 import 'chat_sheets.dart';
 import '../../contacts/contact_actions.dart';
 import 'new_chat_sheet.dart';
+import '../../contacts/invite.dart';
 import '../../../core/l10n/l10n.dart';
 
 
@@ -140,9 +141,11 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
       child: ListView.builder(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.only(bottom: 24 + MediaQuery.paddingOf(context).bottom),
-      itemCount: top.length + (chats.isEmpty ? 1 : chats.length),
+      // Al final de la lista: «Invita a tu gente» (si no se está buscando)
+      itemCount: top.length + (chats.isEmpty ? 1 : chats.length) + (q.isEmpty ? 1 : 0),
       itemBuilder: (context, i) {
         if (i < top.length) return top[i];
+        if (q.isEmpty && i == top.length + (chats.isEmpty ? 1 : chats.length)) return const InviteCard();
         if (chats.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(40),
