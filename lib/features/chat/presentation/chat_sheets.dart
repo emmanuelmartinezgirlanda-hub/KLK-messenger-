@@ -64,11 +64,19 @@ class _StickerPickerState extends State<_StickerPicker> {
         itemCount: list.length,
         itemBuilder: (ctx, i) {
           final st = list[i];
-          final locked = isPlusSticker(st.id) && !plusActive.value;
+          // Plus: stickers exclusivos, los sonidos a partir del 7.º y «Con mi voz».
+          final plusOnly = isPlusSticker(st.id) || (sound && i >= freeSoundStickers) || prefix == 'rec:';
+          final locked = plusOnly && !plusActive.value;
           return InkWell(
             borderRadius: BorderRadius.circular(18),
             onTap: () => locked
-                ? showPlusRequired(context, 'Este sticker')
+                ? showPlusRequired(
+                    context,
+                    prefix == 'rec:'
+                        ? tr('Grabar stickers con tu voz')
+                        : sound
+                            ? tr('Este sonido')
+                            : tr('Este sticker'))
                 : Navigator.pop(context, sound ? 'snd:${st.id}' : '$prefix${st.id}'),
             onLongPress: sound ? () => SoundStickerPlayer.play(st.id) : null,
             child: Tooltip(

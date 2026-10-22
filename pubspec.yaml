@@ -60,6 +60,9 @@ dependencies:
   # Guardar la copia de seguridad cifrada en Archivos / iCloud Drive
   share_plus: ">=10.0.0 <11.0.0"
 
+  # Historial del san en PDF (KLK Plus)
+  pdf: ">=3.10.0 <4.0.0"
+
   # Funciones nativas propias: notas de voz a texto en el móvil y aviso de capturas
   klk_native:
     path: packages/klk_native

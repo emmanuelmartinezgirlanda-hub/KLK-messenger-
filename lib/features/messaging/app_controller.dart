@@ -334,6 +334,8 @@ class AppController extends ChangeNotifier {
       final until = DateTime.tryParse(await _store.read(_plusKey) ?? '');
       setPlus(until); // copia guardada: Plus funciona aunque no haya conexión
     } catch (_) {}
+    // Recordatorios automáticos del san (Plus), cuando ya haya conexión
+    unawaited(Future.delayed(const Duration(seconds: 8), runSanAutoReminders));
     try {
       final news = await _store.read(_newsKey);
       if (news != null) _dismissedNews = (jsonDecode(news) as List).cast<String>().toSet();
@@ -385,6 +387,7 @@ class AppController extends ChangeNotifier {
   /// La app vuelve a primer plano: iOS cierra los sockets en segundo plano.
   void onResume() {
     _foreground = true;
+    unawaited(runSanAutoReminders());
     if (phase == AppPhase.ready && !isDemo && !online) {
       _backoff = 1;
       unawaited(_connect());
@@ -1550,6 +1553,99 @@ class AppController extends ChangeNotifier {
     _sanBanks[m.id] = banks;
     _saveSanBanks();
     notifyListeners();
+  }
+
+  /// Cuántos sanes organizo que siguen en marcha (sin Plus solo se puede uno a la vez).
+  Future<int> activeSansIOrganize() async {
+    final db = _db;
+    if (db == null) return 0;
+    final now = DateTime.now();
+    var n = 0;
+    for (final m in await db.sanMessages()) {
+      final san = San.tryParse(m.media?.san);
+      if (san != null && san.organizer == myId && !san.finished(now)) n++;
+    }
+    return n;
+  }
+
+  // ---------- Recordatorios automáticos del san (KLK Plus) ----------
+  // Quien organiza los activa; al abrir KLK, si mañana (o ya) toca pagar y falta
+  // gente, se manda solo un recordatorio al chat. Uno por turno.
+  static const _sanAutoKey = 'klk.san.auto';
+  Map<String, List<int>> _sanAuto = {}; // idMensaje -> turnos ya recordados
+  bool _sanAutoLoaded = false;
+  bool _sanAutoRunning = false;
+
+  bool sanAutoOn(String messageId) => _sanAuto.containsKey(messageId);
+
+  Future<void> _loadSanAuto() async {
+    if (_sanAutoLoaded) return;
+    _sanAutoLoaded = true;
+    try {
+      final raw = await _store.read(_sanAutoKey);
+      if (raw != null && raw.isNotEmpty) {
+        _sanAuto = (jsonDecode(raw) as Map).map(
+            (k, v) => MapEntry(k as String, [for (final x in (v as List)) if (x is num) x.toInt()]));
+      }
+    } catch (_) {}
+  }
+
+  void _saveSanAuto() =>
+      unawaited(_store.write(_sanAutoKey, jsonEncode(_sanAuto)).catchError((_) {}));
+
+  Future<void> setSanAuto(String messageId, bool on) async {
+    await _loadSanAuto();
+    if (on) {
+      _sanAuto.putIfAbsent(messageId, () => []);
+    } else {
+      _sanAuto.remove(messageId);
+    }
+    _saveSanAuto();
+    notifyListeners();
+    if (on) unawaited(runSanAutoReminders());
+  }
+
+  Future<void> runSanAutoReminders() async {
+    await _loadSanAuto();
+    final db = _db;
+    if (db == null || isDemo || !plusActive.value || _sanAuto.isEmpty || _sanAutoRunning) return;
+    _sanAutoRunning = true;
+    try {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      for (final id in _sanAuto.keys.toList()) {
+        final m = await db.message(id);
+        final san = San.tryParse(m?.media?.san);
+        if (m == null || san == null || san.organizer != myId || san.finished(now)) {
+          _sanAuto.remove(id);
+          continue;
+        }
+        final done = _sanAuto[id]!;
+        for (var r = 0; r < san.rounds; r++) {
+          final day = san.dateOf(r);
+          final from = day.subtract(const Duration(days: 1));
+          final until = day.add(const Duration(days: 3));
+          if (done.contains(r) || san.roundComplete(r) || today.isBefore(from) || today.isAfter(until)) continue;
+          final pending = <String>{
+            for (var s = 0; s < san.slots.length; s++)
+              if (san.payOf(r, s) != SanPay.paid) san.slots[s].name,
+          }.toList();
+          final when = today.isBefore(day) ? 'mañana' : (today == day ? 'hoy' : 'ya');
+          await sendText(
+              m.chatId,
+              '⏰ Recordatorio del san «${san.name}» (automático)\n'
+              'Turno ${r + 1}: le toca a ${san.slots[r].name} — $when.\n'
+              'Faltan por pagar: ${pending.join(', ')}. Cada número: ${san.money(san.amount)}. 🙏');
+          done.add(r);
+          break; // uno por san cada vez
+        }
+      }
+      _saveSanAuto();
+    } catch (e) {
+      debugPrint('San automático: $e');
+    } finally {
+      _sanAutoRunning = false;
+    }
   }
 
   /// Avisos en el móvil: el día antes de pagar y el día que me toca cobrar.
@@ -2812,6 +2908,7 @@ class AppController extends ChangeNotifier {
     profile = const Profile();
     chats = [];
     statuses = [];
+    _sanAuto = {};
     _sanBanks = {};
     _myLastBank = null;
     _calls = [];

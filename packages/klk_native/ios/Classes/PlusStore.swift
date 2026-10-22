@@ -15,7 +15,10 @@ enum PlusStore {
           do {
             let products = try await Product.products(for: ids)
             let list: [[String: Any]] = products.map { p in
-              var m: [String: Any] = ["id": p.id, "price": p.displayPrice, "title": p.displayName]
+              var m: [String: Any] = [
+                "id": p.id, "price": p.displayPrice, "title": p.displayName,
+                "amount": NSDecimalNumber(decimal: p.price).doubleValue,
+              ]
               if let s = p.subscription {
                 m["unit"] = unitName(s.subscriptionPeriod.unit)
                 m["count"] = s.subscriptionPeriod.value

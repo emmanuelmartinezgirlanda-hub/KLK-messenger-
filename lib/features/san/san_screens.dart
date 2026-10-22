@@ -8,7 +8,10 @@ import '../../core/l10n/l10n.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
+import '../plus/plus_screen.dart';
+import '../plus/plus_state.dart';
 import 'san.dart';
+import 'san_pdf.dart';
 
 const _verde = Color(0xFF1F7A4D);
 const _verdeOscuro = Color(0xFF0E4D2F);
@@ -1051,6 +1054,42 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
               );
             }),
           ),
+        // Extras de KLK Plus
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Material(
+            color: cs.surfaceContainerHighest.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: [
+              if (organizer && !finished)
+                SwitchListTile(
+                  secondary: const Icon(Icons.alarm_on_rounded),
+                  title: Row(children: [
+                    Flexible(child: Text(tr('Recordatorios automáticos'), style: const TextStyle(fontWeight: FontWeight.w700))),
+                    if (!plusActive.value) ...[const SizedBox(width: 6), const PlusMark(size: 16)],
+                  ]),
+                  subtitle: Text(tr('El día antes de cada turno, KLK avisa en el chat a quien falte por pagar.')),
+                  value: plusActive.value && app.sanAutoOn(m.id),
+                  onChanged: (v) => plusActive.value
+                      ? app.setSanAuto(m.id, v)
+                      : showPlusRequired(context, tr('Los recordatorios automáticos')),
+                ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf_rounded),
+                title: Row(children: [
+                  Flexible(child: Text(tr('Historial en PDF'), style: const TextStyle(fontWeight: FontWeight.w700))),
+                  if (!plusActive.value) ...[const SizedBox(width: 6), const PlusMark(size: 16)],
+                ]),
+                subtitle: Text(tr('Quién pagó cada turno y a quién se entregó. Para guardarlo o mandarlo.')),
+                trailing: const Icon(Icons.ios_share_rounded),
+                onTap: () => plusActive.value
+                    ? shareSanPdf(context, san, chatTitle: app.chatById(widget.chatId)?.title ?? '')
+                    : showPlusRequired(context, tr('El historial en PDF')),
+              ),
+            ]),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 18, 4, 4),
           child: Text(tr('Turnos'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),

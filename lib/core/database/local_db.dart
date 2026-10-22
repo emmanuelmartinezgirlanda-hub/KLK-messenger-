@@ -327,6 +327,12 @@ class LocalDb {
       _db.update('messages', {'body': body, 'edited_at': at.millisecondsSinceEpoch, 'link_json': linkJson},
           where: 'id = ?', whereArgs: [messageId]);
 
+  /// Todos los sanes guardados en el móvil (para contar los míos y los recordatorios).
+  Future<List<Message>> sanMessages() async {
+    final rows = await _db.query('messages', where: "media_json LIKE '%\"t\":\"san\"%'");
+    return rows.map(Message.fromRow).toList();
+  }
+
   /// Mis ubicaciones en tiempo real que quedaron activas (p. ej. al cerrar la app).
   Future<List<Message>> myLiveLocations() async {
     final rows = await _db.query('messages',

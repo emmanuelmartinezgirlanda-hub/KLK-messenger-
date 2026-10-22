@@ -33,6 +33,8 @@ import '../../san/san_screens.dart';
 import '../../contacts/contact_actions.dart';
 import '../../contacts/contact_info_screen.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../plus/plus_screen.dart';
+import '../../plus/plus_state.dart';
 import '../../messaging/custom_stickers.dart';
 import '../../messaging/stickers.dart';
 import 'media_bubbles.dart';
@@ -390,6 +392,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           await _shareLive();
         case 'san':
           {
+            // Sin Plus: un san a la vez como organizador (participar en otros, siempre gratis).
+            if (!plusActive.value && await _app.activeSansIOrganize() >= 1) {
+              if (mounted) await showPlusRequired(context, tr('Organizar más de un san a la vez'));
+              return;
+            }
+            if (!mounted) return;
             final san = await Navigator.of(context)
                 .push<San>(MaterialPageRoute(builder: (_) => SanCreateScreen(chatId: widget.chatId)));
             if (san != null) await _app.sendSan(widget.chatId, san);

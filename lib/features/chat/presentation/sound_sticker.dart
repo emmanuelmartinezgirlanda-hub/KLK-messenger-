@@ -267,6 +267,9 @@ class _VoiceStickerRecorderState extends State<_VoiceStickerRecorder> {
 }
 
 /// Pestaña «Con sonido» del selector: los de KLK, o elige uno y ponle tu voz.
+/// Sonidos «Voz KLK» gratis; el resto (y «Con mi voz») son de KLK Plus.
+const freeSoundStickers = 6;
+
 class SoundStickerTab extends StatefulWidget {
   final Widget Function(List<KlkSticker> list, {required bool sound, String prefix}) grid;
   const SoundStickerTab({super.key, required this.grid});

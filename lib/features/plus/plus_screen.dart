@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -26,18 +24,22 @@ class _Perk {
 }
 
 const _perks = [
-  _Perk(Icons.palette_rounded, [Color(0xFF00B4D8), Color(0xFF0077B6)], 'Temas exclusivos',
+  _Perk(Icons.handshake_rounded, [Color(0xFF2FAE6B), Color(0xFF1F7A4D)], 'San Plus',
+      'Varios sanes a la vez, recordatorios solos e historial en PDF.'),
+  _Perk(Icons.graphic_eq_rounded, [Color(0xFFFF5C8A), Color(0xFFD81B60)], 'Sonidos y «Con mi voz»',
+      'Todos los stickers con audio y graba los tuyos.'),
+  _Perk(Icons.palette_rounded, [Color(0xFF9C8BFF), Color(0xFF7B61FF)], 'Temas exclusivos',
       'Punta Cana, Zona Colonial, Carnaval y Oro.'),
-  _Perk(Icons.emoji_emotions_rounded, [Color(0xFFFF7A59), Color(0xFFE63946)], 'Stickers exclusivos',
-      '12 stickers criollos solo para Plus: ¡El jefe!, ¡Tá en fuego!…'),
-  _Perk(Icons.cloud_done_rounded, [Color(0xFF8E7BFF), Color(0xFF4A3AFF)], 'Tus fotos y vídeos, 1 año',
-      'Se guardan cifrados un año en vez de 30 días.'),
-  _Perk(Icons.closed_caption_rounded, [Color(0xFF2EC4B6), Color(0xFF1F7A4D)], 'Subtítulos en llamadas',
-      'Lee en tu idioma lo que te dicen (beta, entre iPhones).'),
-  _Perk(Icons.music_note_rounded, [Color(0xFFF4A261), Color(0xFFE76F51)], 'Tonos dominicanos',
-      'Tambora, merengue y acordeón para tus mensajes.'),
+  _Perk(Icons.closed_caption_rounded, [Color(0xFF2EC4B6), Color(0xFF0E7A8A)], 'Subtítulos traducidos',
+      'En llamadas: lee lo que te dicen, en tu idioma.'),
   _Perk(Icons.app_shortcut_rounded, [_oroClaro, _oroOscuro], 'Iconos de la app', 'Noche, Oro y Bandera.',
       iosOnly: true),
+  _Perk(Icons.emoji_emotions_rounded, [Color(0xFFFF7A59), Color(0xFFE63946)], 'Stickers exclusivos',
+      '12 stickers criollos: ¡El jefe!, ¡Tá en fuego!…'),
+  _Perk(Icons.music_note_rounded, [Color(0xFFF4A261), Color(0xFFE76F51)], 'Tonos dominicanos',
+      'Tambora, merengue y acordeón para tus mensajes.'),
+  _Perk(Icons.cloud_done_rounded, [Color(0xFF8E7BFF), Color(0xFF4A3AFF)], 'Fotos y vídeos, 1 año',
+      'Se guardan cifrados un año en vez de 30 días.'),
   _Perk(Icons.verified_rounded, [Color(0xFFFFD86B), Color(0xFFE0A030)], 'Insignia Plus', 'Sale al lado de tu nombre.'),
 ];
 
@@ -75,7 +77,7 @@ Future<void> showPlusRequired(BuildContext context, String what) => showModalBot
             Text('$what es de KLK Plus',
                 textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
-            const Text('Con KLK Plus tienes iconos, temas y stickers exclusivos, y tus fotos y vídeos se guardan un año.',
+            const Text('KLK Plus: más sanes, sonidos y «Con mi voz», temas e iconos exclusivos y subtítulos traducidos.',
                 textAlign: TextAlign.center),
             const SizedBox(height: 18),
             SizedBox(
@@ -140,9 +142,6 @@ class PlusScreen extends ConsumerStatefulWidget {
 
 class _PlusScreenState extends ConsumerState<PlusScreen> {
   final _code = TextEditingController();
-  final _pages = PageController(viewportFraction: 0.86);
-  Timer? _auto;
-  int _page = 0;
   bool _test = false;
   bool _busy = false;
   bool _loadingStore = true;
@@ -159,11 +158,6 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
     KlkNative.appIcon().then((v) => mounted ? setState(() => _icon = v) : null);
     ref.read(appProvider).refreshPlus();
     _loadStore();
-    _auto = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (!_pages.hasClients) return;
-      final next = (_page + 1) % _shownPerks.length;
-      _pages.animateToPage(next, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
-    });
   }
 
   Future<void> _loadStore() async {
@@ -180,8 +174,6 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
 
   @override
   void dispose() {
-    _auto?.cancel();
-    _pages.dispose();
     _code.dispose();
     super.dispose();
   }
@@ -257,11 +249,38 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
 
   void _open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 
+  /// Ahorro del plan anual frente a 12 meses del mensual (con los precios reales de la tienda).
+  int? _yearSaving() {
+    double? price(String unit) {
+      final p = _products.where((x) => x['unit'] == unit).firstOrNull;
+      final a = p?['amount'];
+      return a is num ? a.toDouble() : null;
+    }
+
+    final m = price('month'), y = price('year');
+    if (m == null || y == null || m <= 0) return null;
+    final pct = ((1 - y / (m * 12)) * 100).round();
+    return pct >= 5 ? pct : null;
+  }
+
+  String? _perMonth(Map<String, dynamic> p) {
+    final a = p['amount'];
+    if (p['unit'] != 'year' || a is! num) return null;
+    final price = p['price'] as String? ?? '';
+    // Mismo formato que el precio de la tienda: cambia solo el número.
+    final m = RegExp(r'[\d.,]+').firstMatch(price);
+    if (m == null) return null;
+    final comma = m.group(0)!.contains(',');
+    final v = (a / 12);
+    var n = v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+    if (comma) n = n.replaceAll('.', ',');
+    return '${price.replaceRange(m.start, m.end, n)} al mes';
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(appProvider);
-    final cs = Theme.of(context).colorScheme;
-    final muted = cs.onSurface.withValues(alpha: 0.6);
+    const muted = Color(0xFFA9B1BE);
     final perks = _shownPerks;
     return ValueListenableBuilder<bool>(
       valueListenable: plusActive,
@@ -269,101 +288,172 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
         final until = plusUntilNotifier.value;
         final chosen = _products.where((p) => p['id'] == _chosen).firstOrNull;
         final trial = chosen == null ? null : _trial(chosen);
-        return Scaffold(
-          appBar: AppBar(title: const Text('KLK Plus')),
-          body: ListView(padding: const EdgeInsets.only(bottom: 36), children: [
-            // ---------- Cabecera ----------
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(26),
-                gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: _fondo),
-              ),
-              child: Row(children: [
-                const _IconTile(Icons.workspace_premium_rounded, [_oroClaro, _oroOscuro], size: 58),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    ShaderMask(
-                      shaderCallback: (r) => const LinearGradient(colors: [_oroClaro, _oro]).createShader(r),
-                      child: const Text('KLK Plus',
-                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      plus
-                          ? 'Activo${until == null ? '' : ' hasta el ${DateFormat('d/M/y').format(until)}'}. ¡Gracias por apoyar KLK!'
-                          : 'Lo de siempre sigue gratis y cifrado. Plus es para quien quiera más.',
-                      style: const TextStyle(color: Colors.white70, fontSize: 14.5, height: 1.3),
-                    ),
-                  ]),
+        final saving = _yearSaving();
+        return Theme(
+          data: Theme.of(context).copyWith(
+            brightness: Brightness.dark,
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  brightness: Brightness.dark,
+                  onSurface: const Color(0xFFF2F5F9),
+                  surfaceContainerHighest: const Color(0xFF1C1A14),
                 ),
-              ]),
+            textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: const Color(0xFFC9B382))),
+          ),
+          child: Scaffold(
+            backgroundColor: const Color(0xFF0A0E14),
+            extendBodyBehindAppBar: true,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              actions: [
+                if (KlkNative.supportsStore && !plus)
+                  TextButton(onPressed: _busy ? null : _restore, child: const Text('Restaurar compras')),
+              ],
             ),
-            const SizedBox(height: 18),
-
-            // ---------- Carrusel de ventajas ----------
-            SizedBox(
-              height: 200,
-              child: PageView.builder(
-                controller: _pages,
-                itemCount: perks.length,
-                onPageChanged: (i) => setState(() => _page = i),
-                itemBuilder: (_, i) => _PerkCard(perks[i]),
+            body: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0, -1.1),
+                  radius: 1.3,
+                  colors: [Color(0xFF3B2A06), Color(0xFF120E05), Color(0xFF0A0E14)],
+                  stops: [0, 0.45, 0.8],
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              for (var i = 0; i < perks.length; i++)
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: i == _page ? 18 : 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: i == _page ? _oro : cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(3),
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(18, MediaQuery.paddingOf(context).top + kToolbarHeight - 8, 18, 36),
+                children: [
+                  // ---------- Cabecera ----------
+                  Center(
+                    child: Container(
+                      width: 78,
+                      height: 78,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(25),
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFFFE59A), Color(0xFFE8A71C), Color(0xFFB87A0B)],
+                        ),
+                        boxShadow: [BoxShadow(color: const Color(0xFFE8A71C).withValues(alpha: 0.45), blurRadius: 34, offset: const Offset(0, 10))],
+                      ),
+                      child: const Icon(Icons.workspace_premium_rounded, size: 46, color: Color(0xFF3A2A00)),
+                    ),
                   ),
-                ),
-            ]),
-            const SizedBox(height: 18),
+                  const SizedBox(height: 12),
+                  const Text.rich(
+                    TextSpan(children: [
+                      TextSpan(text: 'KLK '),
+                      TextSpan(text: 'Plus', style: TextStyle(color: _oroClaro)),
+                    ]),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.6),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    plus
+                        ? 'Activo${until == null ? '' : ' hasta el ${DateFormat('d/M/y').format(until)}'}. ¡Gracias por apoyar KLK!'
+                        : 'Más sabor dominicano. Lo básico sigue gratis.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Color(0xFFC9B382), fontSize: 14.5),
+                  ),
+                  const SizedBox(height: 18),
 
-            // ---------- Planes y botón ----------
-            if (!plus)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  if (_loadingStore)
-                    const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()))
-                  else ...[
-                    for (final p in _products)
-                      _PlanCard(
-                        title: p['unit'] == 'year' ? 'Anual' : 'Mensual',
-                        price: '${p['price']} / ${_per(p)}',
-                        note: _trial(p) ?? (p['unit'] == 'year' ? 'El que más ahorra' : null),
-                        selected: p['id'] == _chosen,
-                        onTap: () => setState(() => _chosen = p['id'] as String),
+                  // ---------- Ventajas ----------
+                  for (final p in perks)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Material(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: _oroClaro.withValues(alpha: 0.14)),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: p.icon == Icons.palette_rounded
+                              ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ThemePickerScreen()))
+                              : null,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            child: Row(children: [
+                              _IconTile(p.icon, p.colors, size: 38),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(p.title,
+                                      style: const TextStyle(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w800)),
+                                  const SizedBox(height: 1),
+                                  Text(p.sub, style: const TextStyle(color: muted, fontSize: 12.5)),
+                                ]),
+                              ),
+                              if (plus) const Icon(Icons.check_circle_rounded, color: _oroClaro, size: 20),
+                            ]),
+                          ),
+                        ),
                       ),
-                    const SizedBox(height: 6),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _oro,
-                        foregroundColor: Colors.black,
-                        disabledBackgroundColor: _oro.withValues(alpha: 0.35),
-                        minimumSize: const Size.fromHeight(54),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  const SizedBox(height: 10),
+
+                  // ---------- Planes y botón ----------
+                  if (!plus) ...[
+                    if (_loadingStore)
+                      const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator(color: _oro)))
+                    else if (_products.isNotEmpty)
+                      Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        // Mensual a la izquierda, anual a la derecha (como en el diseño)
+                        for (final (i, p) in ([..._products]
+                              ..sort((a, b) => (a['unit'] == 'year' ? 1 : 0) - (b['unit'] == 'year' ? 1 : 0)))
+                            .indexed) ...[
+                          if (i > 0) const SizedBox(width: 10),
+                          Expanded(
+                            child: _PlanCard(
+                              title: p['unit'] == 'year' ? 'Anual' : 'Mensual',
+                              price: p['price'] as String? ?? '',
+                              per: _perMonth(p) ?? 'al ${_per(p)}',
+                              badge: p['unit'] == 'year' && saving != null ? 'AHORRA $saving%' : null,
+                              trial: _trial(p),
+                              selected: p['id'] == _chosen,
+                              onTap: () => setState(() => _chosen = p['id'] as String),
+                            ),
+                          ),
+                        ],
+                      ]),
+                    const SizedBox(height: 12),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        gradient: LinearGradient(
+                          colors: _busy || chosen == null
+                              ? [const Color(0xFFFFE59A).withValues(alpha: 0.35), const Color(0xFFE8A71C).withValues(alpha: 0.35)]
+                              : const [Color(0xFFFFE59A), Color(0xFFE8A71C)],
+                        ),
+                        boxShadow: chosen == null
+                            ? null
+                            : [BoxShadow(color: const Color(0xFFE8A71C).withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 8))],
                       ),
-                      onPressed: _busy || chosen == null ? null : _buy,
-                      child: _busy
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
-                          : Text(
-                              chosen == null
-                                  ? 'Suscribirse: muy pronto'
-                                  : trial != null
-                                      ? 'Probar $trial'
-                                      : 'Probar KLK Plus',
-                              style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800)),
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          disabledBackgroundColor: Colors.transparent,
+                          foregroundColor: const Color(0xFF2A1E00),
+                          disabledForegroundColor: const Color(0xFF2A1E00).withValues(alpha: 0.6),
+                          shadowColor: Colors.transparent,
+                          minimumSize: const Size.fromHeight(54),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                        ),
+                        onPressed: _busy || chosen == null ? null : _buy,
+                        child: _busy
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
+                            : Text(
+                                chosen == null
+                                    ? 'Suscribirse: muy pronto'
+                                    : trial != null
+                                        ? 'Probar $trial'
+                                        : 'Probar KLK Plus',
+                                style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900)),
+                      ),
                     ),
                     if (chosen != null) ...[
                       const SizedBox(height: 8),
@@ -371,208 +461,199 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                         '${trial != null ? 'Después, ' : ''}${chosen['price']} / ${_per(chosen)}. Se renueva solo y lo cobra Apple. '
                         'Cancela cuando quieras en Ajustes del iPhone → tu nombre → Suscripciones.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: muted, height: 1.35),
+                        style: const TextStyle(fontSize: 12, color: muted, height: 1.35),
                       ),
-                    ] else if (!KlkNative.supportsStore)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
+                    ] else if (!_loadingStore)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
                         child: Text('Muy pronto podrás suscribirte desde aquí.',
                             textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: muted)),
                       ),
                   ],
-                ]),
-              ),
-            if (KlkNative.supportsStore)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Wrap(alignment: WrapAlignment.center, children: [
-                  TextButton(onPressed: _busy ? null : _restore, child: const Text('Restaurar compras')),
-                  if (plus) TextButton(onPressed: KlkNative.storeManage, child: const Text('Gestionar suscripción')),
-                  TextButton(
-                      onPressed: () => _open('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
-                      child: const Text('Términos')),
-                  TextButton(
-                      onPressed: () => _open('https://klk-server.onrender.com/privacidad'), child: const Text('Privacidad')),
-                ]),
-              ),
-            const SizedBox(height: 12),
 
-            // ---------- Icono de la app ----------
-            if (KlkNative.supportsAppIcons) ...[
-              const _Title('Icono de la app'),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(children: [
-                  for (final (name, label, asset) in const [
-                    (null, 'Normal', 'assets/brand/klk_logo.png'),
-                    ('KLK-Noche', 'Noche', 'assets/icon/alt/noche.png'),
-                    ('KLK-Oro', 'Oro', 'assets/icon/alt/oro.png'),
-                    ('KLK-Bandera', 'Bandera', 'assets/icon/alt/bandera.png'),
-                  ])
-                    Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () => _setIcon(name),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Column(children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: _icon == name ? _oro : Colors.transparent, width: 3),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(15),
-                                child: Stack(children: [
-                                  Image.asset(asset, width: 62, height: 62, fit: BoxFit.cover),
-                                  if (!plus && name != null)
-                                    Positioned.fill(
-                                      child: Container(
-                                        color: Colors.black38,
-                                        child: const Icon(Icons.lock_rounded, color: Colors.white, size: 22),
-                                      ),
-                                    ),
-                                ]),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(label, style: const TextStyle(fontSize: 12.5)),
+                  // ---------- Siempre gratis ----------
+                  Container(
+                    margin: const EdgeInsets.only(top: 14),
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF25C26E).withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF25C26E).withValues(alpha: 0.25)),
+                    ),
+                    child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.verified_user_rounded, color: Color(0xFF5FD39A), size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(children: [
+                            TextSpan(text: 'Siempre gratis: ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                            TextSpan(
+                                text: 'mensajes, llamadas y videollamadas, cifrado, el san (uno a la vez), '
+                                    'botón de pánico y privacidad.'),
                           ]),
+                          style: TextStyle(fontSize: 12.5, color: Color(0xFFBFE9D2), height: 1.4),
                         ),
                       ),
-                    ),
-                ]),
-              ),
-              const SizedBox(height: 16),
-            ],
+                    ]),
+                  ),
 
-            // ---------- Todo lo que incluye ----------
-            const _Title('Todo lo que incluye'),
-            _Group(children: [
-              for (final p in perks)
-                ListTile(
-                  leading: _IconTile(p.icon, p.colors, size: 36),
-                  title: Text(p.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text(p.sub),
-                  trailing: p.icon == Icons.palette_rounded ? const Icon(Icons.chevron_right_rounded) : null,
-                  onTap: p.icon == Icons.palette_rounded
-                      ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ThemePickerScreen()))
-                      : null,
-                ),
-            ]),
-            // Solo en versiones de prueba (TestFlight / APK de pruebas): las tiendas
-            // no permiten activar funciones de pago con códigos.
-            if (_test) ...[
-              const SizedBox(height: 20),
-              const _Title('Código de prueba'),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Solo aparece en las versiones de prueba.', style: TextStyle(fontSize: 13, color: muted)),
-                  const SizedBox(height: 8),
-                  Row(children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _code,
-                        textCapitalization: TextCapitalization.characters,
-                        autocorrect: false,
-                        decoration: const InputDecoration(hintText: 'Escribe el código', border: OutlineInputBorder()),
-                        onSubmitted: (_) => _redeem(),
+                  if (KlkNative.supportsStore)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Wrap(alignment: WrapAlignment.center, children: [
+                        if (plus) TextButton(onPressed: KlkNative.storeManage, child: const Text('Gestionar suscripción')),
+                        if (plus) TextButton(onPressed: _busy ? null : _restore, child: const Text('Restaurar compras')),
+                        TextButton(
+                            onPressed: () => _open('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
+                            child: const Text('Términos')),
+                        TextButton(
+                            onPressed: () => _open('https://klk-server.onrender.com/privacidad'),
+                            child: const Text('Privacidad')),
+                      ]),
+                    ),
+                  const SizedBox(height: 12),
+
+                  // ---------- Icono de la app ----------
+                  if (KlkNative.supportsAppIcons) ...[
+                    const _Title('Icono de la app'),
+                    Row(children: [
+                      for (final (name, label, asset) in const [
+                        (null, 'Normal', 'assets/brand/klk_logo.png'),
+                        ('KLK-Noche', 'Noche', 'assets/icon/alt/noche.png'),
+                        ('KLK-Oro', 'Oro', 'assets/icon/alt/oro.png'),
+                        ('KLK-Bandera', 'Bandera', 'assets/icon/alt/bandera.png'),
+                      ])
+                        Expanded(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => _setIcon(name),
+                            child: Padding(
+                              padding: const EdgeInsets.all(4),
+                              child: Column(children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(color: _icon == name ? _oro : Colors.transparent, width: 3),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(15),
+                                    child: Stack(children: [
+                                      Image.asset(asset, width: 62, height: 62, fit: BoxFit.cover),
+                                      if (!plus && name != null)
+                                        Positioned.fill(
+                                          child: Container(
+                                            color: Colors.black38,
+                                            child: const Icon(Icons.lock_rounded, color: Colors.white, size: 22),
+                                          ),
+                                        ),
+                                    ]),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(label, style: const TextStyle(fontSize: 12.5, color: Colors.white)),
+                              ]),
+                            ),
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Solo en versiones de prueba (TestFlight / APK de pruebas): las tiendas
+                  // no permiten activar funciones de pago con códigos.
+                  if (_test) ...[
+                    const SizedBox(height: 8),
+                    const _Title('Código de prueba'),
+                    const Text('Solo aparece en las versiones de prueba.', style: TextStyle(fontSize: 13, color: muted)),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _code,
+                          style: const TextStyle(color: Colors.white),
+                          textCapitalization: TextCapitalization.characters,
+                          autocorrect: false,
+                          decoration: const InputDecoration(
+                            hintText: 'Escribe el código',
+                            hintStyle: TextStyle(color: muted),
+                            border: OutlineInputBorder(),
+                          ),
+                          onSubmitted: (_) => _redeem(),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      style: FilledButton.styleFrom(backgroundColor: _oroOscuro, minimumSize: const Size(0, 54)),
-                      onPressed: _busy ? null : _redeem,
-                      child: const Text('Activar'),
-                    ),
-                  ]),
-                ]),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        style: FilledButton.styleFrom(backgroundColor: _oroOscuro, minimumSize: const Size(0, 54)),
+                        onPressed: _busy ? null : _redeem,
+                        child: const Text('Activar'),
+                      ),
+                    ]),
+                  ],
+                ],
               ),
-            ],
-          ]),
+            ),
+          ),
         );
       },
     );
   }
 }
 
-/// Tarjeta grande del carrusel.
-class _PerkCard extends StatelessWidget {
-  final _Perk perk;
-  const _PerkCard(this.perk);
-
-  @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: perk.colors),
-        ),
-        child: Stack(children: [
-          Positioned(
-            right: -18,
-            bottom: -18,
-            child: Icon(perk.icon, size: 130, color: Colors.white.withValues(alpha: 0.16)),
-          ),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(15)),
-              child: Icon(perk.icon, color: Colors.white, size: 28),
-            ),
-            const Spacer(),
-            Text(perk.title, style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            Text(perk.sub, style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.3)),
-          ]),
-        ]),
-      );
-}
-
 class _PlanCard extends StatelessWidget {
-  final String title, price;
-  final String? note;
+  final String title, price, per;
+  final String? badge, trial;
   final bool selected;
   final VoidCallback onTap;
-  const _PlanCard({required this.title, required this.price, this.note, required this.selected, required this.onTap});
+  const _PlanCard({
+    required this.title,
+    required this.price,
+    required this.per,
+    this.badge,
+    this.trial,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: selected ? _oro.withValues(alpha: 0.12) : cs.surfaceContainerHighest.withValues(alpha: 0.45),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: selected ? _oro : Colors.transparent, width: 2),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(children: [
-              Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
-                  color: selected ? _oro : cs.onSurface.withValues(alpha: 0.4)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                  if (note != null)
-                    Text(note!, style: const TextStyle(fontSize: 12.5, color: _oroOscuro, fontWeight: FontWeight.w600)),
-                ]),
-              ),
-              Text(price, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Stack(clipBehavior: Clip.none, children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: selected
+                  ? LinearGradient(colors: [_oroClaro.withValues(alpha: 0.20), _oro.withValues(alpha: 0.08)])
+                  : null,
+              color: selected ? null : Colors.white.withValues(alpha: 0.05),
+              border: Border.all(color: selected ? _oroClaro : Colors.white.withValues(alpha: 0.12), width: selected ? 2 : 1),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700, color: selected ? const Color(0xFFFFE3A3) : const Color(0xFFA9B1BE))),
+              const SizedBox(height: 2),
+              Text(price, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: Colors.white)),
+              Text(per, style: TextStyle(fontSize: 12, color: selected ? const Color(0xFFC9B382) : const Color(0xFFA9B1BE))),
+              if (trial != null)
+                Text(trial!, style: const TextStyle(fontSize: 11.5, color: _oroClaro, fontWeight: FontWeight.w700)),
             ]),
           ),
-        ),
-      ),
-    );
-  }
+          if (badge != null)
+            Positioned(
+              top: -10,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: _oroClaro, borderRadius: BorderRadius.circular(999)),
+                child: Text(badge!,
+                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: Color(0xFF3A2A00))),
+              ),
+            ),
+        ]),
+      );
 }
 
 class _Title extends StatelessWidget {
@@ -580,21 +661,6 @@ class _Title extends StatelessWidget {
   const _Title(this.text);
   @override
   Widget build(BuildContext context) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)));
-}
-
-class _Group extends StatelessWidget {
-  final List<Widget> children;
-  const _Group({required this.children});
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Material(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(18),
-          clipBehavior: Clip.antiAlias,
-          child: Column(children: children),
-        ),
-      );
+      padding: const EdgeInsets.fromLTRB(2, 0, 2, 8),
+      child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)));
 }
