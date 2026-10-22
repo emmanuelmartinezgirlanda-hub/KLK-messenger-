@@ -35,6 +35,7 @@ if command -v plutil >/dev/null; then
   addkey NSPhotoLibraryAddUsageDescription "KLK guarda en tu galería las fotos que decidas descargar."
   addkey NSContactsUsageDescription "KLK mira tu agenda para mostrarte qué contactos ya usan KLK. Tu agenda no se guarda en nuestros servidores."
   addkey NSLocationWhenInUseUsageDescription "KLK usa tu ubicación solo cuando decides enviarla o compartirla en tiempo real en un chat."
+  addkey NSLocationAlwaysAndWhenInUseUsageDescription "KLK usa tu ubicación solo cuando decides enviarla o compartirla en tiempo real en un chat. No la usa en segundo plano para nada más."
   addkey NSFaceIDUsageDescription "KLK usa Face ID para que solo tú puedas abrir tus chats."
   addkey NSSpeechRecognitionUsageDescription "KLK pasa a texto las notas de voz dentro de tu iPhone, sin enviarlas a ningún servidor."
   # Que la llamada siga sonando si sales un momento de KLK
