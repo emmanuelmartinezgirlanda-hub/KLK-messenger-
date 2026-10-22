@@ -322,6 +322,7 @@ class AppController extends ChangeNotifier {
   Future<void> _openSession() async {
     unawaited(_loadLastSeen());
     unawaited(_loadCalls());
+    unawaited(_loadSanBanks());
     await _loadPinnedChats();
     _db = await LocalDb.open(await _store.databaseKey());
     try {
@@ -709,7 +710,10 @@ class AppController extends ChangeNotifier {
             final m = await db.message(p.target ?? '');
             final media = m?.media;
             final ev = p.san;
-            if (m != null && media != null && ev != null && media.type == MediaType.san && m.chatId == chatId) {
+            if (m != null && media != null && ev != null && media.type == MediaType.san && m.chatId == chatId &&
+                (ev['a'] == 'bank' || ev['a'] == 'nobank')) {
+              await _receiveSanBank(m, ev, from, chatId);
+            } else if (m != null && media != null && ev != null && media.type == MediaType.san && m.chatId == chatId) {
               final next = San.tryParse(media.san)?.apply(ev, from);
               if (next != null) {
                 final updated = m.copyWith(media: media.copyWith(san: next.toJson()));
@@ -1179,6 +1183,7 @@ class AppController extends ChangeNotifier {
       loc: p.loc,
       mentions: p.mentions,
       link: p.link,
+      san: p.san,
       group: _groupMeta(chat, members),
     );
     for (final m in members) {
@@ -1186,6 +1191,31 @@ class AppController extends ChangeNotifier {
       await _sendTo(m.id, m.identityKey!, withGroup,
           ref: ephemeral ? 'x-${p.kind}' : '$ref|${m.id}', deliverAt: deliverAt, ephemeral: ephemeral);
     }
+  }
+
+  /// Envía algo solo a UNA persona de un chat (en grupos, con los datos del grupo
+  /// para que le llegue al chat correcto). Lo usan los datos del banco del san.
+  Future<void> _sendToChatMember(String chatId, String accountId, Payload p, {required String ref}) async {
+    final chat = await _db!.chat(chatId);
+    if (chat == null) throw StateError('Chat no encontrado');
+    if (!chat.isGroup) {
+      if (chatId != accountId) throw StateError('No es de este chat');
+      return _sendEncrypted(chatId, p, ref: ref);
+    }
+    final members = await _membersWithKeys(chat);
+    final target = members.where((m) => m.id == accountId && m.identityKey != null).firstOrNull;
+    if (target == null) throw StateError('Esa persona no está en el grupo');
+    await _sendTo(
+        target.id,
+        target.identityKey!,
+        Payload(
+          kind: p.kind,
+          target: p.target,
+          san: p.san,
+          senderPhone: isCommunityChat(chat.id) ? null : session?.phone,
+          group: _groupMeta(chat, members),
+        ),
+        ref: '$ref|${target.id}');
   }
 
   Map<String, dynamic> _groupMeta(Chat chat, List<GroupMember> members) => {
@@ -1423,6 +1453,103 @@ class AppController extends ChangeNotifier {
       debugPrint('San: $e');
     }
     return true;
+  }
+
+  // ---------- Datos del banco para cobrar el san ----------
+  // Solo en este móvil (cifrado). Quien organiza ve los de los demás; cada uno, los suyos.
+  static const _sanBanksKey = 'klk.san.banks';
+  static const _myBankKey = 'klk.san.mybank';
+  Map<String, Map<String, SanBank>> _sanBanks = {}; // idMensaje -> cuenta -> datos
+  SanBank? _myLastBank; // para rellenar el formulario la próxima vez
+  bool _sanBanksLoaded = false;
+
+  SanBank? sanBankOf(String messageId, String accountId) => _sanBanks[messageId]?[accountId];
+  SanBank? get myLastSanBank => _myLastBank;
+
+  Future<void> _loadSanBanks() async {
+    if (_sanBanksLoaded) return;
+    _sanBanksLoaded = true;
+    try {
+      final raw = await _store.read(_sanBanksKey);
+      if (raw != null && raw.isNotEmpty) {
+        _sanBanks = {
+          for (final e in (jsonDecode(raw) as Map).entries)
+            e.key as String: {
+              for (final b in (e.value as Map).entries)
+                if (SanBank.tryParse(b.value) case final bank?) b.key as String: bank,
+            },
+        };
+      }
+      _myLastBank = SanBank.tryParse(jsonDecode(await _store.read(_myBankKey) ?? 'null'));
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  void _saveSanBanks() {
+    unawaited(_store
+        .write(_sanBanksKey,
+            jsonEncode({for (final e in _sanBanks.entries) e.key: {for (final b in e.value.entries) b.key: b.value.toJson()}}))
+        .catchError((_) {}));
+  }
+
+  /// Guardo MIS datos para cobrar este san y se los mando (cifrados) solo a quien organiza.
+  /// [bank] null = borrarlos.
+  Future<bool> shareSanBank(Message msg, SanBank? bank) async {
+    await _loadSanBanks();
+    final san = San.tryParse(msg.media?.san);
+    if (san == null || san.slotsOf(myId).isEmpty) return false;
+    final mine = Map<String, SanBank>.from(_sanBanks[msg.id] ?? const {});
+    if (bank == null) {
+      mine.remove(myId);
+    } else {
+      mine[myId] = bank;
+      _myLastBank = bank;
+      unawaited(_store.write(_myBankKey, jsonEncode(bank.toJson())).catchError((_) {}));
+    }
+    _sanBanks[msg.id] = mine;
+    _saveSanBanks();
+    notifyListeners();
+    if (san.organizer == myId || isDemo) return true;
+    try {
+      await _sendToChatMember(
+        msg.chatId,
+        san.organizer,
+        Payload(kind: 'san', target: msg.id, san: bank == null ? {'a': 'nobank'} : {'a': 'bank', ...bank.toJson()}),
+        ref: 'x-${_uuid.v4()}',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('San banco: $e');
+      return false;
+    }
+  }
+
+  Future<void> _receiveSanBank(Message m, Map<String, dynamic> ev, String from, String chatId) async {
+    await _loadSanBanks();
+    final san = San.tryParse(m.media?.san);
+    // Solo me sirve si yo organizo y quien lo manda tiene número en el san.
+    if (san == null || san.organizer != myId) return;
+    final slot = san.slots.where((x) => x.id == from).firstOrNull;
+    if (slot == null) return;
+    final banks = Map<String, SanBank>.from(_sanBanks[m.id] ?? const {});
+    final old = banks[from];
+    if (ev['a'] == 'nobank') {
+      if (banks.remove(from) == null) return;
+      await _system(chatId, '🏦 ${slot.name} quitó su cuenta para cobrar el san «${san.name}».');
+    } else {
+      final bank = SanBank.tryParse(ev);
+      if (bank == null) return;
+      banks[from] = bank;
+      if (old == null) {
+        await _system(chatId, '🏦 ${slot.name} añadió su cuenta para cobrar el san «${san.name}». Solo la ves tú.');
+      } else if (!old.sameAccount(bank)) {
+        await _system(chatId,
+            '⚠️ ${slot.name} CAMBIÓ su cuenta para cobrar el san «${san.name}». Antes de enviar dinero, confírmalo con esa persona (llámala).');
+      }
+    }
+    _sanBanks[m.id] = banks;
+    _saveSanBanks();
+    notifyListeners();
   }
 
   /// Avisos en el móvil: el día antes de pagar y el día que me toca cobrar.
@@ -2685,6 +2812,8 @@ class AppController extends ChangeNotifier {
     profile = const Profile();
     chats = [];
     statuses = [];
+    _sanBanks = {};
+    _myLastBank = null;
     _calls = [];
     _messages.clear();
     _outbox.clear();

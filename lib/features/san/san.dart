@@ -26,6 +26,9 @@ class San {
   final List<SanSlot> slots; // orden de los turnos (sorteado)
   final Map<String, SanPay> pays; // "turno:número" -> estado
   final bool ended; // el organizador lo dio por terminado
+  /// Entrega del dinero de cada turno: "sent" (el organizador lo envió) o
+  /// "got" (quien cobra confirmó que le llegó).
+  final Map<int, String> outs;
 
   const San({
     required this.name,
@@ -37,6 +40,7 @@ class San {
     required this.slots,
     this.pays = const {},
     this.ended = false,
+    this.outs = const {},
   });
 
   int get rounds => slots.length;
@@ -75,6 +79,9 @@ class San {
 
   bool roundComplete(int round) => paidCount(round) == slots.length;
 
+  /// ¿Se envió ya el dinero del turno [round]? null, "sent" o "got".
+  String? outOf(int round) => outs[round];
+
   /// ¿Ya se terminó? (lo terminaron o el último turno está cobrado del todo).
   bool finished(DateTime now) => ended || (roundComplete(rounds - 1) && currentRound(now) == rounds - 1);
 
@@ -89,7 +96,7 @@ class San {
   String get periodLabel => switch (period) { 'week' => 'cada semana', '2week' => 'cada quincena', _ => 'cada mes' };
   String get periodShort => switch (period) { 'week' => 'semanal', '2week' => 'quincenal', _ => 'mensual' };
 
-  San copyWith({Map<String, SanPay>? pays, bool? ended}) => San(
+  San copyWith({Map<String, SanPay>? pays, bool? ended, Map<int, String>? outs}) => San(
         name: name,
         amount: amount,
         currency: currency,
@@ -99,6 +106,7 @@ class San {
         slots: slots,
         pays: pays ?? this.pays,
         ended: ended ?? this.ended,
+        outs: outs ?? this.outs,
       );
 
   Map<String, dynamic> toJson() => {
@@ -112,6 +120,7 @@ class San {
         'sl': [for (final s in slots) s.toJson()],
         if (pays.isNotEmpty) 'py': {for (final e in pays.entries) if (e.value != SanPay.none) e.key: e.value.name},
         if (ended) 'e': true,
+        if (outs.isNotEmpty) 'out': {for (final e in outs.entries) '${e.key}': e.value},
       };
 
   static San? tryParse(Object? raw) {
@@ -127,6 +136,11 @@ class San {
         final v = SanPay.values.asNameMap()[e.value];
         if (v != null && v != SanPay.none) pays[e.key as String] = v;
       }
+      final outs = <int, String>{};
+      for (final e in ((j['out'] as Map?) ?? const {}).entries) {
+        final r = int.tryParse('${e.key}');
+        if (r != null && r >= 0 && r < slots.length && (e.value == 'sent' || e.value == 'got')) outs[r] = e.value as String;
+      }
       return San(
         name: (j['n'] as String? ?? 'San').trim(),
         amount: (j['a'] as num?)?.toDouble() ?? 0,
@@ -137,6 +151,7 @@ class San {
         slots: slots,
         pays: pays,
         ended: j['e'] == true,
+        outs: outs,
       );
     } catch (_) {
       return null;
@@ -173,6 +188,27 @@ class San {
         return copyWith(pays: next);
       case 'end':
         return organizerSays ? copyWith(ended: true) : null;
+      case 'sent': // el organizador envió el dinero del turno
+      case 'unsent': // …o lo desmarca (se equivocó)
+      case 'got': // quien cobra confirma que le llegó
+        final r = (ev['r'] as num?)?.toInt() ?? -1;
+        if (r < 0 || r >= rounds) return null;
+        final next = Map<int, String>.from(outs);
+        if (ev['a'] == 'got') {
+          if (slots[r].id != from && !organizerSays) return null;
+          if (outs[r] == null) return null;
+          next[r] = 'got';
+        } else {
+          if (!organizerSays) return null;
+          if (ev['a'] == 'sent') {
+            if (outs[r] == 'got') return null;
+            next[r] = 'sent';
+          } else {
+            if (outs[r] != 'sent') return null;
+            next.remove(r);
+          }
+        }
+        return copyWith(outs: next);
     }
     return null;
   }
@@ -189,3 +225,50 @@ String formatSanMoney(double v, String currency) {
 
 /// Fecha corta y clara: "vie 24 oct".
 String sanDate(DateTime d, String lang) => DateFormat('EEE d MMM', lang).format(d);
+
+/// Datos para cobrar el san. Los pone cada persona y solo se mandan (cifrados)
+/// a quien organiza. Nunca viajan dentro del san del grupo.
+class SanBank {
+  final String holder; // titular
+  final String account; // IBAN o número de cuenta
+  final String bank; // nombre del banco (opcional)
+  final String note; // otra forma: Bizum, Zelle, PayPal… (opcional)
+  final DateTime at;
+
+  const SanBank({required this.holder, required this.account, this.bank = '', this.note = '', required this.at});
+
+  bool get isEmpty => account.trim().isEmpty && note.trim().isEmpty;
+
+  /// La cuenta medio tapada: "IE12 •••• 4567".
+  String get masked {
+    final a = account.replaceAll(' ', '');
+    if (a.length <= 8) return a;
+    return '${a.substring(0, 4)} •••• ${a.substring(a.length - 4)}';
+  }
+
+  /// Misma cuenta (sin mirar espacios ni mayúsculas).
+  bool sameAccount(SanBank o) =>
+      account.replaceAll(' ', '').toUpperCase() == o.account.replaceAll(' ', '').toUpperCase() &&
+      note.trim() == o.note.trim();
+
+  Map<String, dynamic> toJson() => {
+        'h': holder,
+        'acc': account,
+        if (bank.isNotEmpty) 'b': bank,
+        if (note.isNotEmpty) 'nt': note,
+        't': at.millisecondsSinceEpoch,
+      };
+
+  static SanBank? tryParse(Object? raw) {
+    if (raw is! Map) return null;
+    String str(Object? v, int max) => v is String ? (v.length > max ? v.substring(0, max) : v).trim() : '';
+    final b = SanBank(
+      holder: str(raw['h'], 80),
+      account: str(raw['acc'], 60),
+      bank: str(raw['b'], 60),
+      note: str(raw['nt'], 120),
+      at: DateTime.fromMillisecondsSinceEpoch((raw['t'] as num?)?.toInt() ?? 0),
+    );
+    return b.isEmpty ? null : b;
+  }
+}

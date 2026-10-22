@@ -774,6 +774,144 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
     if (ok == true) await ref.read(appProvider).sanAction(m, {'a': 'end'});
   }
 
+  // ---------- Entregar el dinero del turno ----------
+
+  Future<void> _sendPayout(Message m, San san, int r) async {
+    final app = ref.read(appProvider);
+    final who = san.slots[r];
+    final bank = app.sanBankOf(m.id, who.id);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.send_rounded, color: _verde),
+        title: Text('${tr('Enviar')} ${san.money(san.pot)} ${tr('a')} ${who.name}'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (bank != null) ...[
+            _BankBox(bank: bank, full: true),
+            const SizedBox(height: 12),
+          ] else if (!who.id.startsWith('x:') && who.id != app.myId) ...[
+            Text('${who.name} ${tr('aún no ha puesto su cuenta en KLK. Pídesela antes de enviar.')}'),
+            const SizedBox(height: 12),
+          ],
+          Text(tr('Envía el dinero desde tu banco como siempre. Cuando lo hayas hecho, toca «Ya lo envié» y le avisamos en el chat.')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Todavía no'))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _verde),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('Ya lo envié')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!await app.sanAction(m, {'a': 'sent', 'r': r})) return;
+    HapticFeedback.mediumImpact();
+    await app.sendText(widget.chatId,
+        '💸 ${tr('Dinero del san')} «${san.name}» ${tr('enviado a')} ${who.name}: ${san.money(san.pot)}.\n${who.name}, ${tr('revisa tu cuenta')} 🙏');
+  }
+
+  Future<void> _confirmGot(Message m, San san, int r) async {
+    final app = ref.read(appProvider);
+    if (!await app.sanAction(m, {'a': 'got', 'r': r})) return;
+    HapticFeedback.mediumImpact();
+    await app.sendText(widget.chatId, '✅ ${tr('Me llegó el dinero del san')} «${san.name}»: ${san.money(san.pot)}. ${tr('¡Gracias!')} 🎉');
+  }
+
+  Future<void> _undoSent(Message m, int r) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('¿Desmarcar el envío?')),
+        content: Text(tr('Úsalo solo si lo marcaste por error.')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Desmarcar'))),
+        ],
+      ),
+    );
+    if (ok == true) await ref.read(appProvider).sanAction(m, {'a': 'unsent', 'r': r});
+  }
+
+  Future<void> _editBank(Message m, San san) async {
+    final app = ref.read(appProvider);
+    final current = app.sanBankOf(m.id, app.myId);
+    final chat = app.chatById(widget.chatId);
+    final organizerName = chat != null && !chat.isGroup
+        ? chat.title
+        : (san.slots.where((x) => x.id == san.organizer).firstOrNull?.name ?? tr('quien organiza'));
+    final result = await showModalBottomSheet<(bool, SanBank?)>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _BankSheet(initial: current ?? app.myLastSanBank, organizer: organizerName, canDelete: current != null),
+    );
+    if (result == null) return;
+    final ok = await app.shareSanBank(m, result.$2);
+    _snack(!ok
+        ? tr('No se pudo enviar. Revisa la conexión e inténtalo otra vez.')
+        : result.$2 == null
+            ? tr('Cuenta borrada')
+            : '${tr('Cuenta guardada. Solo la ve')} $organizerName 🔒');
+  }
+
+  Widget _payout(Message m, San san, int i, bool organizer, String me, Color muted) {
+    final app = ref.read(appProvider);
+    final who = san.slots[i];
+    final out = san.outOf(i);
+    final bank = organizer ? app.sanBankOf(m.id, who.id) : null;
+    final children = <Widget>[];
+    if (out == 'got') {
+      children.add(_Status(Icons.verified_rounded, _oro, '${who.name} ${tr('confirmó que le llegó el dinero')} 🎉'));
+    } else if (out == 'sent') {
+      children.add(_Status(Icons.send_rounded, _verde, '${tr('Dinero enviado')} · ${tr('esperando que')} ${who.name} ${tr('confirme')}'));
+      if (who.id == me) {
+        children.add(Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: _verde, minimumSize: const Size.fromHeight(46)),
+            onPressed: () => _confirmGot(m, san, i),
+            icon: const Icon(Icons.check_circle_rounded),
+            label: Text(tr('Me llegó el dinero')),
+          ),
+        ));
+      }
+      if (organizer) {
+        children.add(Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(onPressed: () => _undoSent(m, i), child: Text(tr('Desmarcar envío'))),
+        ));
+      }
+    } else if (organizer) {
+      if (who.id != me) {
+        children.add(bank != null
+            ? _BankBox(bank: bank)
+            : Text(
+                who.id.startsWith('x:')
+                    ? '${who.name} ${tr('no tiene KLK: pídele la cuenta por fuera.')}'
+                    : '${who.name} ${tr('aún no ha puesto su cuenta para cobrar.')}',
+                style: TextStyle(fontSize: 12.5, color: muted)));
+        children.add(const SizedBox(height: 8));
+      }
+      children.add(FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: _verde, minimumSize: const Size.fromHeight(46)),
+        onPressed: san.roundComplete(i) ? () => _sendPayout(m, san, i) : null,
+        icon: const Icon(Icons.send_rounded),
+        label: Text(san.roundComplete(i)
+            ? '${tr('Enviar')} ${san.money(san.pot)} ${tr('a')} ${who.name}'
+            : tr('Cuando paguen todos, podrás enviarlo')),
+      ));
+    } else if (san.roundComplete(i)) {
+      children.add(_Status(Icons.savings_rounded, _verde, tr('¡Ya pagaron todos! Falta que quien organiza lo envíe.')));
+    }
+    if (children.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+    );
+  }
+
   Future<void> _again(San san) async {
     final next = await Navigator.of(context).push<San>(
         MaterialPageRoute(builder: (_) => SanCreateScreen(chatId: widget.chatId, copyFrom: san)));
@@ -888,6 +1026,31 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
               label: Text(tr('Otra vuelta')),
             ),
           ),
+        if (mine.isNotEmpty && !organizer && !finished)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Builder(builder: (_) {
+              final myBank = app.sanBankOf(m.id, me);
+              return Material(
+                color: cs.surfaceContainerHighest.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: ListTile(
+                  onTap: () => _editBank(m, san),
+                  leading: const CircleAvatar(
+                    backgroundColor: _verde,
+                    child: Icon(Icons.account_balance_rounded, color: Colors.white, size: 20),
+                  ),
+                  title: Text(myBank == null ? tr('Pon tu cuenta para cobrar') : tr('Tu cuenta para cobrar'),
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text(myBank == null
+                      ? tr('Así te envían el dinero cuando te toque. Solo la ve quien organiza 🔒')
+                      : '${myBank.holder.isEmpty ? '' : '${myBank.holder} · '}${myBank.account.isEmpty ? myBank.note : myBank.masked}'),
+                  trailing: Icon(myBank == null ? Icons.add_circle_outline_rounded : Icons.edit_rounded),
+                ),
+              );
+            }),
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 18, 4, 4),
           child: Text(tr('Turnos'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
@@ -921,7 +1084,11 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
                   subtitle: Text(
                       '${sanDate(san.dateOf(i), lang)} · ${san.paidCount(i)}/${san.slots.length} ${tr('pagaron')}'),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    if (san.roundComplete(i))
+                    if (san.outOf(i) == 'got')
+                      const Icon(Icons.savings_rounded, color: _oro)
+                    else if (san.outOf(i) == 'sent')
+                      const Icon(Icons.send_rounded, color: _verde)
+                    else if (san.roundComplete(i))
                       const Icon(Icons.verified_rounded, color: _oro)
                     else if (i == r && started && !finished)
                       Container(
@@ -946,6 +1113,7 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
                           amount: san.money(san.amount),
                           onTap: finished ? null : () => _tapSlot(m, san, i, s),
                         ),
+                      _payout(m, san, i, organizer, me, muted),
                     ]),
                   ),
               ]),
@@ -976,6 +1144,190 @@ class _Pill extends StatelessWidget {
           Text(text, style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600)),
         ]),
       );
+}
+
+class _Status extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String text;
+  const _Status(this.icon, this.color, this.text);
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+        child: Row(children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5))),
+        ]),
+      );
+}
+
+/// Los datos para cobrar de alguien (solo los ve quien organiza), con botón de copiar.
+class _BankBox extends StatelessWidget {
+  final SanBank bank;
+  final bool full;
+  const _BankBox({required this.bank, this.full = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    Widget line(String label, String value, {bool copy = false}) => Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Row(children: [
+            Expanded(
+              child: Text.rich(TextSpan(children: [
+                TextSpan(text: '$label: ', style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6), fontSize: 12.5)),
+                TextSpan(text: value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+              ])),
+            ),
+            if (copy)
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: tr('Copiar'),
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: value.replaceAll(' ', '')));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Copiado'))));
+                },
+              ),
+          ]),
+        );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _verde.withValues(alpha: 0.4)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.lock_rounded, size: 14, color: _verde),
+          const SizedBox(width: 4),
+          Text(tr('Cuenta para cobrar · solo la ves tú'),
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _verde)),
+        ]),
+        if (bank.holder.isNotEmpty) line(tr('Titular'), bank.holder),
+        if (bank.account.isNotEmpty) line(tr('Cuenta'), full ? bank.account : bank.masked, copy: full),
+        if (bank.bank.isNotEmpty) line(tr('Banco'), bank.bank),
+        if (bank.note.isNotEmpty) line(tr('Otra forma'), bank.note, copy: full),
+      ]),
+    );
+  }
+}
+
+/// Formulario de MIS datos para cobrar el san.
+class _BankSheet extends StatefulWidget {
+  final SanBank? initial;
+  final String organizer;
+  final bool canDelete;
+  const _BankSheet({required this.initial, required this.organizer, required this.canDelete});
+
+  @override
+  State<_BankSheet> createState() => _BankSheetState();
+}
+
+class _BankSheetState extends State<_BankSheet> {
+  late final _holder = TextEditingController(text: widget.initial?.holder ?? '');
+  late final _account = TextEditingController(text: widget.initial?.account ?? '');
+  late final _bank = TextEditingController(text: widget.initial?.bank ?? '');
+  late final _note = TextEditingController(text: widget.initial?.note ?? '');
+
+  @override
+  void dispose() {
+    _holder.dispose();
+    _account.dispose();
+    _bank.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  bool get _valid => _holder.text.trim().isNotEmpty && (_account.text.trim().length >= 6 || _note.text.trim().isNotEmpty);
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    InputDecoration deco(String label, IconData icon, {String? hint}) => InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        );
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 16),
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(tr('Tu cuenta para cobrar'), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.lock_rounded, size: 16, color: _verde),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${tr('Solo la verá')} ${widget.organizer}, ${tr('para enviarte el dinero cuando te toque. Va cifrada: ni KLK ni los demás del san la ven.')}',
+                  style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.7)),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _holder,
+              textCapitalization: TextCapitalization.words,
+              decoration: deco(tr('Titular de la cuenta'), Icons.person_rounded),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _account,
+              textCapitalization: TextCapitalization.characters,
+              decoration: deco(tr('IBAN o número de cuenta'), Icons.account_balance_rounded, hint: 'ES12 3456 7890 …'),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _bank,
+              textCapitalization: TextCapitalization.words,
+              decoration: deco(tr('Banco (opcional)'), Icons.apartment_rounded, hint: 'Banreservas, Popular, BBVA…'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _note,
+              decoration: deco(tr('Otra forma (opcional)'), Icons.phone_iphone_rounded, hint: 'Bizum, Zelle, Revolut…'),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: _verde, minimumSize: const Size.fromHeight(50)),
+              onPressed: !_valid
+                  ? null
+                  : () => Navigator.pop(
+                        context,
+                        (
+                          true,
+                          SanBank(
+                            holder: _holder.text.trim(),
+                            account: _account.text.trim().toUpperCase(),
+                            bank: _bank.text.trim(),
+                            note: _note.text.trim(),
+                            at: DateTime.now(),
+                          ),
+                        ),
+                      ),
+              child: Text(tr('Guardar')),
+            ),
+            if (widget.canDelete)
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: _rojo),
+                onPressed: () => Navigator.pop(context, (true, null)),
+                child: Text(tr('Borrar mi cuenta de este san')),
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 class _PayRow extends StatelessWidget {
