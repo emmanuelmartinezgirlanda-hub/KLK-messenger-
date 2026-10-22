@@ -405,9 +405,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (x != null) await _sendFile(x.path, viewOnce: true);
             if (x != null) _snack(tr('Enviada para ver una vez: se borrará al abrirla'));
           }
-        case 'sticker':
+        case 'sticker' || 'sound':
           {
-            final id = await pickSticker(context);
+            final id = what == 'sound' ? await pickSoundSticker(context) : await pickSticker(context);
             if (id != null && id.startsWith('file:')) {
               await _sendCustomSticker(id.substring(5));
             } else if (id != null && id.startsWith('rec:')) {
@@ -569,9 +569,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _showAttachSheet() {
     final cs = Theme.of(context).colorScheme;
-    Widget item(IconData icon, String label, Color color, String what) => InkWell(
+    var index = 0;
+    Widget item(IconData icon, String label, Color color, String what) {
+      // Los botones entran uno detrás de otro con un pequeño rebote.
+      final i = index++;
+      final total = 240 + i * 35;
+      return TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: Duration(milliseconds: total),
+        curve: Interval((i * 35) / total, 1, curve: Curves.easeOutBack),
+        builder: (_, t, child) => Opacity(
+          opacity: t.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 18),
+            child: Transform.scale(scale: 0.7 + 0.3 * t, child: child),
+          ),
+        ),
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
+            HapticFeedback.selectionClick();
             Navigator.pop(context);
             _attach(what);
           },
@@ -580,10 +597,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               CircleAvatar(radius: 28, backgroundColor: color, child: Icon(icon, color: Colors.white, size: 26)),
               const SizedBox(height: 6),
-              Text(label, style: TextStyle(fontSize: 12.5, color: cs.onSurface)),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, color: cs.onSurface)),
             ]),
           ),
-        );
+        ),
+      );
+    }
 
     showModalBottomSheet(
       context: context,
@@ -607,6 +630,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 item(Icons.handshake_rounded, 'San', const Color(0xFF1F7A4D), 'san'),
               item(Icons.looks_one_outlined, 'Ver una vez', const Color(0xFF0E4D64), 'viewonce'),
               item(Icons.emoji_emotions_outlined, 'Stickers', const Color(0xFFFFB627), 'sticker'),
+              item(Icons.graphic_eq_rounded, 'Sonidos', const Color(0xFFD81B60), 'sound'),
               item(Icons.flight_takeoff, "Bajando pa' RD", const Color(0xFF002D62), 'trip'),
               item(Icons.translate, 'Traducir', const Color(0xFF00A6B4), 'translate'),
               if (kMoneyFeatures) ...[

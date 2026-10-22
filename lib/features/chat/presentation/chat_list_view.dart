@@ -139,7 +139,7 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
     return SlidableAutoCloseBehavior(
       child: ListView.builder(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.only(bottom: 96),
+      padding: EdgeInsets.only(bottom: 24 + MediaQuery.paddingOf(context).bottom),
       itemCount: top.length + (chats.isEmpty ? 1 : chats.length),
       itemBuilder: (context, i) {
         if (i < top.length) return top[i];

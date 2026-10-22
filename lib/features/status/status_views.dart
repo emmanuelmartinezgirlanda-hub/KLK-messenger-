@@ -64,7 +64,7 @@ class StatusesView extends ConsumerWidget {
       );
     }
 
-    return ListView(padding: const EdgeInsets.only(bottom: 96), children: [
+    return ListView(padding: EdgeInsets.only(bottom: 24 + MediaQuery.paddingOf(context).bottom), children: [
       ListTile(
         contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
         leading: Stack(clipBehavior: Clip.none, children: [

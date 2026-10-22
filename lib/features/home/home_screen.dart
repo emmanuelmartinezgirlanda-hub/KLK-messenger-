@@ -1,4 +1,7 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/features.dart';
@@ -32,7 +35,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tab = 0;
 
-  static const _titles = ['KLK messenger', 'Estados', 'Comunidades', 'Ajustes'];
+  List<String> get _titles => ['KLK messenger', tr('Estados'), tr('Comunidades'), tr('Tú')];
 
   @override
   void initState() {
@@ -199,39 +202,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         _ => null,
       },
-      bottomNavigationBar: DecoratedBox(
-        decoration: BoxDecoration(border: Border(top: BorderSide(color: cs.onSurface.withValues(alpha: 0.08)))),
-        child: NavigationBar(
-          selectedIndex: visible.indexOf(_tab),
-          onDestinationSelected: (i) => setState(() => _tab = visible[i]),
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          destinations: [
-            for (final (k, d) in <NavigationDestination>[
-            NavigationDestination(
-              icon: Badge(
-                isLabelVisible: unreadChats > 0,
-                backgroundColor: cs.secondary,
-                label: Text('$unreadChats'),
-                child: const Icon(Icons.chat_outlined),
-              ),
-              selectedIcon: Badge(
-                isLabelVisible: unreadChats > 0,
-                backgroundColor: cs.secondary,
-                label: Text('$unreadChats'),
-                child: const Icon(Icons.chat),
-              ),
-              label: tr('Chats'),
-            ),
-            NavigationDestination(
-                icon: Icon(Icons.donut_large_outlined), selectedIcon: Icon(Icons.donut_large), label: tr('Estados')),
-            NavigationDestination(
-                icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: tr('Comunidades')),
-            NavigationDestination(
-                icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: tr('Ajustes')),
-            ].indexed)
-              if (visible.contains(k)) d,
-          ],
-        ),
+      // Barra de abajo flotante y transparente (como la de WhatsApp):
+      // el contenido pasa por detrás y se ve borroso.
+      extendBody: true,
+      bottomNavigationBar: _GlassNavBar(
+        selected: _tab,
+        onSelect: (t) => setState(() => _tab = t),
+        items: [
+          for (final k in const [1, 2, 0, 3])
+            if (visible.contains(k))
+              switch (k) {
+                0 => _NavItem(k, tr('Chats'), Icons.chat_outlined, Icons.chat, badge: unreadChats),
+                1 => _NavItem(k, tr('Estados'), Icons.donut_large_outlined, Icons.donut_large),
+                2 => _NavItem(k, tr('Comunidades'), Icons.groups_outlined, Icons.groups),
+                _ => _NavItem(k, tr('Tú'), Icons.person_outline, Icons.person,
+                    avatar: ChatAvatar(
+                      id: 'me',
+                      title: app.profile.name.isEmpty ? tr('Tú') : app.profile.name,
+                      photoPath: app.profile.photoPath,
+                      radius: 13,
+                    )),
+              },
+        ],
       ),
     );
   }
@@ -315,4 +307,160 @@ class _RoundAction extends StatelessWidget {
           ),
         ),
       );
+}
+
+class _NavItem {
+  final int tab;
+  final String label;
+  final IconData icon;
+  final IconData selectedIcon;
+  final int badge;
+  final Widget? avatar;
+  const _NavItem(this.tab, this.label, this.icon, this.selectedIcon, {this.badge = 0, this.avatar});
+}
+
+/// Barra de pestañas flotante tipo "cristal": píldora translúcida con desenfoque.
+class _GlassNavBar extends StatelessWidget {
+  final int selected;
+  final List<_NavItem> items;
+  final ValueChanged<int> onSelect;
+  const _GlassNavBar({required this.selected, required this.items, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final glass = dark ? const Color(0xFF222832).withValues(alpha: 0.62) : Colors.white.withValues(alpha: 0.72);
+    final edge = dark ? Colors.white.withValues(alpha: 0.14) : Colors.black.withValues(alpha: 0.08);
+    final idle = dark ? const Color(0xFFC3CAD5) : const Color(0xFF4A5260);
+    final active = dark ? Colors.white : const Color(0xFF111418);
+    final pill = dark ? Colors.white.withValues(alpha: 0.13) : Colors.black.withValues(alpha: 0.07);
+
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(34),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: dark ? 0.45 : 0.14), blurRadius: 30, offset: const Offset(0, 12)),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(34),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              child: Container(
+                height: 66,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: glass,
+                  borderRadius: BorderRadius.circular(34),
+                  border: Border.all(color: edge),
+                ),
+                child: Row(children: [
+                  for (final it in items)
+                    Expanded(
+                      child: _NavButton(
+                        item: it,
+                        isSelected: it.tab == selected,
+                        idle: idle,
+                        active: active,
+                        pill: pill,
+                        badgeColor: cs.secondary,
+                        onTap: () {
+                          if (it.tab != selected) HapticFeedback.selectionClick();
+                          onSelect(it.tab);
+                        },
+                      ),
+                    ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavButton extends StatelessWidget {
+  final _NavItem item;
+  final bool isSelected;
+  final Color idle;
+  final Color active;
+  final Color pill;
+  final Color badgeColor;
+  final VoidCallback onTap;
+  const _NavButton({
+    required this.item,
+    required this.isSelected,
+    required this.idle,
+    required this.active,
+    required this.pill,
+    required this.badgeColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSelected ? active : idle;
+    Widget icon = item.avatar != null
+        ? AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(1.5),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: isSelected ? active : Colors.transparent, width: 1.5),
+            ),
+            child: item.avatar,
+          )
+        : Icon(isSelected ? item.selectedIcon : item.icon, color: color, size: 24);
+    if (item.badge > 0) {
+      icon = Badge(backgroundColor: badgeColor, label: Text('${item.badge}'), child: icon);
+    }
+    return Semantics(
+      selected: isSelected,
+      button: true,
+      label: item.label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              color: isSelected ? pill : Colors.transparent,
+              borderRadius: BorderRadius.circular(26),
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              AnimatedScale(
+                scale: isSelected ? 1.08 : 1,
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutBack,
+                child: SizedBox(height: 28, child: Center(child: icon)),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.fade,
+                softWrap: false,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: color,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 }

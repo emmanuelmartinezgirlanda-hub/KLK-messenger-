@@ -28,6 +28,9 @@ Future<String?> pickSticker(BuildContext context, {int initialPack = 0}) => show
       builder: (ctx) => _StickerPicker(initialPack: initialPack),
     );
 
+/// Abre el selector directamente en la pestaña de stickers con sonido.
+Future<String?> pickSoundSticker(BuildContext context) => pickSticker(context, initialPack: stickerPacks.length);
+
 String _fold(String s) => s
     .toLowerCase()
     .replaceAll(RegExp('[áà]'), 'a')
