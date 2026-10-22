@@ -9,6 +9,7 @@ import 'core/brand/klk_logo.dart';
 import 'core/media/media_store.dart';
 import 'core/notify/alerts.dart';
 import 'features/calls/call_controller.dart';
+import 'features/calls/call_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/messaging/app_controller.dart';
 import 'features/lock/app_lock.dart';
@@ -118,6 +119,8 @@ class _KlkAppState extends ConsumerState<KlkApp> with WidgetsBindingObserver {
             onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
             child: child,
           ),
+        // Llamada minimizada: barra verde para volver a ella
+        if (phase == AppPhase.ready) const OngoingCallBanner(),
         if (_locked && phase == AppPhase.ready) LockScreen(onUnlocked: () => setState(() => _locked = false)),
       ]),
       home: switch (phase) {

@@ -654,19 +654,40 @@ class CallController extends ChangeNotifier {
     return 'No se pudo conectar la llamada';
   }
 
+  /// ¿Se ve la pantalla de la llamada? (si no, la llamada está minimizada).
+  bool get screenOpen => _screenOpen;
+
+  /// Vuelve a la pantalla de la llamada (desde la barra verde de arriba).
+  void reopenScreen() {
+    if (phase == CallPhase.idle || phase == CallPhase.ended) return;
+    _openScreen();
+  }
+
   void _openScreen() {
     if (_screenOpen) return;
     final nav = _ref.read(navigatorKeyProvider).currentState;
     if (nav == null) return;
     _screenOpen = true;
-    nav.push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => const CallScreen())).then((_) {
+    notifyListeners();
+    final route = MaterialPageRoute<void>(fullscreenDialog: true, builder: (_) => const CallScreen());
+    _route = route;
+    nav.push(route).then((_) {
+      if (_route == route) _route = null;
       _screenOpen = false;
+      notifyListeners();
     });
   }
 
+  Route<void>? _route;
+
   void _closeScreen() {
-    if (!_screenOpen) return;
-    _ref.read(navigatorKeyProvider).currentState?.maybePop();
+    final route = _route;
+    if (!_screenOpen || route == null) return;
+    final nav = _ref.read(navigatorKeyProvider).currentState;
+    if (nav == null) return;
+    // Cierra también lo que haya encima (menú «Más», efectos…).
+    nav.popUntil((r) => r == route || r.isFirst);
+    if (route.isCurrent) nav.pop();
   }
 
   // ---------- Modo demo ----------
