@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestTwilioSender(t *testing.T) {
@@ -64,3 +65,21 @@ func TestReviewPhones(t *testing.T) {
 type senderFunc func(string, string) error
 
 func (f senderFunc) Send(p, m string) error { return f(p, m) }
+
+func TestReviewCodeLocksAfterFailures(t *testing.T) {
+	o := NewOTP(LogSender{})
+	o.SetReview([]string{"+12025550147"}, "123456")
+	for i := 0; i < reviewMaxFails; i++ {
+		if o.Verify("+12025550147", "000000") == nil {
+			t.Fatal("aceptó un código malo")
+		}
+	}
+	if o.Verify("+12025550147", "123456") == nil {
+		t.Fatal("tras muchos fallos debería estar bloqueado aunque el código sea bueno")
+	}
+	later := time.Now().Add(2 * time.Hour)
+	o.now = func() time.Time { return later }
+	if err := o.Verify("+12025550147", "123456"); err != nil {
+		t.Fatalf("pasada la hora debería entrar: %v", err)
+	}
+}

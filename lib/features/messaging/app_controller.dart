@@ -600,7 +600,9 @@ class AppController extends ChangeNotifier {
       var direct = await db.chat(from);
       if (direct == null && g == null) {
         if (p.kind != 'text') return;
-        final phone = p.senderPhone ?? '';
+        // El número lo pone el remitente: solo me lo creo si el servidor dice que
+        // ese número es de verdad de esta cuenta (si no, alguien podría hacerse pasar por otro).
+        final phone = await _verifiedPhone(p.senderPhone, from);
         direct = Chat(
           id: from,
           title: phone.isEmpty ? 'Contacto nuevo' : prettyPhone(phone),
@@ -622,8 +624,17 @@ class AppController extends ChangeNotifier {
       // De un contacto bloqueado no se acepta nada (ni mensajes, ni llamadas, ni estados).
       if (g == null && (direct?.blocked ?? false)) return;
 
-      // Comunidad a la que no pertenezco (me salí hace poco): no se acepta nada
-      if (g != null && isCommunityChat(g['id'] as String? ?? '') && await db.chat(g['id'] as String) == null) return;
+      // Grupo: el id tiene que ser de un grupo de verdad (no el de un contacto ni el de
+      // mis notas) y, si ya lo tengo, quien escribe tiene que ser miembro.
+      if (g != null) {
+        final gid = g['id'];
+        if (gid is! String || !(_groupIdRe.hasMatch(gid) || _communityIdRe.hasMatch(gid))) return;
+        final known = await db.chat(gid);
+        if (known != null && !known.isGroup) return;
+        // Comunidad a la que no pertenezco (me salí hace poco): no se acepta nada
+        if (isCommunityChat(gid) && known == null) return;
+        if (known != null && !isCommunityChat(gid) && !known.members.any((m) => m.id == from)) return;
+      }
 
       // Chat de destino: el grupo o el chat individual
       final chatId = g == null ? from : await _ensureGroup(g, from, identity);
@@ -763,7 +774,7 @@ class AppController extends ChangeNotifier {
                 !m.deleted &&
                 (g == null ? chatId == from : m.sender == senderName);
             if (author && text.isNotEmpty && text.length <= 65536) {
-              final link = p.link == null ? null : LinkPreview.fromJson(p.link!);
+              final link = _trustedPreview(p.link, p.text ?? '');
               await db.editMessage(m.id, text, DateTime.now(),
                   linkJson: link == null ? null : jsonEncode(link.toJson()));
             }
@@ -837,7 +848,7 @@ class AppController extends ChangeNotifier {
       replyToId: p.reply?['id'] as String?,
       replyPreview: p.reply?['p'] as String?,
       expiresAt: exp == null || exp <= 0 ? null : ts.add(Duration(seconds: exp)),
-      link: p.link == null ? null : LinkPreview.fromJson(p.link!),
+      link: _trustedPreview(p.link, p.text ?? ''),
     );
     final mentioned = isGroup && (p.mentions?.contains(myId) ?? false);
     await db.addMessage(msg, countUnread: openChatId != chatId);
@@ -888,9 +899,11 @@ class AppController extends ChangeNotifier {
     final name = (p.text ?? '').trim();
     final current = await db.chat(from);
     // Si el chat aún muestra solo el número, usa el nombre que el contacto eligió.
-    if (name.isNotEmpty && current != null &&
-        (current.title == prettyPhone(current.phone) || current.title == 'Contacto nuevo')) {
-      await db.setTitle(from, name);
+    // Si no lo tengo guardado, uso el nombre que eligió, pero con «~» delante
+    // (como WhatsApp): así se ve que no es un nombre puesto por mí.
+    if (name.isNotEmpty && current != null && isUnsavedTitle(current.title, current.phone)) {
+      final clean = name.replaceAll(RegExp(r'^[~\s]+'), '');
+      if (clean.isNotEmpty) await db.setTitle(from, '~ ${clean.length > 40 ? clean.substring(0, 40) : clean}');
     }
     final photo = p.media == null ? null : MessageMedia.fromJson(p.media!);
     if (photo == null) {
@@ -928,6 +941,35 @@ class AppController extends ChangeNotifier {
       createdAt: DateTime.tryParse(s['at'] as String? ?? '') ?? DateTime.now(),
       allowSave: s['save'] == true,
     ));
+  }
+
+  /// La vista previa del enlace la pone el remitente: solo se acepta si su
+  /// dirección está escrita en el mensaje (si no, podría enseñar un enlace y abrir otro).
+  static LinkPreview? _trustedPreview(Map<String, dynamic>? j, String text) {
+    if (j == null) return null;
+    try {
+      final lp = LinkPreview.fromJson(j);
+      final u = Uri.tryParse(lp.url);
+      if (u == null || !(u.scheme == 'https' || u.scheme == 'http')) return null;
+      return text.contains(lp.url) ? lp : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static final _groupIdRe = RegExp(r'^g-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$');
+  static final _communityIdRe = RegExp(r'^community:[A-Z]{2}$');
+
+  /// Número que dice tener quien me escribe, comprobado con el servidor.
+  /// Si no coincide con su cuenta (o no se puede comprobar), no se muestra.
+  Future<String> _verifiedPhone(String? claimed, String accountId) async {
+    final phone = (claimed ?? '').trim();
+    if (phone.isEmpty || !isValidE164(phone) || _api == null) return '';
+    try {
+      return await _api!.lookup(phone) == accountId ? phone : '';
+    } catch (_) {
+      return '';
+    }
   }
 
   /// Crea o actualiza el grupo descrito en un mensaje. Devuelve su id.
@@ -2297,7 +2339,7 @@ class AppController extends ChangeNotifier {
   bool _sharesPresenceWith(String chatId) {
     final c = chatById(chatId);
     if (c == null || c.isGroup || c.blocked) return false;
-    final saved = c.title != 'Contacto nuevo' && c.title != prettyPhone(c.phone);
+    final saved = !isUnsavedTitle(c.title, c.phone);
     return _gate.canShareLastSeenWith(isContact: saved);
   }
 
@@ -2497,7 +2539,7 @@ class AppController extends ChangeNotifier {
   /// Abre (o crea) un chat con un número. Devuelve el id del chat.
   /// Si ya sé su id de cuenta ([knownAccountId]), me ahorro la búsqueda.
   Future<String> startChatWithPhone(String phone, String name, {String? knownAccountId}) async {
-    final title = name.trim().isEmpty ? prettyPhone(phone) : name.trim();
+    var title = name.trim().isEmpty ? prettyPhone(phone) : name.trim();
     if (isDemo) {
       final id = 'demo-$phone';
       if (await _db!.chat(id) == null) {
@@ -2509,11 +2551,20 @@ class AppController extends ChangeNotifier {
     if (phone == session!.phone) {
       throw const ApiException(400, 'self', 'Ese es tu propio número.');
     }
-    final id = knownAccountId ?? await _api!.lookup(phone);
+    String id;
+    var verifiedPhone = phone;
+    if (knownAccountId != null) {
+      id = knownAccountId;
+      // El número de un miembro de grupo lo puso otro miembro: lo compruebo.
+      verifiedPhone = await _verifiedPhone(phone, id);
+    } else {
+      id = await _api!.lookup(phone);
+    }
+    if (name.trim().isEmpty) title = verifiedPhone.isEmpty ? 'Contacto nuevo' : prettyPhone(verifiedPhone);
     final identity = base64Encode(await _api!.identityOf(id));
     final existing = await _db!.chat(id);
     await _db!.upsertChat(existing?.copyWith(title: title, identityKey: identity) ??
-        Chat(id: id, title: title, phone: phone, identityKey: identity, updatedAt: DateTime.now()));
+        Chat(id: id, title: title, phone: verifiedPhone, identityKey: identity, updatedAt: DateTime.now()));
     await _reloadChats();
     if (existing == null) unawaited(_broadcastProfile(id));
     return id;

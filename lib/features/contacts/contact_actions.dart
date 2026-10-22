@@ -6,8 +6,7 @@ import '../messaging/models.dart';
 import '../../core/l10n/l10n.dart';
 
 /// ¿El chat todavía no tiene un nombre puesto por mí? (solo se ve el número)
-bool isUnsavedContact(Chat chat) =>
-    !chat.isGroup && (chat.title == 'Contacto nuevo' || chat.title == prettyPhone(chat.phone));
+bool isUnsavedContact(Chat chat) => !chat.isGroup && isUnsavedTitle(chat.title, chat.phone);
 
 /// Poner o cambiar el nombre de un amigo (solo lo ves tú, como en la agenda).
 Future<void> editContactName(BuildContext context, AppController app, Chat chat) async {

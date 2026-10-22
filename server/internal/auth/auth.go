@@ -63,7 +63,15 @@ type OTP struct {
 	// Cuentas de revisión (Apple/Google): no se manda SMS y el código es fijo.
 	review     map[string]bool
 	reviewCode string
+	// Fallos con el código fijo (por número): tras unos cuantos se bloquea un rato,
+	// para que nadie lo pueda adivinar probando.
+	reviewFails map[string][]time.Time
 }
+
+const (
+	reviewMaxFails   = 10
+	reviewLockWindow = time.Hour
+)
 
 // SetReview activa números de prueba para los revisores de las tiendas.
 // No reciben SMS: entran siempre con [code] (mínimo 6 cifras).
@@ -147,9 +155,26 @@ func (o *OTP) Request(phone string) error {
 // Verify comprueba el código. Cada código admite como máximo 5 intentos.
 func (o *OTP) Verify(phone, code string) error {
 	if o.isReview(phone) {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		now := o.now()
+		recent := o.reviewFails[phone][:0]
+		for _, t := range o.reviewFails[phone] {
+			if now.Sub(t) < reviewLockWindow {
+				recent = append(recent, t)
+			}
+		}
+		if len(recent) >= reviewMaxFails {
+			o.reviewFails[phone] = recent
+			return ErrBadCode
+		}
 		if subtle.ConstantTimeCompare([]byte(code), []byte(o.reviewCode)) == 1 {
 			return nil
 		}
+		if o.reviewFails == nil {
+			o.reviewFails = map[string][]time.Time{}
+		}
+		o.reviewFails[phone] = append(recent, now)
 		return ErrBadCode
 	}
 	if o.remote != nil {

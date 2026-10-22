@@ -58,6 +58,9 @@ type Server struct {
 	// Topups: recargas de móvil a RD (nil = apagadas).
 	Topups *Topups
 
+	// Cupos diarios por cuenta (antiabuso).
+	lookupQuota, bundleQuota, uploadCount, uploadBytes dailyQuota
+
 	// TrustProxy usa X-Forwarded-For para identificar la IP del cliente.
 	// Actívalo solo detrás de un proxy de confianza (Render, Cloudflare…).
 	TrustProxy bool
@@ -346,6 +349,10 @@ func (s *Server) keyCount(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getBundles(w http.ResponseWriter, r *http.Request) {
+	if !s.bundleQuota.take(deviceFrom(r).AccountID, 1, maxBundlesPerDay, time.Now()) {
+		writeErr(w, http.StatusTooManyRequests, "rate_limited", "has empezado demasiados chats hoy; prueba mañana")
+		return
+	}
 	bundles, err := s.store.TakeBundles(r.Context(), r.PathValue("accountId"))
 	if errors.Is(err, store.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "not_found", "cuenta sin claves publicadas")
@@ -366,6 +373,10 @@ func (s *Server) lookup(w http.ResponseWriter, r *http.Request) {
 		Phone string `json:"phone"`
 	}
 	if !readJSON(w, r, &req) {
+		return
+	}
+	if !s.lookupQuota.take(deviceFrom(r).AccountID, 1, maxLookupsPerDay, time.Now()) {
+		writeErr(w, http.StatusTooManyRequests, "rate_limited", "has buscado demasiados números hoy; prueba mañana")
 		return
 	}
 	id, err := s.store.AccountIDByPhone(r.Context(), req.Phone)
@@ -401,6 +412,10 @@ func (s *Server) lookupBatch(w http.ResponseWriter, r *http.Request) {
 		if auth.ValidPhone(p) {
 			valid = append(valid, p)
 		}
+	}
+	if !s.lookupQuota.take(deviceFrom(r).AccountID, int64(len(valid)), maxLookupsPerDay, time.Now()) {
+		writeErr(w, http.StatusTooManyRequests, "rate_limited", "has buscado demasiados números hoy; prueba mañana")
+		return
 	}
 	found, err := s.store.AccountIDsByPhones(r.Context(), valid)
 	if err != nil {
@@ -503,6 +518,12 @@ func (s *Server) uploadAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(data) == 0 {
 		writeErr(w, http.StatusBadRequest, "empty", "el archivo está vacío")
+		return
+	}
+	now := time.Now()
+	if !s.uploadCount.take(dev.AccountID, 1, maxUploadsPerDay, now) ||
+		!s.uploadBytes.take(dev.AccountID, int64(len(data)), maxUploadBytesPerDay, now) {
+		writeErr(w, http.StatusTooManyRequests, "rate_limited", "has enviado demasiados archivos hoy; prueba mañana")
 		return
 	}
 	id := uuid.NewString()

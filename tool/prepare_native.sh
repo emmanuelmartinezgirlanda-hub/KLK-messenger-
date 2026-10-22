@@ -88,6 +88,12 @@ if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
   perl -0pi -e 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
 fi
 
+# Seguridad: que Android no copie los chats a la nube de Google por su cuenta
+# (KLK tiene su propia copia cifrada con contraseña).
+if ! grep -q "android:allowBackup" "$MANIFEST"; then
+  perl -0pi -e 's#<application#<application android:allowBackup="false" android:fullBackupContent="false"#' "$MANIFEST"
+fi
+
 for perm in RECORD_AUDIO ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION CAMERA MODIFY_AUDIO_SETTINGS BLUETOOTH_CONNECT READ_CONTACTS USE_BIOMETRIC; do
   if ! grep -q "android.permission.$perm" "$MANIFEST"; then
     perl -0pi -e "s#<application#<uses-permission android:name=\"android.permission.$perm\"/>\n    <application#" "$MANIFEST"

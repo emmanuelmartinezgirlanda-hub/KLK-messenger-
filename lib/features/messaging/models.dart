@@ -1,5 +1,6 @@
 import 'dart:convert';
 import '../../core/l10n/l10n.dart';
+import '../../core/util/phone.dart';
 
 /// Las rutas guardadas son absolutas, pero en iOS la carpeta de la app puede
 /// cambiar (actualizaciones, restaurar una copia en otro iPhone). MediaStore
@@ -855,6 +856,11 @@ class About {
   }
 }
 
+
+/// ¿Es un nombre que NO puse yo? (solo el número, "Contacto nuevo" o el
+/// nombre que eligió la persona, que se muestra con «~» delante).
+bool isUnsavedTitle(String title, String phone) =>
+    title == 'Contacto nuevo' || title.startsWith('~ ') || (phone.isNotEmpty && title == prettyPhone(phone));
 
 /// "MM-DD" válido (p. ej. "02-29" sí, "13-01" no).
 bool isValidBirthday(String? s) {
