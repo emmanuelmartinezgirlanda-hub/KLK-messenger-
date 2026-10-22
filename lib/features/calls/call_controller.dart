@@ -90,16 +90,36 @@ class CallController extends ChangeNotifier {
 
   Duration get elapsed => startedAt == null ? Duration.zero : DateTime.now().difference(startedAt!);
 
-  static Map<String, dynamic> get _rtcConfig => {
-        'iceServers': [
-          {
-            'urls': ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
-          },
-          if (KlkConfig.turnUrl.isNotEmpty)
-            {'urls': KlkConfig.turnUrl, 'username': KlkConfig.turnUser, 'credential': KlkConfig.turnPass},
-        ],
-        'sdpSemantics': 'unified-plan',
-      };
+  // Reconectar si se va el internet un momento (cambio de wifi a datos, túnel…).
+  bool reconnecting = false;
+  Timer? _reconnectGiveUp;
+  final List<Timer> _restartTimers = [];
+  Future<List<Map<String, dynamic>>>? _servers;
+
+  /// STUN para descubrir la red y el «puente» TURN (con clave temporal del servidor)
+  /// para cuando los dos móviles no pueden hablarse directamente.
+  Future<Map<String, dynamic>> _rtcConfig() async {
+    var servers = <Map<String, dynamic>>[];
+    try {
+      servers = [...await (_servers ?? _app.callServers()).timeout(const Duration(seconds: 4))];
+    } catch (e) {
+      debugPrint('Servidores de llamada: $e');
+    }
+    if (servers.isEmpty) {
+      servers.add({
+        'urls': ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
+      });
+    }
+    if (KlkConfig.turnUrl.isNotEmpty) {
+      servers.add({'urls': KlkConfig.turnUrl, 'username': KlkConfig.turnUser, 'credential': KlkConfig.turnPass});
+    }
+    return {
+      'iceServers': servers,
+      'sdpSemantics': 'unified-plan',
+      // Junta los caminos posibles antes, para conectar más rápido.
+      'iceCandidatePoolSize': 2,
+    };
+  }
 
   // ---------- Llamar ----------
 
@@ -112,6 +132,7 @@ class CallController extends ChangeNotifier {
     speaker = video;
     _setPhase(CallPhase.outgoing, 'Llamando…');
     _openScreen();
+    _servers = _app.isDemo ? null : _app.callServers();
 
     try {
       await _prepareMedia();
@@ -326,6 +347,7 @@ class CallController extends ChangeNotifier {
       _remoteSet = false;
       _pendingIce.clear();
       _setPhase(CallPhase.incoming, video ? 'Videollamada entrante' : 'Llamada entrante');
+      _servers = _app.callServers();
       _startRinging();
       _openScreen();
       _ringTimeout = Timer(const Duration(seconds: 45), () => _finish('Llamada perdida', missed: true));
@@ -369,6 +391,28 @@ class CallController extends ChangeNotifier {
             _pendingIce.add(c);
           }
         }
+      case 'reoffer':
+        {
+          // El otro cambió de red: nueva oferta con caminos nuevos.
+          final pc = _pc;
+          if (pc == null) return;
+          try {
+            await pc.setRemoteDescription(RTCSessionDescription(s['sdp'] as String, 'offer'));
+            final answer = await pc.createAnswer({});
+            await pc.setLocalDescription(answer);
+            await _signal({'a': 'reanswer', 'sdp': answer.sdp});
+          } catch (e) {
+            debugPrint('Reconectar (contestar): $e');
+          }
+        }
+      case 'reanswer':
+        try {
+          await _pc?.setRemoteDescription(RTCSessionDescription(s['sdp'] as String, 'answer'));
+        } catch (e) {
+          debugPrint('Reconectar (respuesta): $e');
+        }
+      case 'restart':
+        if (!incoming) await _iceRestart();
       case 'reject':
         await _finish('No puede contestar ahora');
       case 'busy':
@@ -388,7 +432,8 @@ class CallController extends ChangeNotifier {
       _renderersReady = true;
     }
     _local = await navigator.mediaDevices.getUserMedia({
-      'audio': true,
+      // Quita eco y ruido de fondo (calle, guagua, televisión…).
+      'audio': {'echoCancellation': true, 'noiseSuppression': true, 'autoGainControl': true},
       'video': video ? {'facingMode': 'user'} : false,
     });
     localRenderer.srcObject = _local;
@@ -399,7 +444,7 @@ class CallController extends ChangeNotifier {
   }
 
   Future<void> _createPeer() async {
-    final pc = await createPeerConnection(_rtcConfig);
+    final pc = await createPeerConnection(await _rtcConfig());
     _pc = pc;
     for (final t in _local!.getTracks()) {
       await pc.addTrack(t, _local!);
@@ -415,15 +460,79 @@ class CallController extends ChangeNotifier {
       notifyListeners();
     };
     pc.onConnectionState = (st) {
-      if (st == RTCPeerConnectionState.RTCPeerConnectionStateConnected && phase != CallPhase.active) {
-        _ringTimeout?.cancel();
-        startedAt = DateTime.now();
-        _setPhase(CallPhase.active, '');
-        _tick = Timer.periodic(const Duration(seconds: 1), (_) => notifyListeners());
-      } else if (st == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
-        _finish('Se perdió la conexión', notifyPeer: true);
+      if (st == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        if (reconnecting) _reconnected();
+        if (phase != CallPhase.active) {
+          _ringTimeout?.cancel();
+          startedAt = DateTime.now();
+          _setPhase(CallPhase.active, '');
+          _tick = Timer.periodic(const Duration(seconds: 1), (_) => notifyListeners());
+        }
+      } else if (st == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
+          st == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        if (phase == CallPhase.active) {
+          _startReconnect();
+        } else if (st == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+          _finish('No se pudo conectar la llamada', notifyPeer: true);
+        }
       }
     };
+  }
+
+  /// Se cortó la conexión en mitad de la llamada: se intenta recuperar
+  /// (hasta 30 s) en vez de colgar. Quien llamó manda la nueva oferta.
+  void _startReconnect() {
+    if (reconnecting) return;
+    reconnecting = true;
+    status = 'Reconectando…';
+    notifyListeners();
+    for (final delay in const [2, 8, 15, 22]) {
+      _restartTimers.add(Timer(Duration(seconds: delay), () {
+        if (!reconnecting) return;
+        if (incoming) {
+          _signal({'a': 'restart'});
+        } else {
+          _iceRestart();
+        }
+      }));
+    }
+    _reconnectGiveUp = Timer(const Duration(seconds: 30), () {
+      if (reconnecting) _finish('Se perdió la conexión', notifyPeer: true);
+    });
+  }
+
+  void _reconnected() {
+    _stopReconnect();
+    status = '';
+    HapticFeedback.lightImpact();
+    notifyListeners();
+  }
+
+  void _stopReconnect() {
+    reconnecting = false;
+    _reconnectGiveUp?.cancel();
+    _reconnectGiveUp = null;
+    for (final t in _restartTimers) {
+      t.cancel();
+    }
+    _restartTimers.clear();
+  }
+
+  Future<void> _iceRestart() async {
+    final pc = _pc;
+    if (pc == null || phase != CallPhase.active) return;
+    try {
+      try {
+        await pc.restartIce();
+      } catch (_) {}
+      final offer = await pc.createOffer({
+        'mandatory': {'IceRestart': true},
+      });
+      await pc.setLocalDescription(offer);
+      await _signal({'a': 'reoffer', 'sdp': offer.sdp});
+    } catch (e) {
+      debugPrint('Reconectar: $e');
+    }
   }
 
   Future<void> _drainIce() async {
@@ -489,6 +598,8 @@ class CallController extends ChangeNotifier {
       await _stopCaptionSource();
     }
 
+    _stopReconnect();
+    _servers = null;
     final talked = startedAt == null ? null : elapsed;
     final id = chatId;
     _ringTimeout?.cancel();
@@ -576,6 +687,7 @@ class CallController extends ChangeNotifier {
     _ringTimeout?.cancel();
     _vibrate?.cancel();
     _tick?.cancel();
+    _stopReconnect();
     if (_renderersReady) {
       localRenderer.dispose();
       remoteRenderer.dispose();

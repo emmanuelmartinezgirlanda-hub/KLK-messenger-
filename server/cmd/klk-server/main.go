@@ -41,6 +41,7 @@ import (
 	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
 	"github.com/klk-app/klk-server/internal/topup"
+	"github.com/klk-app/klk-server/internal/turn"
 )
 
 func main() {
@@ -141,6 +142,20 @@ func main() {
 
 	apiServer := api.New(st, otp, hub)
 	apiServer.TrustProxy = os.Getenv("KLK_TRUST_PROXY") == "1"
+	// Puente para llamadas (TURN). Cloudflare si está configurado; si no, Twilio
+	// (la misma cuenta de los SMS). Ponlo a "off" con KLK_TURN=off.
+	switch {
+	case os.Getenv("KLK_TURN") == "off":
+	case os.Getenv("KLK_CF_TURN_KEY_ID") != "" && os.Getenv("KLK_CF_TURN_TOKEN") != "":
+		apiServer.TURN = &turn.Cache{P: turn.Cloudflare{
+			KeyID: strings.TrimSpace(os.Getenv("KLK_CF_TURN_KEY_ID")),
+			Token: strings.TrimSpace(os.Getenv("KLK_CF_TURN_TOKEN")),
+		}}
+		slog.Info("llamadas: TURN de Cloudflare")
+	case sid != "" && os.Getenv("TWILIO_AUTH_TOKEN") != "":
+		apiServer.TURN = &turn.Cache{P: turn.Twilio{AccountSID: sid, AuthToken: os.Getenv("TWILIO_AUTH_TOKEN")}}
+		slog.Info("llamadas: TURN de Twilio")
+	}
 	apiServer.AdminToken = os.Getenv("KLK_ADMIN_TOKEN")
 	apiServer.SMS = &api.SMSGuard{
 		Countries:  smsCountries(os.Getenv("KLK_SMS_COUNTRIES")),

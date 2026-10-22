@@ -2323,6 +2323,21 @@ class AppController extends ChangeNotifier {
     await _refresh();
   }
 
+  // Servidores para conectar llamadas. Se guardan un rato para que la llamada empiece antes.
+  List<Map<String, dynamic>>? _iceServers;
+  DateTime _iceServersAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  Future<List<Map<String, dynamic>>> callServers() async {
+    final cached = _iceServers;
+    if (cached != null && DateTime.now().difference(_iceServersAt) < const Duration(minutes: 30)) return cached;
+    final api = _api;
+    if (api == null || isDemo) return const [];
+    final list = await api.turnServers();
+    _iceServers = list;
+    _iceServersAt = DateTime.now();
+    return list;
+  }
+
   // ---------- Historial de llamadas (pestaña «Llamadas») ----------
   static const _callsKey = 'klk.calls';
   static const _callsSeenKey = 'klk.calls.seen';

@@ -238,6 +238,15 @@ class ApiClient {
   Future<Map<String, dynamic>> plusApple(List<String> jws) async =>
       await _send('POST', '/v1/plus/apple', {'jws': jws}) as Map<String, dynamic>;
 
+  /// Servidores para conectar llamadas (STUN y el «puente» TURN con clave temporal).
+  Future<List<Map<String, dynamic>>> turnServers() async {
+    final j = await _send('GET', '/v1/turn') as Map<String, dynamic>;
+    return [
+      for (final s in (j['iceServers'] as List? ?? const []))
+        if (s is Map) Map<String, dynamic>.from(s),
+    ];
+  }
+
   /// Dónde avisar a este móvil cuando llegue un mensaje (el aviso no lleva el mensaje).
   Future<void> setPushToken(String platform, String token, String lang) =>
       _send('PUT', '/v1/push-token', {'platform': platform, 'token': token, 'lang': lang});

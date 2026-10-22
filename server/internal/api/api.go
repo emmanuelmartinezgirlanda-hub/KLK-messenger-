@@ -22,6 +22,7 @@ import (
 	"github.com/klk-app/klk-server/internal/auth"
 	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
+	"github.com/klk-app/klk-server/internal/turn"
 )
 
 const maxPreKeysPerUpload = 200
@@ -61,6 +62,9 @@ type Server struct {
 	// Cupos diarios por cuenta (antiabuso).
 	lookupQuota, bundleQuota, uploadCount, uploadBytes dailyQuota
 
+	// TURN da credenciales temporales del «puente» de las llamadas (nil = solo STUN).
+	TURN *turn.Cache
+
 	// TrustProxy usa X-Forwarded-For para identificar la IP del cliente.
 	// Actívalo solo detrás de un proxy de confianza (Render, Cloudflare…).
 	TrustProxy bool
@@ -97,6 +101,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/plus/apple", s.limited(s.authed(s.plusApple)))
 	mux.HandleFunc("PUT /v1/push-token", s.limited(s.authed(s.setPushToken)))
 	mux.HandleFunc("DELETE /v1/push-token", s.authed(s.deletePushToken))
+	mux.HandleFunc("GET /v1/turn", s.limited(s.authed(s.turnServers)))
 	mux.HandleFunc("GET /privacidad", s.privacyPage)
 	mux.HandleFunc("GET /privacy", s.privacyPage)
 	mux.HandleFunc("GET /soporte", s.supportPage)

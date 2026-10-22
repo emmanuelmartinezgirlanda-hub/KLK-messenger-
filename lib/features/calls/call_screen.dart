@@ -23,6 +23,7 @@ class CallScreen extends ConsumerWidget {
     final showLocalVideo = call.video && !call.cameraOff && call.phase != CallPhase.incoming;
 
     final statusText = switch (call.phase) {
+      CallPhase.active when call.reconnecting => tr('Reconectando… (mala señal)'),
       CallPhase.active => formatDuration(call.elapsed.inMilliseconds),
       _ => call.status,
     };
