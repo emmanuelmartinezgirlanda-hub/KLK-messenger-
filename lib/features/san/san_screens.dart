@@ -728,7 +728,18 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
     await app.sanAction(m, {'a': 'pay', 'r': r, 's': s, 'v': v});
   }
 
-  Future<void> _remind(Message m, San san, int r) async {
+  Future<void> _remind(Message m, San san, int r, {bool started = true}) async {
+    if (!started) {
+      // Antes de empezar: aviso para que todos tengan el dinero listo.
+      final lang = currentLanguageCode();
+      final text = '⏰ ${tr('Recordatorio del san')} «${san.name}»\n'
+          '${tr('Empieza el')} ${sanDate(san.dateOf(0), lang)}. '
+          '${tr('Turno')} 1: ${tr('le toca a')} ${san.slots[0].name}.\n'
+          '${tr('Cada número')}: ${san.money(san.amount)}. ${tr('¡Tengan el dinero listo!')} 🙏';
+      await ref.read(appProvider).sendText(widget.chatId, text);
+      _snack(tr('Recordatorio enviado al chat'));
+      return;
+    }
     final pending = <String>{
       for (var s = 0; s < san.slots.length; s++)
         if (san.payOf(r, s) != SanPay.paid) san.slots[s].name,
@@ -851,7 +862,7 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
             child: Row(children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: started ? () => _remind(m, san, r) : null,
+                  onPressed: () => _remind(m, san, r, started: started),
                   icon: const Icon(Icons.notifications_active_rounded),
                   label: Text(tr('Recordar')),
                 ),
