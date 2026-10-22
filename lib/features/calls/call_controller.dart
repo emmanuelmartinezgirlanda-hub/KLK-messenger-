@@ -516,7 +516,8 @@ class CallController extends ChangeNotifier {
           : missed && incoming
               ? '📵 $kind perdida'
               : '📵 $kind · $reason';
-      await _app.logCall(id, text, incoming: incoming);
+      await _app.logCall(id, text,
+          incoming: incoming, video: video, missed: talked == null, durationMs: talked?.inMilliseconds ?? 0);
     }
 
     _setPhase(CallPhase.ended, reason);

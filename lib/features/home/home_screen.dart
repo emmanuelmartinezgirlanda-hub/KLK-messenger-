@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/features.dart';
 import '../../core/notify/alerts.dart';
+import '../calls/calls_view.dart';
 import '../chat/presentation/archived_screen.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_list_view.dart';
@@ -35,7 +36,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tab = 0;
 
-  List<String> get _titles => ['KLK messenger', tr('Estados'), tr('Comunidades'), tr('Tú')];
+  List<String> get _titles => ['KLK messenger', tr('Estados'), tr('Comunidades'), tr('Tú'), tr('Llamadas')];
 
   @override
   void initState() {
@@ -111,9 +112,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (app.banned) return const _BannedScreen();
 
     final unreadChats = app.visibleChats.where((c) => c.unread > 0).length;
-    // Pestañas visibles (0 Chats, 1 Estados, 2 Comunidades, 3 Ajustes)
+    // Pestañas visibles (0 Chats, 1 Estados, 2 Comunidades, 3 Tú/Ajustes, 4 Llamadas)
     final hidden = ref.watch(hiddenTabsProvider);
-    final visible = [0, if (!hidden.status) 1, if (!hidden.communities) 2, 3];
+    final visible = [0, if (!hidden.status) 1, 4, if (!hidden.communities) 2, 3];
     if (!visible.contains(_tab)) _tab = 0;
 
     return Scaffold(
@@ -192,7 +193,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: IndexedStack(
         index: _tab,
-        children: const [ChatListView(), StatusesView(), CommunitiesView(), SettingsView()],
+        children: const [ChatListView(), StatusesView(), CommunitiesView(), SettingsView(), CallsView()],
       ),
       floatingActionButton: switch (_tab) {
         1 => FloatingActionButton(
@@ -207,14 +208,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       extendBody: true,
       bottomNavigationBar: _GlassNavBar(
         selected: _tab,
-        onSelect: (t) => setState(() => _tab = t),
+        onSelect: (t) {
+          if (t == 4) app.markCallsSeen();
+          setState(() => _tab = t);
+        },
         items: [
-          for (final k in const [1, 2, 0, 3])
+          for (final k in const [1, 4, 2, 0, 3])
             if (visible.contains(k))
               switch (k) {
                 0 => _NavItem(k, tr('Chats'), Icons.chat_outlined, Icons.chat, badge: unreadChats),
                 1 => _NavItem(k, tr('Estados'), Icons.donut_large_outlined, Icons.donut_large),
                 2 => _NavItem(k, tr('Comunidades'), Icons.groups_outlined, Icons.groups),
+                4 => _NavItem(k, tr('Llamadas'), Icons.call_outlined, Icons.call, badge: app.newMissedCalls),
                 _ => _NavItem(k, tr('Tú'), Icons.person_outline, Icons.person,
                     avatar: ChatAvatar(
                       id: 'me',

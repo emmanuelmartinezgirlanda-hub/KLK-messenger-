@@ -27,6 +27,7 @@ import '../../core/network/link_preview.dart';
 import '../../core/network/presence_gate.dart';
 import '../../core/notify/alerts.dart';
 import '../../core/security/secure_store.dart';
+import '../calls/call_log.dart';
 import '../../core/util/phone.dart';
 import '../privacy/domain/privacy_settings.dart';
 import '../privacy/presentation/privacy_provider.dart';
@@ -320,6 +321,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> _openSession() async {
     unawaited(_loadLastSeen());
+    unawaited(_loadCalls());
     await _loadPinnedChats();
     _db = await LocalDb.open(await _store.databaseKey());
     try {
@@ -524,6 +526,7 @@ class AppController extends ChangeNotifier {
     _db = null;
     _api = null;
     _messages.clear();
+    _calls = [];
     _outbox.clear();
     await _store.clearSession();
     pendingPhone = old?.phone;
@@ -2305,9 +2308,74 @@ class AppController extends ChangeNotifier {
       _sendEncrypted(chatId, Payload(kind: 'call', call: signal), ref: 'x-call', ephemeral: true);
 
   /// Anota la llamada en el chat ("Llamada de voz · 2:31", "Llamada perdida"…).
-  Future<void> logCall(String chatId, String text, {bool incoming = false}) async {
+  Future<void> logCall(String chatId, String text,
+      {bool incoming = false, bool video = false, bool missed = false, int durationMs = 0}) async {
     await _system(chatId, text);
+    _addCall(CallRecord(
+      id: '${DateTime.now().microsecondsSinceEpoch}',
+      chatId: chatId,
+      at: DateTime.now(),
+      video: video,
+      incoming: incoming,
+      missed: missed,
+      durationMs: durationMs,
+    ));
     await _refresh();
+  }
+
+  // ---------- Historial de llamadas (pestaña «Llamadas») ----------
+  static const _callsKey = 'klk.calls';
+  static const _callsSeenKey = 'klk.calls.seen';
+  List<CallRecord> _calls = [];
+  DateTime _callsSeen = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Llamadas, de la más nueva a la más vieja.
+  List<CallRecord> get callLog => List.unmodifiable(_calls);
+
+  /// Llamadas perdidas que aún no vi en la pestaña «Llamadas».
+  int get newMissedCalls => _calls.where((c) => c.missedIncoming && c.at.isAfter(_callsSeen)).length;
+
+  void markCallsSeen() {
+    if (newMissedCalls == 0) return;
+    _callsSeen = DateTime.now();
+    unawaited(_store.write(_callsSeenKey, _callsSeen.toIso8601String()).catchError((_) {}));
+    notifyListeners();
+  }
+
+  void _addCall(CallRecord r) {
+    _calls = [r, ..._calls];
+    if (_calls.length > 300) _calls = _calls.sublist(0, 300);
+    _saveCalls();
+  }
+
+  void removeCall(String id) {
+    _calls = _calls.where((c) => c.id != id).toList();
+    _saveCalls();
+    notifyListeners();
+  }
+
+  void clearCallLog() {
+    _calls = [];
+    _saveCalls();
+    notifyListeners();
+  }
+
+  void _saveCalls() {
+    unawaited(_store.write(_callsKey, jsonEncode([for (final c in _calls) c.toJson()])).catchError((_) {}));
+  }
+
+  Future<void> _loadCalls() async {
+    try {
+      final raw = await _store.read(_callsKey);
+      if (raw != null && raw.isNotEmpty) {
+        _calls = [
+          for (final e in jsonDecode(raw) as List)
+            if (CallRecord.tryParse(e) case final c?) c,
+        ];
+      }
+      _callsSeen = DateTime.tryParse(await _store.read(_callsSeenKey) ?? '') ?? _callsSeen;
+      notifyListeners();
+    } catch (_) {}
   }
 
   // ---------- Presencia ----------
@@ -2602,6 +2670,7 @@ class AppController extends ChangeNotifier {
     profile = const Profile();
     chats = [];
     statuses = [];
+    _calls = [];
     _messages.clear();
     _outbox.clear();
     openChatId = null;
