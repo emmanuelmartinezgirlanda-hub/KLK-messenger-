@@ -518,7 +518,7 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                     const _Title('Icono de la app'),
                     Row(children: [
                       for (final (name, label, asset) in const [
-                        (null, 'Normal', 'assets/brand/klk_logo.png'),
+                        (null, 'Normal', 'assets/brand/klk_app_icon.png'),
                         ('KLK-Noche', 'Noche', 'assets/icon/alt/noche.png'),
                         ('KLK-Oro', 'Oro', 'assets/icon/alt/oro.png'),
                         ('KLK-Bandera', 'Bandera', 'assets/icon/alt/bandera.png'),
