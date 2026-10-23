@@ -10,7 +10,8 @@ jobs:
         run: |
           for p in "+12025550147" "+1+12025550147"; do
             echo "== $p"
-            curl -sS -m 90 -X POST https://klk-server.onrender.com/v1/verification/request \
-              -H 'Content-Type: application/json' -d "{\"phone\":\"$p\"}" -w "\nHTTP %{http_code} en %{time_total}s\n" || true
+            out=$(curl -sS -m 90 -X POST https://klk-server.onrender.com/v1/verification/request \
+              -H 'Content-Type: application/json' -d "{\"phone\":\"$p\"}" -w " HTTP %{http_code} en %{time_total}s" 2>&1 | tr '\n' ' ')
+            echo "::notice title=$p::$out"
           done
-          echo "== healthz"; curl -sS -m 60 https://klk-server.onrender.com/healthz -w "\nHTTP %{http_code}\n" || true
+          h=$(curl -sS -m 60 https://klk-server.onrender.com/healthz -w " HTTP %{http_code}" 2>&1 | tr '\n' ' '); echo "::notice title=healthz::$h"
