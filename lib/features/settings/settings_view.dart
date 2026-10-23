@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:klk_native/klk_native.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -23,6 +24,7 @@ import '../../core/security/secure_store.dart';
 import '../home/tabs_provider.dart';
 import 'backup_screen.dart';
 import '../plus/plus_screen.dart';
+import '../plus/plus_state.dart';
 import 'about_screen.dart';
 import 'notifications_screen.dart';
 import 'translator_settings_screen.dart';
@@ -94,13 +96,21 @@ class SettingsView extends ConsumerWidget {
               onTap: () => _leaveDemo(context, ref),
             ),
           ),
-        if (!app.isDemo)
+        if (!app.isDemo && kPlusFeatures)
           ListTile(
             leading: const PlusMark(size: 34),
             title: const Text('KLK Plus', style: TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(app.plus ? 'Activo · iconos, temas y stickers exclusivos' : 'Iconos, temas y stickers exclusivos'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlusScreen())),
+          ),
+        if (!kPlusFeatures && KlkNative.supportsAppIcons)
+          ListTile(
+            leading: const Icon(Icons.app_shortcut_rounded),
+            title: Text(tr('Icono de la app')),
+            subtitle: Text(tr('Normal, Noche, Oro o Bandera')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showAppIconPicker(context),
           ),
         ListTile(
           leading: const Icon(Icons.person_add_alt_1_rounded),
@@ -219,6 +229,13 @@ class SettingsView extends ConsumerWidget {
           title: Text(tr('Política de privacidad')),
           trailing: const Icon(Icons.open_in_new, size: 18),
           onTap: () => _openWeb(s?.server, '/privacidad'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.gavel_rounded),
+          title: Text(tr('Normas de KLK')),
+          subtitle: Text(tr('Tolerancia cero con el acoso y el contenido ofensivo')),
+          trailing: const Icon(Icons.open_in_new, size: 18),
+          onTap: () => _openWeb(s?.server, '/normas'),
         ),
         if (s != null && !s.isDemo)
           ListTile(
@@ -369,7 +386,7 @@ class _ProfileHeader extends ConsumerWidget {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
                         color: name.isEmpty ? cs.onSurface.withValues(alpha: 0.5) : null)),
               ),
-              if (app.plus) ...[const SizedBox(width: 8), const PlusBadge()],
+              if (kPlusFeatures && app.plus) ...[const SizedBox(width: 8), const PlusBadge()],
             ]),
             const SizedBox(height: 2),
             Text(s == null ? '' : prettyPhone(s.phone), style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65))),

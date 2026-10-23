@@ -45,6 +45,7 @@ workflows:
           flutter build ipa --release \
             --build-number=$((PROJECT_BUILD_NUMBER + 10)) \
             --dart-define=KLK_TEST=true \
+            --dart-define=KLK_PLUS=true \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa

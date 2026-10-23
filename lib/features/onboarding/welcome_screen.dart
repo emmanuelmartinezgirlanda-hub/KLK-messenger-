@@ -1,5 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/brand/klk_brand.dart';
 import '../../core/brand/klk_logo.dart';
@@ -29,6 +31,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     _server.dispose();
     super.dispose();
   }
+
+  void _open(String path) =>
+      launchUrl(Uri.parse('${KlkConfig.officialServer}$path'), mode: LaunchMode.externalApplication);
 
   Future<void> _submit() async {
     final e164 = toE164(_country, _phone.text);
@@ -124,7 +129,32 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                   : Text(tr('Enviarme el código'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
+            const SizedBox(height: 12),
+            // Apple (norma 1.2): aceptar las normas, con tolerancia cero al contenido ofensivo.
+            Text.rich(
+              TextSpan(
+                style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.65), height: 1.4),
+                children: [
+                  TextSpan(text: tr('Al continuar aceptas las ')),
+                  TextSpan(
+                    text: tr('Normas de KLK'),
+                    style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                    recognizer: TapGestureRecognizer()..onTap = () => _open('/normas'),
+                  ),
+                  TextSpan(text: tr(' (tolerancia cero con el acoso, el odio y el contenido ofensivo) y la ')),
+                  TextSpan(
+                    text: tr('Política de privacidad'),
+                    style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                    recognizer: TapGestureRecognizer()..onTap = () => _open('/privacidad'),
+                  ),
+                  const TextSpan(text: '.'),
+                ],
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
+            // Elegir otro servidor o el modo demo: solo en versiones de prueba.
+            if (const bool.fromEnvironment('KLK_TEST'))
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
               title: Text(tr('Opciones avanzadas'), style: text.bodyMedium),

@@ -545,7 +545,7 @@ class _IncomingControls extends StatelessWidget {
       );
 }
 
-/// Subtítulos traducidos (beta): lo que dice el otro, en mi idioma.
+/// Subtítulos traducidos: lo que dice el otro, en mi idioma.
 class _Captions extends StatelessWidget {
   final CallController call;
   const _Captions({required this.call});
@@ -563,7 +563,7 @@ class _Captions extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(16)),
             child: original.isEmpty
-                ? Text(tr('Subtítulos activados (beta). Cuando hable, lo verás aquí en tu idioma.'),
+                ? Text(tr('Subtítulos activados. Cuando hable, lo verás aquí en tu idioma.'),
                     textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14))
                 : Column(mainAxisSize: MainAxisSize.min, children: [
                     Text(translated ?? original,

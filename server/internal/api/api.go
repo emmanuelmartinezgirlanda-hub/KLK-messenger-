@@ -106,6 +106,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /privacy", s.privacyPage)
 	mux.HandleFunc("GET /soporte", s.supportPage)
 	mux.HandleFunc("GET /support", s.supportPage)
+	mux.HandleFunc("GET /normas", s.termsPage)
+	mux.HandleFunc("GET /terms", s.termsPage)
 
 	mux.HandleFunc("GET /v1/communities", s.authed(s.listCommunities))
 	mux.HandleFunc("POST /v1/communities/{id}", s.authed(s.joinCommunity))
@@ -448,7 +450,7 @@ const (
 	maxReportMessageLen = 2000
 )
 
-var reportReasons = map[string]bool{"spam": true, "acoso": true, "estafa": true, "otro": true}
+var reportReasons = map[string]bool{"spam": true, "acoso": true, "estafa": true, "ofensivo": true, "otro": true}
 
 // report guarda una denuncia. Los mensajes están cifrados de punta a punta, así
 // que solo llegan aquí los que el usuario decide adjuntar.

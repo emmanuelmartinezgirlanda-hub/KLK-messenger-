@@ -323,6 +323,7 @@ class AppController extends ChangeNotifier {
     unawaited(_loadLastSeen());
     unawaited(_loadCalls());
     unawaited(_loadSanBanks());
+    unawaited(_loadBlockedMembers());
     await _loadPinnedChats();
     _db = await LocalDb.open(await _store.databaseKey());
     try {
@@ -641,6 +642,9 @@ class AppController extends ChangeNotifier {
         // Comunidad a la que no pertenezco (me salí hace poco): no se acepta nada
         if (isCommunityChat(gid) && known == null) return;
         if (known != null && !isCommunityChat(gid) && !known.members.any((m) => m.id == from)) return;
+        // Bloqueado (en un grupo o comunidad, o como contacto): no recibo nada suyo.
+        await _loadBlockedMembers();
+        if (_blockedMembers.contains(from) || (direct?.blocked ?? false)) return;
       }
 
       // Chat de destino: el grupo o el chat individual
@@ -851,6 +855,7 @@ class AppController extends ChangeNotifier {
       chatId: chatId,
       kind: MessageKind.incoming,
       sender: senderName,
+      senderId: isGroup ? from : null,
       body: p.text ?? '',
       status: MessageStatus.delivered,
       createdAt: ts,
@@ -1808,6 +1813,47 @@ class AppController extends ChangeNotifier {
     await _db!.setBlocked(chatId, blocked);
     await _system(chatId, blocked ? '🚫 Bloqueaste a este contacto' : '✅ Desbloqueaste a este contacto');
     await _refresh();
+  }
+
+  // ---------- Bloquear y denunciar en grupos y comunidades ----------
+  static const _blockedMembersKey = 'klk.blocked.members';
+  Set<String> _blockedMembers = {};
+  bool _blockedMembersLoaded = false;
+
+  Future<void> _loadBlockedMembers() async {
+    if (_blockedMembersLoaded) return;
+    _blockedMembersLoaded = true;
+    try {
+      final raw = await _store.read(_blockedMembersKey);
+      if (raw != null && raw.isNotEmpty) _blockedMembers = (jsonDecode(raw) as List).cast<String>().toSet();
+    } catch (_) {}
+  }
+
+  /// ¿Bloqueé a esta persona (en grupos y comunidades, o como contacto)?
+  bool isMemberBlocked(String accountId) =>
+      _blockedMembers.contains(accountId) || (chatById(accountId)?.blocked ?? false);
+
+  /// Bloquea (o desbloquea) a alguien de un grupo o comunidad: sus mensajes dejan de llegarme.
+  Future<void> setMemberBlocked(String accountId, String name, bool blocked, {String? inChatId}) async {
+    await _loadBlockedMembers();
+    if (blocked) {
+      _blockedMembers.add(accountId);
+    } else {
+      _blockedMembers.remove(accountId);
+    }
+    await _store.write(_blockedMembersKey, jsonEncode(_blockedMembers.toList()));
+    if (chatById(accountId) != null) await _db!.setBlocked(accountId, blocked);
+    if (inChatId != null) {
+      await _system(inChatId, blocked ? '🚫 Bloqueaste a $name: ya no verás sus mensajes' : '✅ Desbloqueaste a $name');
+    }
+    await _refresh();
+  }
+
+  /// Denuncia a alguien de un grupo o comunidad. [messages]: lo que yo decida adjuntar.
+  Future<void> reportMember(String accountId, String reason,
+      {List<String> messages = const [], bool block = false, String name = '', String? inChatId}) async {
+    if (!isDemo) await _api!.report(accountId, reason, messages: messages.take(5).toList());
+    if (block) await setMemberBlocked(accountId, name, true, inChatId: inChatId);
   }
 
   /// Denuncia al contacto. Con [includeMessages] se envían los últimos 5
@@ -2908,6 +2954,7 @@ class AppController extends ChangeNotifier {
     profile = const Profile();
     chats = [];
     statuses = [];
+    _blockedMembers = {};
     _sanAuto = {};
     _sanBanks = {};
     _myLastBank = null;

@@ -59,6 +59,10 @@ class LocalDb {
   static const _v7 = [
     'CREATE TABLE IF NOT EXISTS signal_kv (k TEXT PRIMARY KEY, v BLOB NOT NULL)',
   ];
+  // Quién escribió cada mensaje de grupo (para denunciar o bloquear a esa persona).
+  static const _v8 = [
+    'ALTER TABLE messages ADD COLUMN sender_id TEXT',
+  ];
 
   /// Ruta del archivo (para la copia de seguridad).
   static Future<String> filePath() async => p.join(await klkDatabasesPath(), _file);
@@ -68,7 +72,7 @@ class LocalDb {
     final db = await openKlkDatabase(
       p.join(dir, _file),
       key: key,
-      version: 7,
+      version: 8,
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await db.execute('ALTER TABLE messages ADD COLUMN media_json TEXT');
         if (oldVersion < 3) await db.execute('ALTER TABLE chats ADD COLUMN avatar_path TEXT');
@@ -89,6 +93,11 @@ class LocalDb {
         }
         if (oldVersion < 7) {
           for (final sql in _v7) {
+            await db.execute(sql);
+          }
+        }
+        if (oldVersion < 8) {
+          for (final sql in _v8) {
             await db.execute(sql);
           }
         }
@@ -119,7 +128,7 @@ class LocalDb {
             media_json TEXT
           )''');
         await db.execute('CREATE INDEX messages_chat_idx ON messages(chat_id, created_at)');
-        for (final sql in [..._v4, ..._v5, ..._v6, ..._v7]) {
+        for (final sql in [..._v4, ..._v5, ..._v6, ..._v7, ..._v8]) {
           await db.execute(sql);
         }
       },

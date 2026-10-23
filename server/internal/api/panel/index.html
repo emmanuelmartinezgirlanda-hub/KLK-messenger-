@@ -51,7 +51,7 @@ h2{font-size:16px;margin:22px 4px 10px}
 .rep{margin-bottom:10px}
 .rep .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .tag{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--chip)}
-.tag.spam{background:var(--warnbg);color:var(--warn)} .tag.acoso,.tag.estafa{background:var(--badbg);color:var(--red)}
+.tag.spam{background:var(--warnbg);color:var(--warn)} .tag.acoso,.tag.estafa,.tag.ofensivo{background:var(--badbg);color:var(--red)}
 .tag.done{background:var(--okbg);color:var(--ok)}
 .msgs{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px}
 .msgs li{background:var(--bg);border-radius:10px;padding:8px 10px;font-size:14px;white-space:pre-wrap;word-break:break-word}
@@ -121,7 +121,7 @@ const nf=new Intl.NumberFormat("es");
 const eur=new Intl.NumberFormat("es",{style:"currency",currency:"EUR"});
 const dt=v=>v?new Date(v).toLocaleString("es",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"—";
 const ago=v=>{if(!v)return"nunca";const m=(Date.now()-new Date(v))/60000;if(m<2)return"ahora";if(m<60)return`hace ${Math.round(m)} min`;const h=m/60;if(h<24)return`hace ${Math.round(h)} h`;return`hace ${Math.round(h/24)} días`};
-const reasons={spam:"Spam",acoso:"Acoso",estafa:"Estafa",otro:"Otro"};
+const reasons={spam:"Spam",acoso:"Acoso",estafa:"Estafa",ofensivo:"Ofensivo",otro:"Otro"};
 const countries={"+1809":"🇩🇴 RD","+1829":"🇩🇴 RD","+1849":"🇩🇴 RD","+1":"🇺🇸 EE. UU.","+34":"🇪🇸 España","+353":"🇮🇪 Irlanda","+44":"🇬🇧 R. Unido","+39":"🇮🇹 Italia","+33":"🇫🇷 Francia","+49":"🇩🇪 Alemania","+41":"🇨🇭 Suiza","+31":"🇳🇱 P. Bajos","+32":"🇧🇪 Bélgica","+351":"🇵🇹 Portugal","+52":"🇲🇽 México","+57":"🇨🇴 Colombia","+58":"🇻🇪 Venezuela","+507":"🇵🇦 Panamá","+506":"🇨🇷 Costa Rica","+509":"🇭🇹 Haití"};
 
 let token="", tab="home", data={stats:null,reports:null,news:null,banned:null}, showAll=false;

@@ -12,6 +12,7 @@ import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import 'chat_avatar.dart';
 import 'chat_screen.dart';
+import 'chat_sheets.dart';
 
 /// Info del grupo, como en WhatsApp: foto, nombre, cuántos son y la lista
 /// de participantes. Al tocar a alguien: mensaje, llamada, vídeo o su info.
@@ -86,11 +87,47 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
             title: Text('${tr('Ver info de')} $name'),
             onTap: () => Navigator.pop(ctx, 'info'),
           ),
+          const Divider(height: 8),
+          ListTile(
+            leading: const Icon(Icons.block_rounded, color: Color(0xFFE5243B)),
+            title: Text(
+                '${ref.read(appProvider).isMemberBlocked(m.id) ? tr('Desbloquear a') : tr('Bloquear a')} $name',
+                style: const TextStyle(color: Color(0xFFE5243B))),
+            onTap: () => Navigator.pop(ctx, 'block'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.flag_outlined, color: Color(0xFFE5243B)),
+            title: Text('${tr('Denunciar a')} $name', style: const TextStyle(color: Color(0xFFE5243B))),
+            onTap: () => Navigator.pop(ctx, 'report'),
+          ),
           const SizedBox(height: 8),
         ]),
       ),
     );
     if (action == null || !mounted) return;
+    final app = ref.read(appProvider);
+    if (action == 'block') {
+      await app.setMemberBlocked(m.id, name, !app.isMemberBlocked(m.id), inChatId: widget.chatId);
+      return;
+    }
+    if (action == 'report') {
+      // Se adjuntan (si quiero) sus últimos mensajes en este grupo.
+      final mine = app
+          .messagesFor(widget.chatId)
+          .where((x) => x.senderId == m.id && x.body.isNotEmpty && !x.deleted)
+          .map((x) => x.body)
+          .toList();
+      final last = mine.length > 5 ? mine.sublist(mine.length - 5) : mine;
+      final r = await pickReport(context, name, includeLabel: tr('Adjuntar sus últimos mensajes en este grupo'));
+      if (r == null) return;
+      try {
+        await app.reportMember(m.id, r.$1, messages: r.$2 ? last : const [], block: r.$3, name: name, inChatId: widget.chatId);
+        _snack(tr('Denuncia enviada. La revisamos en menos de 24 horas.'));
+      } catch (e) {
+        _snack('No se pudo enviar la denuncia: $e');
+      }
+      return;
+    }
     await _open(m, action == 'chat' ? null : action);
   }
 

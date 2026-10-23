@@ -664,3 +664,59 @@ class _Title extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(2, 0, 2, 8),
       child: Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)));
 }
+
+
+/// Elegir el icono de la app (sin pasar por la pantalla de Plus).
+Future<void> showAppIconPicker(BuildContext context) async {
+  final current = await KlkNative.appIcon();
+  if (!context.mounted) return;
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Icono de la app', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          Row(children: [
+            for (final (name, label, asset) in const [
+              (null, 'Normal', 'assets/brand/klk_app_icon.png'),
+              ('KLK-Noche', 'Noche', 'assets/icon/alt/noche.png'),
+              ('KLK-Oro', 'Oro', 'assets/icon/alt/oro.png'),
+              ('KLK-Bandera', 'Bandera', 'assets/icon/alt/bandera.png'),
+            ])
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () async {
+                    try {
+                      await KlkNative.setAppIcon(name);
+                    } catch (_) {}
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Column(children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: current == name ? _oro : Colors.transparent, width: 3),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: Image.asset(asset, width: 62, height: 62, fit: BoxFit.cover),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(label, style: const TextStyle(fontSize: 12.5)),
+                    ]),
+                  ),
+                ),
+              ),
+          ]),
+        ]),
+      ),
+    ),
+  );
+}

@@ -176,6 +176,7 @@ class Message {
   final String chatId;
   final MessageKind kind;
   final String sender; // nombre a mostrar en grupos
+  final String? senderId; // cuenta de quien lo escribió (grupos y comunidades)
   final String body;
   final MessageStatus status;
   final DateTime createdAt;
@@ -195,6 +196,7 @@ class Message {
     required this.chatId,
     required this.kind,
     this.sender = '',
+    this.senderId,
     required this.body,
     required this.status,
     required this.createdAt,
@@ -243,6 +245,7 @@ class Message {
         chatId: chatId,
         kind: kind,
         sender: sender,
+        senderId: senderId,
         body: body ?? this.body,
         status: status ?? this.status,
         createdAt: createdAt,
@@ -265,6 +268,7 @@ class Message {
         'chat_id': chatId,
         'kind': kind.index,
         'sender': sender,
+        'sender_id': senderId,
         'body': body,
         'status': status.name,
         'created_at': createdAt.millisecondsSinceEpoch,
@@ -285,6 +289,7 @@ class Message {
         chatId: r['chat_id'] as String,
         kind: MessageKind.values[r['kind'] as int],
         sender: r['sender'] as String? ?? '',
+        senderId: r['sender_id'] as String?,
         body: r['body'] as String,
         status: MessageStatus.values.byName(r['status'] as String),
         createdAt: DateTime.fromMillisecondsSinceEpoch(r['created_at'] as int),

@@ -753,6 +753,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   static const _quickReactions = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🇩🇴'];
 
+  Future<void> _reportGroupMessage(Message m) async {
+    final id = m.senderId;
+    if (id == null) return;
+    final name = m.sender.isEmpty ? tr('esta persona') : m.sender;
+    final r = await pickReport(context, name, includeLabel: tr('Adjuntar este mensaje'));
+    if (r == null) return;
+    try {
+      await _app.reportMember(id, r.$1,
+          messages: r.$2 && m.body.isNotEmpty ? [m.body] : const [], block: r.$3, name: name, inChatId: widget.chatId);
+      _snack(tr('Denuncia enviada. La revisamos en menos de 24 horas.'));
+    } catch (e) {
+      _snack('No se pudo enviar la denuncia: $e');
+    }
+  }
+
   void _messageActions(Message m) {
     final cs = Theme.of(context).colorScheme;
     final canTranslate = !m.isMine && m.body.isNotEmpty && !m.deleted;
@@ -872,6 +887,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 _app.pinMessage(widget.chatId, pinned ? null : m);
               },
             ),
+          // Grupos y comunidades: denunciar este mensaje o bloquear a quien lo escribió.
+          if (!m.isMine && m.senderId != null && m.kind != MessageKind.system) ...[
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: Color(0xFFE5243B)),
+              title: Text(tr('Denunciar mensaje'), style: const TextStyle(color: Color(0xFFE5243B))),
+              onTap: () {
+                Navigator.pop(ctx);
+                _reportGroupMessage(m);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block_rounded, color: Color(0xFFE5243B)),
+              title: Text(
+                  '${_app.isMemberBlocked(m.senderId!) ? tr('Desbloquear a') : tr('Bloquear a')} ${m.sender.isEmpty ? tr('esta persona') : m.sender}',
+                  style: const TextStyle(color: Color(0xFFE5243B))),
+              onTap: () {
+                Navigator.pop(ctx);
+                _app.setMemberBlocked(m.senderId!, m.sender, !_app.isMemberBlocked(m.senderId!), inChatId: widget.chatId);
+              },
+            ),
+          ],
           if (!m.deleted && m.media?.type == MediaType.audio && m.media?.transcript == null)
             ListTile(
               leading: const Icon(Icons.subtitles_outlined),

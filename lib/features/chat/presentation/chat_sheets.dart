@@ -400,7 +400,7 @@ Future<Duration?> pickLiveDuration(BuildContext context) => showModalBottomSheet
     );
 
 /// Denunciar a un contacto. Devuelve (motivo, incluir mensajes, bloquear).
-Future<(String, bool, bool)?> pickReport(BuildContext context, String name) {
+Future<(String, bool, bool)?> pickReport(BuildContext context, String name, {String? includeLabel}) {
   var reason = 'spam';
   var include = true;
   var block = true;
@@ -421,6 +421,7 @@ Future<(String, bool, bool)?> pickReport(BuildContext context, String name) {
               ('spam', 'Spam o publicidad'),
               ('estafa', 'Estafa o fraude'),
               ('acoso', 'Acoso o amenazas'),
+              ('ofensivo', 'Odio, violencia o contenido sexual'),
               ('otro', 'Otro motivo'),
             ])
               ListTile(
@@ -431,7 +432,7 @@ Future<(String, bool, bool)?> pickReport(BuildContext context, String name) {
             CheckboxListTile(
               value: include,
               onChanged: (v) => setState(() => include = v ?? false),
-              title: Text(tr('Adjuntar los últimos 5 mensajes que te envió')),
+              title: Text(includeLabel ?? tr('Adjuntar los últimos 5 mensajes que te envió')),
               subtitle: Text(tr('Ayuda a revisar la denuncia. Nada más sale de tu móvil.')),
             ),
             CheckboxListTile(
