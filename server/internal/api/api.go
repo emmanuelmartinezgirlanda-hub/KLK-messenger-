@@ -191,12 +191,14 @@ func (s *Server) requestCode(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) {
 		return
 	}
+	req.Phone = auth.NormalizePhone(req.Phone)
 	if banned, err := s.store.PhoneBanned(r.Context(), req.Phone); err == nil && banned {
 		writeErr(w, http.StatusForbidden, "banned", "este número está bloqueado por incumplir las normas de KLK")
 		return
 	}
 	ip := s.clientIP(r)
-	if auth.ValidPhone(req.Phone) {
+	// Los números de revisión (Apple/Google) no mandan SMS: no cuentan en los límites.
+	if auth.ValidPhone(req.Phone) && !s.otp.IsReview(req.Phone) {
 		if code, msg := s.smsAllowed(r.Context(), req.Phone, ip); code != "" {
 			status := http.StatusTooManyRequests
 			if code == "country_blocked" {
@@ -207,7 +209,7 @@ func (s *Server) requestCode(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	err := s.otp.Request(req.Phone)
-	if err != nil && s.SMS != nil && auth.ValidPhone(req.Phone) {
+	if err != nil && s.SMS != nil && auth.ValidPhone(req.Phone) && !s.otp.IsReview(req.Phone) {
 		s.SMS.giveBackIP(ip) // no se envió: no cuenta
 	}
 	switch {
@@ -218,6 +220,8 @@ func (s *Server) requestCode(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		slog.Error("enviando SMS", "err", err)
 		writeErr(w, http.StatusBadGateway, "sms_failed", "no se pudo enviar el SMS")
+	case s.otp.IsReview(req.Phone):
+		w.WriteHeader(http.StatusNoContent)
 	default:
 		if err := s.store.LogSMS(r.Context(), store.CountryOf(req.Phone), time.Now()); err != nil {
 			slog.Warn("contando SMS", "err", err)
@@ -239,6 +243,7 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &req) {
 		return
 	}
+	req.Phone = auth.NormalizePhone(req.Phone)
 	if !validPublicKey(req.IdentityKey) || req.RegistrationID <= 0 || req.RegistrationID > 16380 {
 		writeErr(w, http.StatusBadRequest, "bad_keys", "identityKey o registrationId inválidos")
 		return

@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"math/big"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,6 +25,27 @@ var (
 var e164 = regexp.MustCompile(`^\+[1-9]\d{7,14}$`)
 
 func ValidPhone(p string) bool { return e164.MatchString(p) }
+
+// NormalizePhone arregla errores típicos al escribir el número:
+// espacios y guiones, "00" en vez de "+", y el prefijo +1 repetido
+// ("+1" + "1 202 555 0147" = "+112025550147"). En el plan de numeración
+// de +1 ningún número empieza por 1 después del prefijo, así que quitarlo es seguro.
+func NormalizePhone(p string) string {
+	var b strings.Builder
+	for i, r := range strings.TrimSpace(p) {
+		if r >= '0' && r <= '9' || (r == '+' && i == 0) {
+			b.WriteRune(r)
+		}
+	}
+	s := b.String()
+	if strings.HasPrefix(s, "00") {
+		s = "+" + s[2:]
+	}
+	if strings.HasPrefix(s, "+11") && len(s) == 13 {
+		s = "+1" + s[3:]
+	}
+	return s
+}
 
 // SMSSender envía el código. En producción: Twilio, Vonage, etc.
 type SMSSender interface {
@@ -89,6 +111,9 @@ func (o *OTP) SetReview(phones []string, code string) {
 	}
 	o.reviewCode = code
 }
+
+// IsReview: ¿es un número de prueba de los revisores? (no recibe SMS)
+func (o *OTP) IsReview(phone string) bool { return o.isReview(phone) }
 
 func (o *OTP) isReview(phone string) bool {
 	o.mu.Lock()

@@ -83,3 +83,18 @@ func TestReviewCodeLocksAfterFailures(t *testing.T) {
 		t.Fatalf("pasada la hora debería entrar: %v", err)
 	}
 }
+
+func TestNormalizePhone(t *testing.T) {
+	for in, want := range map[string]string{
+		"+112025550147":     "+12025550147",
+		"+1 1 202 555 0147": "+12025550147",
+		"+1 (202) 555-0147": "+12025550147",
+		"0034612345678":     "+34612345678",
+		"+18095551234":      "+18095551234",
+		"+353851234567":     "+353851234567",
+	} {
+		if got := NormalizePhone(in); got != want {
+			t.Errorf("NormalizePhone(%q) = %q, quiero %q", in, got, want)
+		}
+	}
+}
