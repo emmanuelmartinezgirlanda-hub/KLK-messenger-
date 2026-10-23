@@ -1,0 +1,21 @@
+name: Diagnóstico auditoría
+on:
+  push:
+    branches: [diag-audit]
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Páginas públicas y login
+        run: |
+          for u in /normas /terms /privacidad /soporte; do
+            c=$(curl -s -o /tmp/p.html -w "%{http_code}" -m 60 https://klk-server.onrender.com$u)
+            t=$(grep -o "<h1>[^<]*" /tmp/p.html | head -1 | sed 's/<h1>//')
+            extra=$(grep -c -i "tolerancia\|puente\|Twilio o Cloudflare" /tmp/p.html)
+            echo "::notice title=$u::HTTP $c · $t · marcas=$extra"
+          done
+          c=$(curl -sL -o /tmp/w.html -w "%{http_code}" -m 60 https://klkmessenger.com/)
+          p=$(grep -o -i "[^>.]\{0,40\}\(pronto\|recarga\|enviar dinero\|remesa\|klk plus\)[^<.]\{0,40\}" /tmp/w.html | head -8 | tr '\n' '|')
+          echo "::notice title=web::HTTP $c · $p"
+          r=$(curl -s -m 60 -X POST https://klk-server.onrender.com/v1/verification/request -H 'Content-Type: application/json' -d '{"phone":"+1 202 555 0147"}' -w " HTTP %{http_code}")
+          echo "::notice title=login::$r"
