@@ -1,0 +1,16 @@
+name: Diagnóstico login revisión
+on:
+  push:
+    branches: [diag-login]
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pedir código como el revisor
+        run: |
+          for p in "+12025550147" "+1+12025550147"; do
+            echo "== $p"
+            curl -sS -m 90 -X POST https://klk-server.onrender.com/v1/verification/request \
+              -H 'Content-Type: application/json' -d "{\"phone\":\"$p\"}" -w "\nHTTP %{http_code} en %{time_total}s\n" || true
+          done
+          echo "== healthz"; curl -sS -m 60 https://klk-server.onrender.com/healthz -w "\nHTTP %{http_code}\n" || true
