@@ -196,7 +196,7 @@
   }
   .gente .descargas { justify-content: center; }
 
-  .viene-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+  .viene-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
   .viene article {
     position: relative;
     border: 3px solid var(--rojo);
@@ -273,14 +273,14 @@
           <h1>¡Klk, mi gente!</h1>
           <p>La app de mensajes hecha por y para dominicanos. Habla con tu familia y tus panas, estés donde estés.</p>
         </div>
-        <p class="aviso">Ya puedes usarla en Windows. La versión de iPhone está a punto de salir en la App Store y Android llega después.</p>
+        <p class="aviso">¡Ya está en la App Store! Descárgala gratis en tu iPhone. También en Windows, y Android llega muy pronto.</p>
         <div class="descargas">
-          <a class="boton pronto" aria-disabled="true"><small>iPhone</small><strong>App Store: muy pronto</strong></a>
+          <a class="boton si" href="https://apps.apple.com/app/id6823299468"><small>iPhone · gratis</small><strong>Descárgala en la App Store</strong></a>
           <a class="boton si" href="https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/latest/download/KLK-messenger-Setup.exe"><small>Ordenador</small><strong>Descargar para Windows</strong></a>
         </div>
       </div>
       <div class="hero-movil">
-        <img src="/img/chats.webp" alt="Lista de chats de KLK: Mami, Yokasta, Los Primos y Dominicanos en España" width="540" height="1144">
+        <img src="/img/v2-chats.webp" alt="Lista de chats de KLK con la barra de abajo de cristal" width="540" height="1174">
       </div>
     </div>
   </div>
@@ -289,7 +289,7 @@
     <div class="wrap">
       <div>
         <h2>Míralo en minuto y medio</h2>
-        <p class="intro">Chats y comunidades, audios que se pueden leer, stickers con tu propia voz, el San, videollamadas con subtítulos, la pelota y las noticias de RD… y todo lo que viene. Dale al play y sube el volumen.</p>
+        <p class="intro">Chats y comunidades, el San sin peleas, llamadas y videollamadas cifradas, stickers con sonido bien dominicanos, audios que se pueden leer… Dale al play y sube el volumen.</p>
         <p class="nota">¿Te gusta? Compártelo con tu gente: es la mejor forma de que KLK llegue a toda la familia.</p>
       </div>
       <div class="pantalla-video">
@@ -324,12 +324,14 @@
       <h2>Todo lo que usas cada día</h2>
       <p class="intro">Sin aprender nada nuevo: si sabes usar WhatsApp, ya sabes usar KLK.</p>
       <dl class="lista">
+        <div><dt>El San, sin peleas</dt><dd>Turnos sorteados, quién pagó, recordatorios y «Dinero enviado» cuando te toca cobrar. KLK solo lleva la cuenta; el dinero lo mueven ustedes.</dd></div>
+        <div><dt>Stickers con sonido</dt><dd>¡Wepa! ¡Diache! ¡Dímelo! Con voz dominicana… o graba los tuyos con tu propia voz.</dd></div>
         <div><dt>Notas de voz</dt><dd>Grábalas y escúchalas a 1,5× o 2× cuando el tío se alarga.</dd></div>
         <div><dt>Fotos y vídeos en buena calidad</dt><dd>Se envían cifrados y se borran del servidor a los 30 días.</dd></div>
         <div><dt>Tus propios stickers</dt><dd>Haz un sticker con cualquier foto en segundos. Y trae los nuestros: ¡Tamo activo!</dd></div>
         <div><dt>Grupos con encuestas</dt><dd>Para decidir la playa del verano o quién lleva el sancocho.</dd></div>
         <div><dt>Comunidades por país</dt><dd>Conecta con dominicanos en España, Estados Unidos, Irlanda y más.</dd></div>
-        <div><dt>Llamadas y videollamadas</dt><dd>De móvil a móvil, también cifradas.</dd></div>
+        <div><dt>Llamadas y videollamadas</dt><dd>Cifradas de punta a punta, con subtítulos traducidos y reconexión si se va el internet un momento.</dd></div>
         <div><dt>Estados de 24 horas</dt><dd>Comparte tu día con tus contactos y desaparece solo.</dd></div>
         <div><dt>Mensajes temporales</dt><dd>Mensajes y fotos que se borran solos o se ven una sola vez.</dd></div>
         <div><dt>Traductor dentro del móvil</dt><dd>Traduce mensajes a otros idiomas sin enviarlos a ningún servidor.</dd></div>
@@ -338,6 +340,7 @@
         <div><dt>Copia de seguridad cifrada</dt><dd>Guarda tus chats con contraseña en iCloud o donde quieras.</dd></div>
         <div><dt>Mensajes programados</dt><dd>Escribe hoy el «feliz cumpleaños» y que llegue a las 12 en punto.</dd></div>
         <div><dt>Temas y fondos</dt><dd>Con los colores de la bandera, modo claro u oscuro.</dd></div>
+        <div><dt>Invita a tu gente</dt><dd>Manda KLK por WhatsApp, Instagram o SMS en dos toques.</dd></div>
         <div><dt>Notas para ti</dt><dd>Un chat contigo mismo para apuntar cosas. Nunca sale de tu móvil.</dd></div>
         <div><dt>En el ordenador</dt><dd>Usa KLK también en Windows, con tu misma cuenta.</dd></div>
       </dl>
@@ -350,21 +353,26 @@
       <p class="intro">Con los colores de la bandera y el sabor de nuestra tierra.</p>
     </div>
     <div class="tira" tabindex="0" aria-label="Pantallas de KLK messenger">
-      <figure><figcaption>Audios y stickers</figcaption><img src="/img/stickers.webp" alt="Chat con nota de voz y sticker ¡Tamo activo!" width="540" height="1144"></figure>
-      <figure><figcaption>Grupos de familia</figcaption><img src="/img/grupos.webp" alt="Grupo Los Primos con una encuesta sobre qué playa visitar" width="540" height="1144"></figure>
-      <figure><figcaption>Tu código QR</figcaption><img src="/img/qr.webp" alt="Código QR para compartir tu contacto" width="540" height="1144"></figure>
-      <figure><figcaption>Todos tus chats</figcaption><img src="/img/chats.webp" alt="Lista de chats de KLK" width="540" height="1144"></figure>
+      <figure><figcaption>Todos tus chats</figcaption><img src="/img/v2-chats.webp" alt="Lista de chats de KLK con la barra de cristal" width="540" height="1174"></figure>
+      <figure><figcaption>El San</figcaption><img src="/img/v2-san.webp" alt="Grupo Los Primos con un San: dinero enviado y confirmado" width="540" height="1174"></figure>
+      <figure><figcaption>Llamadas cifradas</figcaption><img src="/img/v2-llamada.webp" alt="Llamada con Mami con subtítulos traducidos" width="540" height="1174"></figure>
+      <figure><figcaption>Stickers con sonido</figcaption><img src="/img/v2-sonidos.webp" alt="Chat con stickers ¡Klk!, ¡Wepa! y ¡Dímelo! con sonido" width="540" height="1174"></figure>
+      <figure><figcaption>Comunidades</figcaption><img src="/img/v2-comunidades.webp" alt="Comunidades de dominicanos por país" width="540" height="1174"></figure>
     </div>
   </section>
 
   <section class="viene" id="pronto">
     <div class="wrap">
       <h2>Lo que viene</h2>
-      <p class="intro">Estamos preparando dos cosas que la diáspora nos pide siempre. Saldrán dentro de la app, con la misma seguridad de siempre.</p>
+      <p class="intro">Estamos preparando lo que la diáspora nos pide siempre. Llegará en una actualización de la app, con la misma seguridad de siempre.</p>
       <div class="viene-grid">
         <article>
+          <h3>KLK Plus</h3>
+          <p>Temas e iconos exclusivos, más sanes a la vez, historial del San en PDF y mucho más, para quien quiera un extra.</p>
+        </article>
+        <article>
           <h3>Envío de dinero a RD</h3>
-          <p>Manda dinero a tu familia en República Dominicana desde el mismo chat donde hablas con ella, sin colas ni papeleo.</p>
+          <p>Manda dinero a tu familia desde el chat donde hablas con ella, de la mano de empresas autorizadas para enviar remesas.</p>
         </article>
         <article>
           <h3>Recargas de móvil</h3>
@@ -382,7 +390,9 @@
       <details><summary>¿Funciona fuera de República Dominicana?</summary><p>Sí, en todo el mundo. Está pensada justo para la familia que vive repartida entre RD, Estados Unidos, España, Irlanda y otros países.</p></details>
       <details><summary>¿Qué pasa si pierdo el móvil?</summary><p>Si tenías copia de seguridad, recuperas tus chats con tu contraseña. Con el PIN de seguridad, nadie puede registrarse con tu número.</p></details>
       <details><summary>¿Cómo borro mi cuenta?</summary><p>En la app: Ajustes, luego «Eliminar mi cuenta». Se borra todo lo tuyo de nuestro servidor.</p></details>
-      <details><summary>¿Cuándo llegan el envío de dinero y las recargas?</summary><p>Estamos en ello. Saldrán en una actualización de la app; no hace falta que hagas nada, te avisaremos dentro de KLK.</p></details>
+      <details><summary>¿Qué es el San en KLK?</summary><p>El San de siempre, pero sin libreta: creas el San en un chat, se sortean los turnos y todos ven quién pagó y a quién le toca. KLK solo lleva la cuenta; no recibe ni mueve dinero.</p></details>
+      <details><summary>¿Cuánto cuesta?</summary><p>KLK es gratis. Más adelante habrá KLK Plus, opcional, para quien quiera cosas extra.</p></details>
+      <details><summary>¿Cuándo llegan KLK Plus, el envío de dinero y las recargas?</summary><p>Estamos en ello. Saldrán en una actualización de la app; no hace falta que hagas nada, te avisaremos dentro de KLK.</p></details>
     </div>
   </section>
 
@@ -391,7 +401,7 @@
       <h2>Tu gente, donde tú estés</h2>
       <p class="ciudades">Santo Domingo, Santiago, Nueva York, Madrid, Dublín, Boston, Barcelona y donde haya un dominicano.</p>
       <div class="descargas">
-        <a class="boton pronto" aria-disabled="true"><small>iPhone</small><strong>App Store: muy pronto</strong></a>
+        <a class="boton si" href="https://apps.apple.com/app/id6823299468"><small>iPhone · gratis</small><strong>Descárgala en la App Store</strong></a>
         <a class="boton pronto" aria-disabled="true"><small>Android</small><strong>Google Play: muy pronto</strong></a>
         <a class="boton si" href="https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/latest/download/KLK-messenger-Setup.exe"><small>Ordenador</small><strong>Descargar para Windows</strong></a>
       </div>
