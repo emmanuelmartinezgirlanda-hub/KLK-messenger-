@@ -8,7 +8,7 @@ jobs:
     steps:
       - name: Pedir código como el revisor
         run: |
-          for p in "+12025550147" "+1+12025550147"; do
+          sleep 240; for p in "+112025550147" "+1 202 555 0147" "+12025550147"; do
             echo "== $p"
             out=$(curl -sS -m 90 -X POST https://klk-server.onrender.com/v1/verification/request \
               -H 'Content-Type: application/json' -d "{\"phone\":\"$p\"}" -w " HTTP %{http_code} en %{time_total}s" 2>&1 | tr '\n' ' ')
