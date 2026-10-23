@@ -1,0 +1,25 @@
+07.0 [0.94] llamadas y videoyamadas cifradas, con un diseño nuevo que no se cortan y con subtítulos traducidos.
+07.1 [0.94] llamadas y videoyamadas cifradas, con un diseño nuevo que no se cortan y con subtítulos traducidos.
+07.2 [0.94] llamadas y videoyamadas cifradas, con un diseño nuevo que no se cortan y con subtítulos traducidos.
+07.3 [0.94] llamadas y videoyamadas cifradas con un diseño nuevo que no se cortan y con subtítulos traducidos.
+==> 07 (0.94) fin=6.14
+08.0 [0.94] ¿Haces un san con tu gente? Que lo que sorté a los turnos, lleva la cuenta de quién pagó y avisa cuando se envía el dinero.
+08.1 [0.94] ¿Haces un san con tu gente? Que lo que sorté a los turnos, lleva la cuenta de quién pago y avisa cuando se envía el dinero.
+08.2 [0.94] ¿Haces un san con tu gente? Que lo que sorté a los turnos, lleva la cuenta de quién pagó y avisa cuando se envía el dinero.
+08.3 [1.00] Haces un san con tu gente, que lo que sortea los turnos, lleva la cuenta de quién pagó y avisa cuando se envía el dinero.
+==> 08 (1.00) fin=6.5
+13.0 [0.76] y estreno diseño, vara de cristal y con un nuevo, e invita a tu gente en dos toques.
+13.1 [0.85] y estreno diseño, barra de cristal y cono nuevo, e invita a tu gente en dos toques.
+13.2 [0.76] y estreno diseño, vara de cristal y con o nuevo, e invita a tu gente en dos toques.
+13.3 [0.82] y estrena diseño, vara de cristal y con un nuevo e invita a tu gente en dos toques.
+==> 13 (0.85) fin=5.08
+14.0 [0.91] y muy pronto que lo que plus envío de dinero y de cargas desde el mismo chat.
+14.1 [0.91] y muy pronto, que lo que plus, envió de dinero y le cargas desde el mismo chat.
+14.2 [1.00] y muy pronto que lo que plus envío de dinero y recargas desde el mismo chat.
+14.3 [1.00] y muy pronto, que lo que plus, envío de dinero y recargas desde el mismo chat.
+==> 14 (1.00) fin=4.34
+16.0 [0.76] ya en la App Store y en tu computadora, que lo que me es en gel descarga la gratis.
+16.1 [0.71] ya en la App Store y en tu computadora. Quiero que me enseñe, descarga la gratis.
+16.2 [0.81] ya en la App Store y en tu computadora. Que lo que me señer, descarga la gratis.
+16.3 [0.81] ya en la App Store y en tu computadora, que lo que me sendier descarga la gratis.
+==> 16 (0.81) fin=5.04
