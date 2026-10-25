@@ -47,6 +47,7 @@ workflows:
             --dart-define=KLK_TEST=true \
             --dart-define=KLK_PLUS=true \
             --dart-define=KLK_BUSINESS=true \
+            --dart-define=KLK_GENTE=true \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa

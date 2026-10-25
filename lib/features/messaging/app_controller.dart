@@ -1554,6 +1554,9 @@ class AppController extends ChangeNotifier {
     return saved;
   }
 
+  /// Cliente del servidor (null en el modo demo). Lo usa KLK Mi Gente.
+  ApiClient? get serverApi => isDemo ? null : _api;
+
   /// Sube una foto del negocio (logo o producto) y devuelve su id.
   Future<String> uploadBizImage(List<int> bytes) async {
     if (isDemo || _api == null) {

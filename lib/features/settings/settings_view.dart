@@ -10,6 +10,8 @@ import '../../core/brand/klk_logo.dart';
 import '../../core/config.dart';
 import '../../core/network/api_client.dart';
 import '../../core/l10n/l10n.dart';
+import '../../core/features.dart';
+import '../gente/gente.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../contacts/my_qr_screen.dart';
@@ -71,7 +73,7 @@ class SettingsView extends ConsumerWidget {
   }
 
   static String _tabsLabel(HiddenTabs t) {
-    final off = [if (t.status) 'Estados', if (t.communities) 'Comunidades'];
+    final off = [if (t.status) 'Estados', if (t.communities) 'Comunidades', if (kGenteFeatures && t.gente) 'Mi Gente'];
     return off.isEmpty ? 'Todas visibles' : 'Ocultas: ${off.join(' y ')}';
   }
 
@@ -195,13 +197,27 @@ class SettingsView extends ConsumerWidget {
                   SwitchListTile(
                     title: Text(tr('Estados')),
                     value: !t.status,
-                    onChanged: (v) => n.set(HiddenTabs(status: !v, communities: t.communities)),
+                    onChanged: (v) => n.set(t.copyWith(status: !v)),
                   ),
                   SwitchListTile(
                     title: Text(tr('Comunidades')),
                     value: !t.communities,
-                    onChanged: (v) => n.set(HiddenTabs(status: t.status, communities: !v)),
+                    onChanged: (v) => n.set(t.copyWith(communities: !v)),
                   ),
+                  if (kGenteFeatures) ...[
+                    SwitchListTile(
+                      title: Text(tr('Mi Gente')),
+                      value: !t.gente,
+                      onChanged: (v) => n.set(t.copyWith(gente: !v)),
+                    ),
+                    if (ref.watch(genteProvider).hiddenAuthors.isNotEmpty)
+                      ListTile(
+                        leading: const Icon(Icons.visibility_outlined),
+                        title: Text(tr('Volver a ver a la gente que ocultaste')),
+                        subtitle: Text('${ref.watch(genteProvider).hiddenAuthors.length} ${tr('ocultas en Mi Gente')}'),
+                        onTap: () => ref.read(genteProvider).unhideAll(),
+                      ),
+                  ],
                 ]),
                 actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Listo')))],
               );

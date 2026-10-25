@@ -214,6 +214,78 @@ class ApiClient {
     return (jsonDecode(res.body) as Map<String, dynamic>)['id'] as String;
   }
 
+  // ---------- KLK Mi Gente ----------
+
+  Future<Map<String, dynamic>> genteSetProfile(String name, String photo) async =>
+      await _send('PUT', '/v1/gente/me', {'name': name, 'photo': photo}) as Map<String, dynamic>;
+
+  Future<List<Map<String, dynamic>>> genteFeed({String country = '', String author = '', DateTime? before}) async {
+    final qs = Uri(queryParameters: {
+      if (country.isNotEmpty) 'country': country,
+      if (author.isNotEmpty) 'author': author,
+      if (before != null) 'before': before.toUtc().toIso8601String(),
+    }).query;
+    final j = await _send('GET', '/v1/gente/feed${qs.isEmpty ? '' : '?$qs'}') as Map<String, dynamic>;
+    return (j['posts'] as List? ?? const []).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> genteCreatePost(String text, List<String> photos, String country) async =>
+      await _send('POST', '/v1/gente/posts', {'text': text, 'photos': photos, 'country': country})
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> gentePost(String id) async =>
+      await _send('GET', '/v1/gente/posts/${Uri.encodeComponent(id)}') as Map<String, dynamic>;
+
+  Future<void> genteDeletePost(String id) => _send('DELETE', '/v1/gente/posts/${Uri.encodeComponent(id)}');
+
+  Future<int> genteLike(String id, bool on) async {
+    final j = await _send(on ? 'PUT' : 'DELETE', '/v1/gente/posts/${Uri.encodeComponent(id)}/like') as Map<String, dynamic>;
+    return (j['likes'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<List<Map<String, dynamic>>> genteComments(String postId) async {
+    final j = await _send('GET', '/v1/gente/posts/${Uri.encodeComponent(postId)}/comments') as Map<String, dynamic>;
+    return (j['comments'] as List? ?? const []).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> genteAddComment(String postId, String text) async =>
+      await _send('POST', '/v1/gente/posts/${Uri.encodeComponent(postId)}/comments', {'text': text})
+          as Map<String, dynamic>;
+
+  Future<void> genteDeleteComment(String id) => _send('DELETE', '/v1/gente/comments/${Uri.encodeComponent(id)}');
+
+  Future<void> genteReport({String? postId, String? commentId, required String reason}) => _send(
+      'POST',
+      postId != null
+          ? '/v1/gente/posts/${Uri.encodeComponent(postId)}/report'
+          : '/v1/gente/comments/${Uri.encodeComponent(commentId!)}/report',
+      {'reason': reason});
+
+  /// Sube una foto de Mi Gente (es pública para la gente de KLK). Devuelve su id.
+  Future<String> uploadGenteImage(List<int> bytes) async {
+    http.Response res;
+    try {
+      res = await http
+          .post(_u('/v1/gente/images'),
+              headers: {'Content-Type': 'application/octet-stream', if (token != null) 'Authorization': 'Bearer $token'},
+              body: bytes)
+          .timeout(const Duration(minutes: 2));
+    } on Exception {
+      throw const ApiException(0, 'network', 'No se pudo subir la foto. Revisa tu conexión.');
+    }
+    if (res.statusCode != 201) {
+      var msg = 'No se pudo subir la foto (${res.statusCode}).';
+      try {
+        final j = jsonDecode(res.body);
+        if (j is Map && j['message'] is String) msg = j['message'] as String;
+      } catch (_) {}
+      throw ApiException(res.statusCode, 'upload', msg);
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['id'] as String;
+  }
+
+  String genteImageUrl(String id) => _u('/v1/gente/img/$id').toString();
+
   /// Dirección pública de una foto del negocio.
   String businessImageUrl(String id) => _u('/v1/business/img/$id').toString();
 

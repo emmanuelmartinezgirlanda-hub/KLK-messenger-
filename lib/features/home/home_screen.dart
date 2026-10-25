@@ -16,6 +16,7 @@ import '../chat/presentation/new_chat_sheet.dart';
 import '../chat/presentation/starred_screen.dart';
 import '../communities/communities_view.dart';
 import '../contacts/my_qr_screen.dart';
+import '../gente/gente_view.dart';
 import '../groups/create_group_screen.dart';
 import '../hidden/hidden_chats_screen.dart';
 import '../messaging/app_controller.dart';
@@ -37,7 +38,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tab = 0;
 
-  List<String> get _titles => ['KLK messenger', tr('Estados'), tr('Comunidades'), tr('Tú'), tr('Llamadas')];
+  List<String> get _titles =>
+      ['KLK messenger', tr('Estados'), tr('Comunidades'), tr('Tú'), tr('Llamadas'), tr('Mi Gente')];
 
   @override
   void initState() {
@@ -113,9 +115,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (app.banned) return const _BannedScreen();
 
     final unreadChats = app.visibleChats.where((c) => c.unread > 0).length;
-    // Pestañas visibles (0 Chats, 1 Estados, 2 Comunidades, 3 Tú/Ajustes, 4 Llamadas)
+    // Pestañas visibles (0 Chats, 1 Estados, 2 Comunidades, 3 Tú/Ajustes, 4 Llamadas, 5 Mi Gente)
     final hidden = ref.watch(hiddenTabsProvider);
-    final visible = [0, if (!hidden.status) 1, 4, if (!hidden.communities) 2, 3];
+    final visible = [
+      0,
+      if (!hidden.status) 1,
+      4,
+      if (kGenteFeatures && !hidden.gente) 5,
+      if (!hidden.communities) 2,
+      3
+    ];
     if (!visible.contains(_tab)) _tab = 0;
 
     return Scaffold(
@@ -124,13 +133,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         toolbarHeight: 60,
         title: Row(children: [
           Flexible(
-            child: _tab == 0
+            child: _tab == 0 || _tab == 5
                 ? Row(mainAxisSize: MainAxisSize.min, children: [
                     Image.asset('assets/brand/klk_header.png', height: 38, semanticLabel: tr('KLK')),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        tr('messenger'),
+                        _tab == 5 ? tr('Mi Gente') : tr('messenger'),
                         maxLines: 1,
                         overflow: TextOverflow.fade,
                         softWrap: false,
@@ -194,13 +203,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: IndexedStack(
         index: _tab,
-        children: const [ChatListView(), StatusesView(), CommunitiesView(), SettingsView(), CallsView()],
+        children: [
+          const ChatListView(),
+          const StatusesView(),
+          const CommunitiesView(),
+          const SettingsView(),
+          const CallsView(),
+          if (kGenteFeatures) const GenteView() else const SizedBox.shrink(),
+        ],
       ),
       floatingActionButton: switch (_tab) {
         1 => FloatingActionButton(
             tooltip: tr('Nuevo estado'),
             onPressed: () => showStatusComposer(context),
             child: const Icon(Icons.photo_camera_rounded),
+          ),
+        5 => FloatingActionButton(
+            tooltip: tr('Publicar'),
+            backgroundColor: const Color(0xFFCE1126),
+            foregroundColor: Colors.white,
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => const GenteComposeScreen())),
+            child: const Icon(Icons.edit_rounded),
           ),
         _ => null,
       },
@@ -214,12 +238,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           setState(() => _tab = t);
         },
         items: [
-          for (final k in const [1, 4, 2, 0, 3])
+          for (final k in const [1, 4, 5, 2, 0, 3])
             if (visible.contains(k))
               switch (k) {
                 0 => _NavItem(k, tr('Chats'), Icons.chat_outlined, Icons.chat, badge: unreadChats),
                 1 => _NavItem(k, tr('Estados'), Icons.donut_large_outlined, Icons.donut_large),
                 2 => _NavItem(k, tr('Comunidades'), Icons.groups_outlined, Icons.groups),
+                5 => _NavItem(k, tr('Mi Gente'), Icons.dynamic_feed_outlined, Icons.dynamic_feed),
                 4 => _NavItem(k, tr('Llamadas'), Icons.call_outlined, Icons.call, badge: app.newMissedCalls),
                 _ => _NavItem(k, tr('Tú'), Icons.person_outline, Icons.person,
                     avatar: ChatAvatar(

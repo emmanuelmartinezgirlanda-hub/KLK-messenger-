@@ -7,7 +7,11 @@ import '../../core/security/secure_store.dart';
 class HiddenTabs {
   final bool status;
   final bool communities;
-  const HiddenTabs({this.status = false, this.communities = false});
+  final bool gente; // KLK Mi Gente
+  const HiddenTabs({this.status = false, this.communities = false, this.gente = false});
+
+  HiddenTabs copyWith({bool? status, bool? communities, bool? gente}) => HiddenTabs(
+      status: status ?? this.status, communities: communities ?? this.communities, gente: gente ?? this.gente);
 }
 
 final hiddenTabsProvider = NotifierProvider<HiddenTabsNotifier, HiddenTabs>(HiddenTabsNotifier.new);
@@ -24,14 +28,14 @@ class HiddenTabsNotifier extends Notifier<HiddenTabs> {
   Future<void> _restore() async {
     try {
       final v = await ref.read(secureStoreProvider).read(_key) ?? '';
-      state = HiddenTabs(status: v.contains('s'), communities: v.contains('c'));
+      state = HiddenTabs(status: v.contains('s'), communities: v.contains('c'), gente: v.contains('g'));
     } catch (_) {}
   }
 
   Future<void> set(HiddenTabs t) async {
     state = t;
     try {
-      await ref.read(secureStoreProvider).write(_key, '${t.status ? 's' : ''}${t.communities ? 'c' : ''}');
+      await ref.read(secureStoreProvider).write(_key, '${t.status ? 's' : ''}${t.communities ? 'c' : ''}${t.gente ? 'g' : ''}');
     } catch (_) {}
   }
 }
