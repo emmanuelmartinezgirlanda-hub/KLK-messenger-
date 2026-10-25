@@ -31,6 +31,7 @@ type Memory struct {
 	appleSubs   map[string]string // originalTransactionId -> cuenta
 	business    map[string]Business
 	bizImages   map[string]BusinessImage
+	gent        *memGente
 }
 
 type memAttachment struct {
