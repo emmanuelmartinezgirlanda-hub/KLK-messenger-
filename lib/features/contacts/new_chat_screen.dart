@@ -10,8 +10,6 @@ import 'device_contacts.dart';
 import 'new_contact_screen.dart';
 import '../../core/l10n/l10n.dart';
 import '../communities/communities_view.dart';
-import '../business/business.dart';
-import '../business/business_screens.dart';
 
 /// "Nuevo chat": buscador, accesos rápidos, contactos que usan KLK e invitar al resto.
 class NewChatScreen extends ConsumerStatefulWidget {
@@ -142,15 +140,6 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => Scaffold(appBar: AppBar(title: Text(tr('Comunidades'))), body: const CommunitiesView()))),
             ),
-            if (kBusinessFeatures)
-              _Action(
-                icon: Icons.storefront_rounded,
-                color: bizRed,
-                title: 'Negocios',
-                subtitle: 'Colmados, barberías, comida…',
-                onTap: () => Navigator.of(context)
-                    .push(MaterialPageRoute(builder: (_) => const BusinessDirectoryScreen())),
-              ),
           ],
           if (_loading)
             const Padding(
