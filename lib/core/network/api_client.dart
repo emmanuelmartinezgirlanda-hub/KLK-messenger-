@@ -26,7 +26,12 @@ class ApiClient {
   final String? token;
   static const _timeout = Duration(seconds: 75); // el servidor gratuito tarda en "despertar"
 
-  Uri _u(String path) => base.replace(path: '${base.path}$path');
+  Uri _u(String path) {
+    // "?…" va como consulta, no dentro de la ruta (si no, se convierte en %3F).
+    final i = path.indexOf('?');
+    if (i < 0) return base.replace(path: '${base.path}$path');
+    return base.replace(path: '${base.path}${path.substring(0, i)}', query: path.substring(i + 1));
+  }
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
