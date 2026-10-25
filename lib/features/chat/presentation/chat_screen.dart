@@ -831,7 +831,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 _editMessage(m);
               },
             ),
-          if (!m.deleted && !(m.media?.viewOnce ?? false))
+          if (!m.deleted && !(m.media?.viewOnce ?? false) && m.media?.type != MediaType.biz)
             ListTile(
               leading: const Icon(Icons.forward),
               title: Text(tr('Reenviar')),

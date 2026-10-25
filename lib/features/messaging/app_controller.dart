@@ -2342,7 +2342,7 @@ class AppController extends ChangeNotifier {
         await sendText(id, m.body);
       } else {
         // Se reenvía la copia local; "ver una vez" no se puede reenviar.
-        if (media.viewOnce) continue;
+        if (media.viewOnce || media.type == MediaType.biz) continue;
         final copy = MessageMedia(
           type: media.type,
           localPath: media.localPath,
