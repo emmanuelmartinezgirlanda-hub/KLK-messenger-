@@ -99,6 +99,7 @@ var privacyTmpl = template.Must(template.New("p").Parse(legalHead + `<title>Pol�
 <li><b>Denuncias</b>: si denuncias a alguien, recibimos su número y, si tú lo eliges, los mensajes que adjuntes, para revisar el caso.</li>
 <li><b>Ubicación</b> (solo si la envías en un chat): va cifrada; el servidor no la ve.</li>
 <li><b>San</b>: los turnos y pagos viajan cifrados dentro del chat. Los datos de banco que pongas para cobrar se guardan solo en tu móvil y se envían cifrados únicamente a quien organiza el san; el servidor no los ve. KLK no mueve dinero.</li>
+<li><b>Cuenta de negocio</b> (solo si la creas): el nombre, tipo, ciudad, horario, dirección y catálogo de tu negocio son <b>públicos</b> para que los clientes te encuentren. Los pedidos y citas viajan cifrados en el chat, como cualquier mensaje. La libreta del fiao se guarda solo en tu móvil.</li>
 <li><b>Recargas de móvil</b> (cuando estén disponibles): el número a recargar, el monto y el estado del pago. Los datos de tu tarjeta los trata directamente el procesador de pagos; KLK no los ve ni los guarda.</li>
 </ul></section>
 
