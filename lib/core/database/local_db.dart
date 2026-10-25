@@ -74,31 +74,31 @@ class LocalDb {
       key: key,
       version: 8,
       onUpgrade: (db, oldVersion, _) async {
-        if (oldVersion < 2) await db.execute('ALTER TABLE messages ADD COLUMN media_json TEXT');
-        if (oldVersion < 3) await db.execute('ALTER TABLE chats ADD COLUMN avatar_path TEXT');
+        if (oldVersion < 2) await _migrate(db, 'ALTER TABLE messages ADD COLUMN media_json TEXT');
+        if (oldVersion < 3) await _migrate(db, 'ALTER TABLE chats ADD COLUMN avatar_path TEXT');
         if (oldVersion < 4) {
           for (final sql in _v4) {
-            await db.execute(sql);
+            await _migrate(db, sql);
           }
         }
         if (oldVersion < 5) {
           for (final sql in _v5) {
-            await db.execute(sql);
+            await _migrate(db, sql);
           }
         }
         if (oldVersion < 6) {
           for (final sql in _v6) {
-            await db.execute(sql);
+            await _migrate(db, sql);
           }
         }
         if (oldVersion < 7) {
           for (final sql in _v7) {
-            await db.execute(sql);
+            await _migrate(db, sql);
           }
         }
         if (oldVersion < 8) {
           for (final sql in _v8) {
-            await db.execute(sql);
+            await _migrate(db, sql);
           }
         }
       },
@@ -132,9 +132,24 @@ class LocalDb {
           await db.execute(sql);
         }
       },
+      // Si alguien instaló una versión más vieja encima de una nueva, la base de
+      // datos queda con un número de versión más bajo que sus columnas: no pasa nada.
+      onDowngrade: (db, _, __) async {},
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
     );
     return LocalDb._(db);
+  }
+
+  /// Aplica un cambio de la base de datos. Si ya estaba hecho (columna o tabla que
+  /// ya existe, p. ej. tras instalar una versión vieja encima de una nueva), se salta.
+  static Future<void> _migrate(Database db, String sql) async {
+    try {
+      await db.execute(sql);
+    } on DatabaseException catch (e) {
+      final m = e.toString().toLowerCase();
+      if (m.contains('duplicate column') || m.contains('already exists')) return;
+      rethrow;
+    }
   }
 
   /// Borra el archivo de la base de datos (botón de pánico).

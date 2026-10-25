@@ -12,6 +12,7 @@ Future<Database> openKlkDatabase(
   required int version,
   required OnDatabaseCreateFn onCreate,
   required OnDatabaseVersionChangeFn onUpgrade,
+  OnDatabaseVersionChangeFn? onDowngrade,
   required OnDatabaseConfigureFn onConfigure,
 }) =>
     openDatabase(
@@ -20,6 +21,7 @@ Future<Database> openKlkDatabase(
       version: version,
       onCreate: onCreate,
       onUpgrade: onUpgrade,
+      onDowngrade: onDowngrade,
       onConfigure: onConfigure,
     );
 
