@@ -30,6 +30,7 @@ type Memory struct {
 	plus        map[string]time.Time
 	appleSubs   map[string]string // originalTransactionId -> cuenta
 	business    map[string]Business
+	bizImages   map[string]BusinessImage
 }
 
 type memAttachment struct {

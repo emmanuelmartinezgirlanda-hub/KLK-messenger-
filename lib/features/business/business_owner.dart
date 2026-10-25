@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../core/l10n/l10n.dart';
+import '../../core/util/share.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../communities/community.dart';
 import '../messaging/app_controller.dart';
+import 'biz_images.dart';
 import 'business.dart';
 import 'business_screens.dart';
 
@@ -44,7 +45,7 @@ class MyBusinessScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: bizRed, borderRadius: BorderRadius.circular(20)),
           child: Row(children: [
-            BizAvatar(biz: b, size: 56, onRed: true),
+            _LogoButton(biz: b),
             const SizedBox(width: 14),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -79,18 +80,26 @@ class MyBusinessScreen extends ConsumerWidget {
             tr('Libreta del fiao'),
             debtors == 0
                 ? tr('Nadie te debe')
-                : '$debtors ${tr('clientes')} · ${bizMoney(app.fiaoTotal, b.currency)}', () {
+                : '$debtors ${debtors == 1 ? tr('cliente') : tr('clientes')} · ${bizMoney(app.fiaoTotal, b.currency)}', () {
           Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FiaoScreen()));
         }),
         tile(Icons.visibility_outlined, tr('Ver como cliente'), tr('Así ven tu negocio los demás'), () {
           Navigator.of(context)
               .push(MaterialPageRoute(builder: (_) => BusinessProfileScreen(business: b, preview: true)));
         }),
-        tile(Icons.ios_share_rounded, tr('Compartir mi negocio'), tr('Para tus estados, WhatsApp o Instagram'), () {
-          Share.share('${b.kind.emoji} ${b.name}${b.city.isEmpty ? '' : ' (${b.city})'}\n'
-              '${tr('Haz tus pedidos por KLK messenger: busca')} «${b.name}» ${tr('en Comunidades → Negocios.')}\n'
-              'https://klkmessenger.com/');
-        }),
+        Builder(
+          // El Builder da la posición de la fila: iOS la necesita para abrir «Compartir».
+          builder: (tileContext) => tile(
+              Icons.ios_share_rounded, tr('Compartir mi negocio'), tr('Para tus estados, WhatsApp o Instagram'), () {
+            shareText(
+              tileContext,
+              '${b.kind.emoji} ${b.name}${b.city.isEmpty ? '' : ' (${b.city})'}\n'
+              '${tr('Mira mi catálogo y haz tu pedido por KLK messenger:')}\n'
+              '${app.bizShareLink(b.id)}',
+              subject: b.name,
+            );
+          }),
+        ),
         const Divider(height: 32),
         ListTile(
           leading: const Icon(Icons.close_rounded, color: Color(0xFFB3261E)),
@@ -120,6 +129,71 @@ class MyBusinessScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 24),
       ]),
+    );
+  }
+}
+
+/// El cuadrado del logo en «Mi negocio»: al tocarlo se pone o se cambia el logo.
+class _LogoButton extends ConsumerStatefulWidget {
+  final BizProfile biz;
+  const _LogoButton({required this.biz});
+
+  @override
+  ConsumerState<_LogoButton> createState() => _LogoButtonState();
+}
+
+class _LogoButtonState extends ConsumerState<_LogoButton> {
+  bool _busy = false;
+
+  Future<void> _change() async {
+    final b = widget.biz;
+    final messenger = ScaffoldMessenger.of(context);
+    final id = await pickAndUploadBizPhoto(context, ref,
+        hasPhoto: b.logo.isNotEmpty, maxSide: 512, onBusy: (v) {
+      if (mounted) setState(() => _busy = v);
+    });
+    if (id == null || id == b.logo || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final app = ref.read(appProvider);
+      await app.saveMyBusiness((app.myBusiness ?? b).copyWith(logo: id));
+      messenger.showSnackBar(SnackBar(content: Text(id.isEmpty ? tr('Logo quitado') : tr('Logo guardado'))));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('${tr('No se pudo guardar')}: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: widget.biz.logo.isEmpty ? tr('Poner logo') : tr('Cambiar logo'),
+      child: GestureDetector(
+        onTap: _busy ? null : _change,
+        child: Stack(clipBehavior: Clip.none, children: [
+          BizAvatar(biz: widget.biz, size: 56, onRed: true),
+          if (_busy)
+            const Positioned.fill(
+              child: Center(
+                  child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: bizRed))),
+            ),
+          Positioned(
+            right: -4,
+            bottom: -4,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF14181F),
+                shape: BoxShape.circle,
+                border: Border.all(color: bizRed, width: 2),
+              ),
+              child: const Icon(Icons.photo_camera_rounded, size: 13, color: Colors.white),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }
@@ -201,7 +275,16 @@ class _BusinessEditScreenState extends ConsumerState<BusinessEditScreen> {
   late int _close = widget.initial?.closeHour ?? 20;
   late Set<int> _days = {...(widget.initial?.days ?? const [1, 2, 3, 4, 5, 6])};
   late int _slot = widget.initial?.slotMin ?? 30;
+  late String _logo = widget.initial?.logo ?? '';
   bool _saving = false;
+  bool _uploadingLogo = false;
+
+  Future<void> _pickLogo() async {
+    final id = await pickAndUploadBizPhoto(context, ref, hasPhoto: _logo.isNotEmpty, maxSide: 512, onBusy: (v) {
+      if (mounted) setState(() => _uploadingLogo = v);
+    });
+    if (id != null && mounted) setState(() => _logo = id);
+  }
 
   @override
   void initState() {
@@ -248,6 +331,7 @@ class _BusinessEditScreenState extends ConsumerState<BusinessEditScreen> {
       closeHour: _close,
       days: (_days.toList()..sort()),
       slotMin: _slot,
+      logo: _logo,
       staff: _staff.text.split(',').map((x) => x.trim()).where((x) => x.isNotEmpty).take(10).toList(),
       quick: _quick.text.split('\n').map((x) => x.trim()).where((x) => x.isNotEmpty).take(12).toList(),
     );
@@ -280,10 +364,36 @@ class _BusinessEditScreenState extends ConsumerState<BusinessEditScreen> {
       appBar: AppBar(
         title: Text(widget.initial == null ? tr('Nuevo negocio') : tr('Editar negocio')),
         actions: [
-          TextButton(onPressed: _saving ? null : _save, child: Text(tr('Guardar'))),
+          TextButton(onPressed: _saving || _uploadingLogo ? null : _save, child: Text(tr('Guardar'))),
         ],
       ),
       body: ListView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), children: [
+        label(tr('Logo')),
+        Row(children: [
+          GestureDetector(
+            onTap: _uploadingLogo ? null : _pickLogo,
+            child: Stack(alignment: Alignment.center, children: [
+              BizAvatar(
+                biz: BizProfile(id: '', name: _name.text.trim().isEmpty ? '?' : _name.text.trim(), kind: _kind, logo: _logo),
+                size: 72,
+              ),
+              if (_uploadingLogo)
+                const SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)),
+            ]),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              OutlinedButton.icon(
+                onPressed: _uploadingLogo ? null : _pickLogo,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: Text(_logo.isEmpty ? tr('Poner logo') : tr('Cambiar logo')),
+              ),
+              Text(tr('Sale en tu perfil, en la búsqueda y cuando compartes tu negocio.'),
+                  style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6))),
+            ]),
+          ),
+        ]),
         label(tr('Tipo de negocio')),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final k in BizKind.values)
@@ -295,6 +405,7 @@ class _BusinessEditScreenState extends ConsumerState<BusinessEditScreen> {
           maxLength: 60,
           textCapitalization: TextCapitalization.words,
           decoration: InputDecoration(labelText: tr('Nombre del negocio'), hintText: tr('Ej.: Colmado Mi Gente')),
+          onChanged: (_) => setState(() {}), // las iniciales del logo
         ),
         TextField(
           controller: _about,
@@ -414,7 +525,7 @@ class _BusinessEditScreenState extends ConsumerState<BusinessEditScreen> {
         const SizedBox(height: 20),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: bizRed, minimumSize: const Size.fromHeight(52)),
-          onPressed: _saving ? null : _save,
+          onPressed: _saving || _uploadingLogo ? null : _save,
           child: _saving
               ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
               : Text(widget.initial == null ? tr('Crear mi negocio') : tr('Guardar cambios')),
@@ -558,6 +669,19 @@ class _CatalogEditScreenState extends ConsumerState<CatalogEditScreen> {
                       _dirty = true;
                     }),
                     child: ListTile(
+                      leading: it.img.isEmpty
+                          ? null
+                          : BizImage(
+                              id: it.img,
+                              size: 48,
+                              radius: 10,
+                              fallback: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: cs.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
                       title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                       subtitle: Text([
                         it.price == null ? tr('Consultar') : bizMoney(it.price!, b.currency),
@@ -575,22 +699,31 @@ class _CatalogEditScreenState extends ConsumerState<CatalogEditScreen> {
   }
 }
 
-class _ItemSheet extends StatefulWidget {
+class _ItemSheet extends ConsumerStatefulWidget {
   final BizItem? item;
   final BizProfile biz;
   const _ItemSheet({this.item, required this.biz});
 
   @override
-  State<_ItemSheet> createState() => _ItemSheetState();
+  ConsumerState<_ItemSheet> createState() => _ItemSheetState();
 }
 
-class _ItemSheetState extends State<_ItemSheet> {
+class _ItemSheetState extends ConsumerState<_ItemSheet> {
   late final _name = TextEditingController(text: widget.item?.name ?? '');
   late final _price = TextEditingController(
       text: widget.item?.price == null ? '' : NumberFormat('0.##', 'en').format(widget.item!.price));
   late final _cat = TextEditingController(text: widget.item?.cat ?? '');
   late final _desc = TextEditingController(text: widget.item?.desc ?? '');
   late int _minutes = widget.item?.minutes ?? 30;
+  late String _img = widget.item?.img ?? '';
+  bool _uploading = false;
+
+  Future<void> _pickPhoto() async {
+    final id = await pickAndUploadBizPhoto(context, ref, hasPhoto: _img.isNotEmpty, onBusy: (v) {
+      if (mounted) setState(() => _uploading = v);
+    });
+    if (id != null && mounted) setState(() => _img = id);
+  }
 
   @override
   void dispose() {
@@ -610,6 +743,43 @@ class _ItemSheetState extends State<_ItemSheet> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(widget.item == null ? (services ? tr('Nuevo servicio') : tr('Nuevo producto')) : tr('Editar'),
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          Row(children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: _uploading ? null : _pickPhoto,
+              child: Container(
+                width: 84,
+                height: 84,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: _uploading
+                    ? const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5)))
+                    : _img.isEmpty
+                        ? const Icon(Icons.add_a_photo_outlined, size: 30)
+                        : BizImage(
+                            id: _img,
+                            size: 84,
+                            radius: 16,
+                            fallback: const Center(child: Icon(Icons.image_outlined, size: 30)),
+                          ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                TextButton.icon(
+                  onPressed: _uploading ? null : _pickPhoto,
+                  icon: Icon(_img.isEmpty ? Icons.add_photo_alternate_outlined : Icons.edit_outlined),
+                  label: Text(_img.isEmpty ? tr('Añadir foto') : tr('Cambiar foto')),
+                ),
+                Text(tr('Opcional. Con foto se vende más.'),
+                    style: TextStyle(fontSize: 12.5, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6))),
+              ]),
+            ),
+          ]),
           TextField(
             controller: _name,
             autofocus: widget.item == null,
@@ -656,7 +826,7 @@ class _ItemSheetState extends State<_ItemSheet> {
           const SizedBox(height: 8),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: bizRed, minimumSize: const Size.fromHeight(50)),
-            onPressed: _name.text.trim().isEmpty
+            onPressed: _name.text.trim().isEmpty || _uploading
                 ? null
                 : () {
                     final price = double.tryParse(_price.text.trim().replaceAll(',', '.'));
@@ -669,6 +839,7 @@ class _ItemSheetState extends State<_ItemSheet> {
                         cat: services ? '' : _cat.text.trim(),
                         desc: _desc.text.trim(),
                         minutes: services ? _minutes : null,
+                        img: _img,
                       ),
                     );
                   },

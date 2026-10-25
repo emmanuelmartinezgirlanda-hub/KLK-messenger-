@@ -134,4 +134,35 @@ void main() {
     expect(daysLabel([1, 2, 3, 4, 5, 6, 7]), 'Todos los días');
     expect(daysLabel([1, 3, 5]), 'Lun, Mié, Vie');
   });
+
+  test('logo y fotos de productos', () {
+    const logo = '0f8fad5b-d9cb-469f-a165-70867728950e';
+    const foto = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+    const b = BizProfile(
+      id: 'acc',
+      name: 'Colmado La Gente',
+      kind: BizKind.colmado,
+      logo: logo,
+      items: [BizItem(id: '1', name: 'Arroz', price: 30, img: foto), BizItem(id: '2', name: 'Abichuela', price: 20)],
+    );
+    final back = BizProfile.tryParse(b.toJson())!;
+    expect(back.logo, logo);
+    expect(back.items.first.img, foto);
+    expect(back.items.last.img, '');
+    // Lo que no es un id de foto se ignora
+    final bad = BizProfile.tryParse({
+      'name': 'X negocio',
+      'kind': 'colmado',
+      'data': {
+        'logo': 'javascript:alert(1)',
+        'items': [
+          {'id': '1', 'n': 'Arroz', 'img': '../../etc/passwd'}
+        ]
+      },
+    })!;
+    expect(bad.logo, '');
+    expect(bad.items.single.img, '');
+    expect(b.copyWith(logo: '').logo, '');
+    expect(b.items.first.copyWith(img: '').img, '');
+  });
 }

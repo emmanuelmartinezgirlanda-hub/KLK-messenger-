@@ -9,6 +9,7 @@ import '../chat/presentation/chat_sheets.dart';
 import '../communities/community.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
+import 'biz_images.dart';
 import 'business.dart';
 
 const _rojo = KlkBrand.rojoPatria;
@@ -23,17 +24,27 @@ class BizAvatar extends StatelessWidget {
   const BizAvatar({super.key, required this.biz, this.size = 48, this.onRed = false});
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: onRed ? Colors.white : _rojo,
-          borderRadius: BorderRadius.circular(size * 0.28),
-        ),
-        child: Text(biz.initials,
-            style: TextStyle(color: onRed ? _rojo : Colors.white, fontWeight: FontWeight.w800, fontSize: size * 0.34)),
-      );
+  Widget build(BuildContext context) {
+    final initials = Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: onRed ? Colors.white : _rojo,
+        borderRadius: BorderRadius.circular(size * 0.28),
+      ),
+      child: Text(biz.initials,
+          style: TextStyle(color: onRed ? _rojo : Colors.white, fontWeight: FontWeight.w800, fontSize: size * 0.34)),
+    );
+    if (biz.logo.isEmpty) return initials;
+    // El logo va sobre fondo blanco (muchos logos tienen fondo transparente).
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(size * 0.28)),
+      child: BizImage(id: biz.logo, size: size, radius: size * 0.28, fallback: initials),
+    );
+  }
 }
 
 class VerifiedMark extends StatelessWidget {
@@ -387,7 +398,10 @@ class _BusinessProfileScreenState extends ConsumerState<BusinessProfileScreen> {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                BizAvatar(biz: b, size: 64, onRed: true),
+                GestureDetector(
+                  onTap: b.logo.isEmpty ? null : () => showBizPhoto(context, ref, b.logo, title: b.name),
+                  child: BizAvatar(biz: b, size: 64, onRed: true),
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -468,6 +482,21 @@ class _BusinessProfileScreenState extends ConsumerState<BusinessProfileScreen> {
             final q = _cart[it.id] ?? 0;
             final price = it.price == null ? tr('Consultar') : bizMoney(it.price!, b.currency);
             return ListTile(
+              leading: it.img.isEmpty
+                  ? null
+                  : GestureDetector(
+                      onTap: () => showBizPhoto(context, ref, it.img, title: it.name),
+                      child: BizImage(
+                        id: it.img,
+                        size: 56,
+                        fallback: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
               title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.w700)),
               subtitle: Text([
                 price,

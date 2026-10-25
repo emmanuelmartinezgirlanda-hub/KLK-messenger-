@@ -30,6 +30,13 @@ class San {
   /// "got" (quien cobra confirmó que le llegó).
   final Map<int, String> outs;
 
+  /// Fotos (miniaturas JPEG en base64) de la gente que NO tiene KLK, por su id.
+  /// Las pone quien organiza; los que tienen KLK salen con su foto de perfil.
+  final Map<String, String> photos;
+
+  /// Máximo de bytes de todas las fotos juntas (el san viaja en un mensaje).
+  static const maxPhotoBytes = 36 * 1024;
+
   const San({
     required this.name,
     required this.amount,
@@ -41,6 +48,7 @@ class San {
     this.pays = const {},
     this.ended = false,
     this.outs = const {},
+    this.photos = const {},
   });
 
   int get rounds => slots.length;
@@ -96,7 +104,7 @@ class San {
   String get periodLabel => switch (period) { 'week' => 'cada semana', '2week' => 'cada quincena', _ => 'cada mes' };
   String get periodShort => switch (period) { 'week' => 'semanal', '2week' => 'quincenal', _ => 'mensual' };
 
-  San copyWith({Map<String, SanPay>? pays, bool? ended, Map<int, String>? outs}) => San(
+  San copyWith({Map<String, SanPay>? pays, bool? ended, Map<int, String>? outs, Map<String, String>? photos}) => San(
         name: name,
         amount: amount,
         currency: currency,
@@ -107,6 +115,7 @@ class San {
         pays: pays ?? this.pays,
         ended: ended ?? this.ended,
         outs: outs ?? this.outs,
+        photos: photos ?? this.photos,
       );
 
   Map<String, dynamic> toJson() => {
@@ -121,6 +130,7 @@ class San {
         if (pays.isNotEmpty) 'py': {for (final e in pays.entries) if (e.value != SanPay.none) e.key: e.value.name},
         if (ended) 'e': true,
         if (outs.isNotEmpty) 'out': {for (final e in outs.entries) '${e.key}': e.value},
+        if (photos.isNotEmpty) 'ph': photos,
       };
 
   static San? tryParse(Object? raw) {
@@ -141,6 +151,16 @@ class San {
         final r = int.tryParse('${e.key}');
         if (r != null && r >= 0 && r < slots.length && (e.value == 'sent' || e.value == 'got')) outs[r] = e.value as String;
       }
+      final ids = {for (final s in slots) s.id};
+      final photos = <String, String>{};
+      var photoBytes = 0;
+      for (final e in ((j['ph'] as Map?) ?? const {}).entries) {
+        final v = e.value;
+        if (e.key is! String || v is! String || !ids.contains(e.key) || !(e.key as String).startsWith('x:')) continue;
+        if (photoBytes + v.length > maxPhotoBytes) break;
+        photoBytes += v.length;
+        photos[e.key as String] = v;
+      }
       return San(
         name: (j['n'] as String? ?? 'San').trim(),
         amount: (j['a'] as num?)?.toDouble() ?? 0,
@@ -152,6 +172,7 @@ class San {
         pays: pays,
         ended: j['e'] == true,
         outs: outs,
+        photos: photos,
       );
     } catch (_) {
       return null;

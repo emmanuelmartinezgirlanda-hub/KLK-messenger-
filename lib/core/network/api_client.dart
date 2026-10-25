@@ -188,6 +188,38 @@ class ApiClient {
 
   Future<void> deleteBusiness() => _send('DELETE', '/v1/business/me');
 
+  /// Sube el logo o la foto de un producto (es pública). Devuelve su id.
+  Future<String> uploadBusinessImage(List<int> bytes) async {
+    http.Response res;
+    try {
+      res = await http
+          .post(_u('/v1/business/me/images'),
+              headers: {'Content-Type': 'application/octet-stream', if (token != null) 'Authorization': 'Bearer $token'},
+              body: bytes)
+          .timeout(const Duration(minutes: 2));
+    } on Exception {
+      throw const ApiException(0, 'network', 'No se pudo subir la foto. Revisa tu conexión.');
+    }
+    if (res.statusCode != 201) {
+      var msg = 'No se pudo subir la foto (${res.statusCode}).';
+      try {
+        final j = jsonDecode(res.body);
+        if (j is Map && j['message'] is String) msg = j['message'] as String;
+        if (j is Map && j['error'] is Map && (j['error'] as Map)['message'] is String) {
+          msg = (j['error'] as Map)['message'] as String;
+        }
+      } catch (_) {}
+      throw ApiException(res.statusCode, 'upload', msg);
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['id'] as String;
+  }
+
+  /// Dirección pública de una foto del negocio.
+  String businessImageUrl(String id) => _u('/v1/business/img/$id').toString();
+
+  /// Página pública del negocio (para compartir por WhatsApp, Instagram…).
+  String businessPageUrl(String accountId) => _u('/n/${Uri.encodeComponent(accountId)}').toString();
+
   Future<Map<String, dynamic>> business(String accountId) async =>
       await _send('GET', '/v1/business/${Uri.encodeComponent(accountId)}') as Map<String, dynamic>;
 

@@ -52,6 +52,9 @@ func (s *Server) businessRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/business/me", s.authed(s.deleteBusiness))
 	mux.HandleFunc("GET /v1/business/{id}", s.authed(s.getBusiness))
 	mux.HandleFunc("GET /v1/business", s.authed(s.searchBusinesses))
+	mux.HandleFunc("POST /v1/business/me/images", s.authed(s.uploadBusinessImage))
+	mux.HandleFunc("GET /v1/business/img/{id}", s.getBusinessImage)
+	mux.HandleFunc("GET /n/{id}", s.businessPage)
 }
 
 // GET /v1/business/me: mi perfil de negocio (404 si no tengo).
@@ -126,14 +129,20 @@ func (s *Server) putBusiness(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return
 	}
+	s.pruneBusinessImages(r, dev.AccountID, data)
 	s.writeBusiness(w, r, dev.AccountID)
 }
 
 // DELETE /v1/business/me: dejar de ser negocio (vuelvo a cuenta normal).
 func (s *Server) deleteBusiness(w http.ResponseWriter, r *http.Request) {
-	if err := s.store.DeleteBusiness(r.Context(), deviceFrom(r).AccountID); err != nil {
+	acc := deviceFrom(r).AccountID
+	if err := s.store.DeleteBusiness(r.Context(), acc); err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return
+	}
+	// Ya no es negocio: sus fotos dejan de ser públicas.
+	if _, err := s.store.PruneBusinessImages(r.Context(), acc, nil, time.Now().Add(time.Minute)); err != nil {
+		slog.Warn("borrar fotos de negocio", "err", err)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

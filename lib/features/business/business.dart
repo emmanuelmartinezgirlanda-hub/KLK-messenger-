@@ -46,6 +46,14 @@ double? _price(Object? v) {
   return d;
 }
 
+final _imageIdRe = RegExp(r'^[0-9a-fA-F-]{36}$');
+
+/// Id de una foto del negocio (logo o producto) o '' si no vale.
+String bizImageId(Object? v) {
+  final t = v is String ? v.trim() : '';
+  return _imageIdRe.hasMatch(t) ? t : '';
+}
+
 /// Un producto o servicio del catálogo.
 class BizItem {
   final String id;
@@ -54,8 +62,10 @@ class BizItem {
   final String desc;
   final String cat; // categoría (Despensa, Bebidas…)
   final int? minutes; // servicios: cuánto dura
+  final String img; // id de la foto en el servidor ('' = sin foto)
 
-  const BizItem({required this.id, required this.name, this.price, this.desc = '', this.cat = '', this.minutes});
+  const BizItem(
+      {required this.id, required this.name, this.price, this.desc = '', this.cat = '', this.minutes, this.img = ''});
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -64,6 +74,7 @@ class BizItem {
         if (desc.isNotEmpty) 'd': desc,
         if (cat.isNotEmpty) 'c': cat,
         if (minutes != null) 'm': minutes,
+        if (img.isNotEmpty) 'img': img,
       };
 
   static BizItem? tryParse(Object? j) {
@@ -79,10 +90,12 @@ class BizItem {
       desc: _s(j['d'], 200),
       cat: _s(j['c'], 30),
       minutes: m == null || m < 5 || m > 600 ? null : m,
+      img: bizImageId(j['img']),
     );
   }
 
-  BizItem copyWith({String? name, double? price, bool clearPrice = false, String? desc, String? cat, int? minutes}) =>
+  BizItem copyWith(
+          {String? name, double? price, bool clearPrice = false, String? desc, String? cat, int? minutes, String? img}) =>
       BizItem(
         id: id,
         name: name ?? this.name,
@@ -90,6 +103,7 @@ class BizItem {
         desc: desc ?? this.desc,
         cat: cat ?? this.cat,
         minutes: minutes ?? this.minutes,
+        img: img ?? this.img,
       );
 }
 
@@ -114,6 +128,7 @@ class BizProfile {
   final List<String> staff; // citas: quién atiende ("Juan", "Miguel")
   final List<String> quick; // respuestas rápidas
   final List<BizItem> items;
+  final String logo; // id de la foto del logo ('' = se ven las iniciales)
 
   const BizProfile({
     required this.id,
@@ -133,6 +148,7 @@ class BizProfile {
     this.staff = const [],
     this.quick = const [],
     this.items = const [],
+    this.logo = '',
   });
 
   static const maxItems = 200;
@@ -148,6 +164,7 @@ class BizProfile {
         'slot': slotMin,
         if (staff.isNotEmpty) 'staff': staff,
         if (quick.isNotEmpty) 'quick': quick,
+        if (logo.isNotEmpty) 'logo': logo,
         'items': [for (final i in items.take(maxItems)) i.toJson()],
       };
 
@@ -206,6 +223,7 @@ class BizProfile {
           for (final x in (d['items'] as List).take(maxItems))
             if (BizItem.tryParse(x) != null) BizItem.tryParse(x)!
       ],
+      logo: bizImageId(d['logo']),
     );
   }
 
@@ -225,6 +243,7 @@ class BizProfile {
     List<String>? staff,
     List<String>? quick,
     List<BizItem>? items,
+    String? logo,
   }) =>
       BizProfile(
         id: id,
@@ -244,6 +263,7 @@ class BizProfile {
         staff: staff ?? this.staff,
         quick: quick ?? this.quick,
         items: items ?? this.items,
+        logo: logo ?? this.logo,
       );
 
   String get initials {

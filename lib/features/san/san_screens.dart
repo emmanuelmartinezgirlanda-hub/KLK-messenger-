@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/l10n/l10n.dart';
 import '../chat/presentation/chat_avatar.dart';
@@ -33,7 +36,83 @@ class _Person {
   final String id, name;
   bool on = true;
   int numbers = 1;
-  _Person(this.id, this.name);
+  String? photo; // miniatura en base64 (solo gente sin KLK)
+  _Person(this.id, this.name, {this.photo});
+
+  bool get noKlk => id.startsWith('x:');
+}
+
+// =====================================================================
+// Fotos de la gente del san
+// =====================================================================
+
+final _photoCache = <String, Uint8List>{};
+
+Uint8List? _decodePhoto(String? b64) {
+  if (b64 == null || b64.isEmpty) return null;
+  final hit = _photoCache[b64];
+  if (hit != null) return hit;
+  try {
+    final bytes = base64Decode(b64);
+    if (_photoCache.length > 200) _photoCache.clear();
+    return _photoCache[b64] = bytes;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Foto redonda de alguien del san: su foto de perfil de KLK si la tengo,
+/// la que le puso quien organiza si no tiene KLK, o su inicial.
+class SanAvatar extends ConsumerWidget {
+  final String id;
+  final String name;
+  final String? photo; // base64 (gente sin KLK)
+  final double radius;
+  const SanAvatar({super.key, required this.id, required this.name, this.photo, this.radius = 18});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bytes = _decodePhoto(photo);
+    if (bytes != null) {
+      return CircleAvatar(radius: radius, backgroundImage: MemoryImage(bytes));
+    }
+    final app = ref.read(appProvider);
+    final path = id == app.myId ? app.profile.photoPath : app.chatById(id)?.avatarPath;
+    return ChatAvatar(id: id, title: name, photoPath: path, radius: radius);
+  }
+}
+
+/// Foto de la persona con el número de su turno encima.
+class _TurnAvatar extends StatelessWidget {
+  final int n;
+  final Color color;
+  final Widget avatar;
+  const _TurnAvatar({required this.n, required this.avatar, this.color = _azul});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 44,
+        height: 40,
+        child: Stack(clipBehavior: Clip.none, children: [
+          Positioned(left: 0, top: 2, child: avatar),
+          Positioned(
+            right: 0,
+            bottom: -2,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 20),
+              height: 20,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
+              ),
+              child: Text('$n', style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ]),
+      );
 }
 
 // =====================================================================
@@ -86,6 +165,12 @@ class _SanCreateScreenState extends ConsumerState<SanCreateScreen> {
     }
     final c = widget.copyFrom;
     if (c != null) {
+      // La gente sin KLK del san anterior (con su foto)
+      for (final sl in c.slots) {
+        if (sl.id.startsWith('x:') && !_people.any((p) => p.id == sl.id)) {
+          _people.add(_Person(sl.id, sl.name, photo: c.photos[sl.id]));
+        }
+      }
       _name.text = c.name;
       _amount.text = c.amount == c.amount.roundToDouble() ? c.amount.toInt().toString() : c.amount.toString();
       _currency = c.currency;
@@ -172,7 +257,69 @@ class _SanCreateScreenState extends ConsumerState<SanCreateScreen> {
       start: _start,
       organizer: app.myId,
       slots: _order,
+      photos: {
+        for (final p in _people)
+          if (p.on && p.noKlk && p.photo != null) p.id: p.photo!,
+      },
     );
+  }
+
+  int get _photoBytes => _people.fold(0, (n, p) => n + (p.on && p.photo != null ? p.photo!.length : 0));
+
+  /// Ponerle (o quitarle) la foto a alguien que no tiene KLK.
+  Future<void> _photoFor(_Person p) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Text('${tr('Foto de')} ${p.name}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: Text(tr('Elegir de la galería')),
+            onTap: () => Navigator.pop(ctx, 'gallery'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: Text(tr('Hacer una foto')),
+            onTap: () => Navigator.pop(ctx, 'camera'),
+          ),
+          if (p.photo != null)
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A)),
+              title: Text(tr('Quitar foto'), style: const TextStyle(color: Color(0xFFFF6B7A))),
+              onTap: () => Navigator.pop(ctx, 'remove'),
+            ),
+        ]),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'remove') {
+      setState(() => p.photo = null);
+      return;
+    }
+    try {
+      // Miniatura pequeña: el san viaja dentro de un mensaje cifrado.
+      final x = await ImagePicker().pickImage(
+        source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+        maxWidth: 96,
+        maxHeight: 96,
+        imageQuality: 70,
+      );
+      if (x == null || !mounted) return;
+      final b64 = base64Encode(await x.readAsBytes());
+      if (!mounted) return;
+      if (_photoBytes - (p.photo?.length ?? 0) + b64.length > San.maxPhotoBytes) {
+        _snack(tr('Ya hay muchas fotos en este san. Quita alguna para poner esta.'));
+        return;
+      }
+      setState(() => p.photo = b64);
+    } catch (_) {
+      if (mounted) _snack(tr('KLK no tiene permiso para tus fotos o la cámara. Actívalo en Ajustes del iPhone → KLK.'));
+    }
   }
 
   Future<void> _pickDate() async {
@@ -303,13 +450,36 @@ class _SanCreateScreenState extends ConsumerState<SanCreateScreen> {
           child: Column(children: [
             for (final p in _people)
               ListTile(
-                leading: Checkbox(
-                  value: p.on,
-                  onChanged: (v) => setState(() {
-                    p.on = v ?? false;
-                    _rebuildOrder();
-                  }),
-                ),
+                contentPadding: const EdgeInsets.only(left: 4, right: 12),
+                leading: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Checkbox(
+                    value: p.on,
+                    onChanged: (v) => setState(() {
+                      p.on = v ?? false;
+                      _rebuildOrder();
+                    }),
+                  ),
+                  GestureDetector(
+                    onTap: p.noKlk ? () => _photoFor(p) : null,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      SanAvatar(id: p.id, name: p.name, photo: p.photo, radius: 18),
+                      if (p.noKlk)
+                        Positioned(
+                          right: -3,
+                          bottom: -3,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: _verde,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: cs.surface, width: 1.5),
+                            ),
+                            child: const Icon(Icons.photo_camera_rounded, size: 10, color: Colors.white),
+                          ),
+                        ),
+                    ]),
+                  ),
+                ]),
                 title: Text(p.id == ref.read(appProvider).myId ? '${p.name} (${tr('tú')})' : p.name,
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: p.on ? Text(p.numbers == 1 ? tr('1 número') : '${p.numbers} ${tr('números')}') : null,
@@ -356,7 +526,8 @@ class _SanCreateScreenState extends ConsumerState<SanCreateScreen> {
           padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
           child: Text(
               '${tr('Con 2 números, esa persona pone el doble y cobra dos veces.')} '
-              '${tr('Puedes añadir gente que no está en este chat (o que no tiene KLK): tú llevas sus pagos. Solo ven el san los de este chat; para que lo vean todos, créalo en un grupo.')}',
+              '${tr('Puedes añadir gente que no está en este chat (o que no tiene KLK): tú llevas sus pagos. Solo ven el san los de este chat; para que lo vean todos, créalo en un grupo.')} '
+              '${tr('A quien no tiene KLK puedes ponerle una foto tocando su círculo.')}',
               style: TextStyle(fontSize: 12.5, color: muted)),
         ),
         Row(children: [
@@ -402,7 +573,11 @@ class _SanCreateScreenState extends ConsumerState<SanCreateScreen> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: ListTile(
-                  leading: _TurnBadge(n: i + 1),
+                  leading: _TurnAvatar(
+                    n: i + 1,
+                    avatar: SanAvatar(
+                        id: s.id, name: s.name, photo: _people.where((p) => p.id == s.id).firstOrNull?.photo),
+                  ),
                   title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                   subtitle: Text(sanDate(preview.dateOf(i), lang)),
                   trailing: amountOk
@@ -461,20 +636,6 @@ class _SanHero extends StatelessWidget {
             ),
           ),
         ]),
-      );
-}
-
-class _TurnBadge extends StatelessWidget {
-  final int n;
-  final Color color;
-  const _TurnBadge({required this.n, this.color = _azul});
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 34,
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        child: Text('$n', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
       );
 }
 
@@ -967,7 +1128,14 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.handshake_rounded, color: Colors.white, size: 26),
+              if (started && !finished)
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  child: SanAvatar(id: san.slots[r].id, name: san.slots[r].name, photo: san.photos[san.slots[r].id], radius: 20),
+                )
+              else
+                const Icon(Icons.handshake_rounded, color: Colors.white, size: 26),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1115,8 +1283,9 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
               child: Column(children: [
                 ListTile(
                   onTap: () => setState(() => _open = open == i ? -1 : i),
-                  leading: _TurnBadge(
+                  leading: _TurnAvatar(
                       n: i + 1,
+                      avatar: SanAvatar(id: san.slots[i].id, name: san.slots[i].name, photo: san.photos[san.slots[i].id]),
                       color: san.roundComplete(i) ? _oro : (i == r && started && !finished ? _verde : _azul)),
                   title: Text(san.slots[i].id == me ? '${san.slots[i].name} (${tr('tú')})' : san.slots[i].name,
                       style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -1146,6 +1315,7 @@ class _SanDetailScreenState extends ConsumerState<SanDetailScreen> {
                       for (var s = 0; s < san.slots.length; s++)
                         _PayRow(
                           slot: san.slots[s],
+                          photo: san.photos[san.slots[s].id],
                           number: s + 1,
                           pay: san.payOf(i, s),
                           me: san.slots[s].id == me,
@@ -1375,9 +1545,16 @@ class _PayRow extends StatelessWidget {
   final SanPay pay;
   final bool me;
   final String amount;
+  final String? photo;
   final VoidCallback? onTap;
   const _PayRow(
-      {required this.slot, required this.number, required this.pay, required this.me, required this.amount, this.onTap});
+      {required this.slot,
+      required this.number,
+      required this.pay,
+      required this.me,
+      required this.amount,
+      this.photo,
+      this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1390,7 +1567,7 @@ class _PayRow extends StatelessWidget {
       dense: true,
       onTap: onTap,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      leading: ChatAvatar(id: slot.id, title: slot.name, radius: 16),
+      leading: SanAvatar(id: slot.id, name: slot.name, photo: photo, radius: 16),
       title: Text(me ? '${slot.name} (${tr('tú')})' : slot.name, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text('#$number · $amount'),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [

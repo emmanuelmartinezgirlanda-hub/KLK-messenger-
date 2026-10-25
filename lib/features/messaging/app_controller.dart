@@ -850,7 +850,8 @@ class AppController extends ChangeNotifier {
           period: san.period,
           start: san.start,
           organizer: from,
-          slots: san.slots);
+          slots: san.slots,
+          photos: san.photos);
       media = media.copyWith(san: fixed.toJson());
     }
     if (media?.type == MediaType.biz) {
@@ -1552,6 +1553,21 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     return saved;
   }
+
+  /// Sube una foto del negocio (logo o producto) y devuelve su id.
+  Future<String> uploadBizImage(List<int> bytes) async {
+    if (isDemo || _api == null) {
+      throw const ApiException(0, 'demo', 'En el modo demo no se pueden subir fotos.');
+    }
+    return _api!.uploadBusinessImage(bytes);
+  }
+
+  /// Dirección de una foto del negocio (null si no hay o en el modo demo).
+  String? bizImageUrl(String id) => id.isEmpty || _api == null ? null : _api!.businessImageUrl(id);
+
+  /// Enlace para compartir un negocio: su página pública con logo y catálogo.
+  String bizShareLink(String accountId) =>
+      _api == null ? 'https://klkmessenger.com/' : _api!.businessPageUrl(accountId);
 
   /// Vuelvo a ser cuenta normal: el perfil deja de ser público.
   Future<void> closeMyBusiness() async {

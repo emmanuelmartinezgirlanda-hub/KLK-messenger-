@@ -55,4 +55,29 @@ void main() {
     expect(formatSanMoney(10000, 'RD\$'), 'RD\$ 10.000');
     expect(formatSanMoney(50, '€'), '50 €');
   });
+
+  test('fotos de la gente sin KLK', () {
+    final s = San(
+      name: 'San',
+      amount: 500,
+      currency: 'RD\$',
+      period: 'month',
+      start: DateTime(2026, 11, 1),
+      organizer: 'ana',
+      slots: const [SanSlot('ana', 'Ana'), SanSlot('x:1', 'Doña Rosa'), SanSlot('luis', 'Luis')],
+      photos: const {'x:1': 'AAAA', 'luis': 'BBBB', 'x:fuera': 'CCCC'},
+    );
+    final back = San.tryParse(s.toJson())!;
+    // Solo se guardan las de gente sin KLK que está en el san
+    expect(back.photos, {'x:1': 'AAAA'});
+    // Los cambios de pagos no las pierden
+    final paid = back.apply({'a': 'pay', 'r': 0, 's': 1, 'v': 'paid'}, 'ana')!;
+    expect(paid.photos, {'x:1': 'AAAA'});
+    // Demasiadas fotos: se cortan
+    final big = San.tryParse({
+      ...s.toJson(),
+      'ph': {'x:1': 'A' * (San.maxPhotoBytes + 1)},
+    })!;
+    expect(big.photos, isEmpty);
+  });
 }
