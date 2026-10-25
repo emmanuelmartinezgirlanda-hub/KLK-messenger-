@@ -16,6 +16,7 @@ func (m *Memory) DeleteAccount(_ context.Context, acc string) error {
 	delete(m.accounts, acc)
 	delete(m.plus, acc)
 	delete(m.business, acc)
+	m.deleteGenteLocked(acc)
 	for id, img := range m.bizImages {
 		if img.Owner == acc {
 			delete(m.bizImages, id)

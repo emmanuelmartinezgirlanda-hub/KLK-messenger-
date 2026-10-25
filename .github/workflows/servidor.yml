@@ -1,0 +1,35 @@
+# Prueba el servidor contra un Postgres de verdad (el mismo tipo de base de datos que Render).
+name: Servidor con Postgres
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/servidor.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: klk
+          POSTGRES_DB: klk
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Tests (Postgres)
+        working-directory: server
+        env:
+          KLK_TEST_DATABASE_URL: postgres://postgres:klk@localhost:5432/klk?sslmode=disable
+        run: go test -p 1 ./...

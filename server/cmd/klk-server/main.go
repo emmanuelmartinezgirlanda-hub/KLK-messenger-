@@ -230,6 +230,12 @@ func purgeAttachments(ctx context.Context, st store.Store) {
 		} else if n > 0 {
 			slog.Info("adjuntos caducados borrados", "n", n)
 		}
+		// Mi Gente: fotos subidas que nunca se llegaron a publicar.
+		if n, err := st.PurgeGenteImages(ctx, time.Now().Add(-24*time.Hour)); err != nil {
+			slog.Warn("purga de fotos de Mi Gente", "err", err)
+		} else if n > 0 {
+			slog.Info("fotos de Mi Gente sin publicar borradas", "n", n)
+		}
 		select {
 		case <-ctx.Done():
 			return

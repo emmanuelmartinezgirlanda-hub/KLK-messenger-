@@ -61,6 +61,8 @@ type Server struct {
 
 	// Cupos diarios por cuenta (antiabuso).
 	lookupQuota, bundleQuota, uploadCount, uploadBytes dailyQuota
+	// Mi Gente
+	gentePosts, genteComms, genteLikes, genteImages dailyQuota
 
 	// TURN da credenciales temporales del «puente» de las llamadas (nil = solo STUN).
 	TURN *turn.Cache
@@ -117,6 +119,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /c/{digits}", s.contactPage)
 
 	s.businessRoutes(mux)
+	s.genteRoutes(mux)
 	s.adminRoutes(mux)
 	s.topupRoutes(mux)
 

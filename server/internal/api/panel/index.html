@@ -105,6 +105,7 @@ table{width:100%;border-collapse:collapse}
   <nav role="tablist">
     <button data-tab="home" aria-selected="true">Resumen</button>
     <button data-tab="reports">Denuncias<span class="badge" id="repBadge" hidden></span></button>
+    <button data-tab="gente">Mi Gente</button>
     <button data-tab="news">Avisos</button>
     <button data-tab="banned">Bloqueados</button>
     <button data-tab="money">Dinero</button>
@@ -124,7 +125,7 @@ const ago=v=>{if(!v)return"nunca";const m=(Date.now()-new Date(v))/60000;if(m<2)
 const reasons={spam:"Spam",acoso:"Acoso",estafa:"Estafa",ofensivo:"Ofensivo",otro:"Otro"};
 const countries={"+1809":"🇩🇴 RD","+1829":"🇩🇴 RD","+1849":"🇩🇴 RD","+1":"🇺🇸 EE. UU.","+34":"🇪🇸 España","+353":"🇮🇪 Irlanda","+44":"🇬🇧 R. Unido","+39":"🇮🇹 Italia","+33":"🇫🇷 Francia","+49":"🇩🇪 Alemania","+41":"🇨🇭 Suiza","+31":"🇳🇱 P. Bajos","+32":"🇧🇪 Bélgica","+351":"🇵🇹 Portugal","+52":"🇲🇽 México","+57":"🇨🇴 Colombia","+58":"🇻🇪 Venezuela","+507":"🇵🇦 Panamá","+506":"🇨🇷 Costa Rica","+509":"🇭🇹 Haití"};
 
-let token="", tab="home", data={stats:null,reports:null,news:null,banned:null}, showAll=false;
+let token="", tab="home", data={stats:null,reports:null,news:null,banned:null,gente:null}, showAll=false;
 try{token=localStorage.getItem("klk_admin")||sessionStorage.getItem("klk_admin")||""}catch(e){}
 
 function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("show"),2600)}
@@ -158,8 +159,8 @@ async function login(){
 
 async function loadAll(){
   try{
-    const [s,r,n,b,tp]=await Promise.all([api("stats"),api("reports"+(showAll?"?all=1":"")),api("announcements"),api("banned"),api("topups").catch(()=>({topups:[]}))]);
-    data.stats=s;data.reports=r.reports;data.news=n.announcements;data.banned=b.accounts;data.topups=tp.topups||[];
+    const [s,r,n,b,tp,g]=await Promise.all([api("stats"),api("reports"+(showAll?"?all=1":"")),api("announcements"),api("banned"),api("topups").catch(()=>({topups:[]})),api("gente").catch(()=>({posts:[]}))]);
+    data.stats=s;data.reports=r.reports;data.news=n.announcements;data.banned=b.accounts;data.topups=tp.topups||[];data.gente=g.posts||[];
     $("#updated").textContent="Actualizado "+new Date().toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"});
     const open=s.stats.openReports;$("#repBadge").hidden=!open;$("#repBadge").textContent=open;
     render();
@@ -217,8 +218,34 @@ function renderReports(){
       ${r.messages&&r.messages.length?`<ul class="msgs">${r.messages.map(m=>`<li>${esc(m)}</li>`).join("")}</ul>`:`<p class="muted small">No adjuntó mensajes.</p>`}
       <div class="actions">
         ${banned?`<button class="btn" data-unban="${esc(a.id)}">Desbloquear</button>`:`<button class="btn danger" data-ban="${esc(a.id)}" data-reason="${esc(reasons[r.reason]||r.reason)}">Bloquear cuenta</button>`}
+        ${genteBtn(r.messages)}
         ${r.resolvedAt?"":`<button class="btn" data-resolve="${esc(r.id)}">Marcar como revisada</button>`}
       </div></div>`}).join("");
+}
+
+function genteBtn(msgs){
+  const m=(msgs||[])[0]||"";
+  let x=m.match(/^\[Mi Gente\] publicación ([0-9a-f-]{36})$/);
+  if(x)return `<button class="btn danger" data-delpost="${esc(x[1])}">Borrar publicación</button>`;
+  x=m.match(/^\[Mi Gente\] comentario ([0-9a-f-]{36})$/);
+  if(x)return `<button class="btn danger" data-delcomment="${esc(x[1])}">Borrar comentario</button>`;
+  return "";
+}
+
+function renderGente(){
+  const list=data.gente||[];
+  const head=`<p class="muted small" style="margin:0 4px 12px">📰 Las últimas 50 publicaciones de <b>KLK Mi Gente</b>. Esto es público (no va cifrado): puedes borrar lo que incumpla las normas. Lo denunciado te llega también a <b>Denuncias</b>.</p>`;
+  if(!list.length)return head+`<div class="card empty">Todavía nadie ha publicado.</div>`;
+  return head+list.map(p=>`<div class="card rep">
+      <div class="top"><b>${esc(p.author.name||"Sin nombre")}</b>
+        ${p.country?`<span class="tag">${esc(p.country)}</span>`:""}
+        <span class="muted small">${dt(p.createdAt)} · ❤️ ${p.likes} · 💬 ${p.comments}</span></div>
+      ${p.text?`<p style="margin:10px 0 0;white-space:pre-wrap">${esc(p.text)}</p>`:""}
+      ${p.photos&&p.photos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${p.photos.map(id=>`<img src="/v1/gente/img/${esc(id)}" alt="" style="width:96px;height:96px;object-fit:cover;border-radius:10px">`).join("")}</div>`:""}
+      <div class="actions">
+        <button class="btn danger" data-delpost="${esc(p.id)}">Borrar publicación</button>
+        <button class="btn" data-ban="${esc(p.author.id)}" data-reason="Mi Gente">Bloquear cuenta</button>
+      </div></div>`).join("");
 }
 
 function renderNews(){
@@ -311,7 +338,7 @@ function topupsHtml(t,list){
 function render(){
   document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
   if(!data.stats){$("#main").innerHTML=`<div class="empty">Cargando…</div>`;return}
-  $("#main").innerHTML=({home:renderHome,reports:renderReports,news:renderNews,banned:renderBanned,money:renderMoney})[tab]();
+  $("#main").innerHTML=({home:renderHome,reports:renderReports,gente:renderGente,news:renderNews,banned:renderBanned,money:renderMoney})[tab]();
 }
 
 async function act(fn,ok){try{await fn();toast(ok);await loadAll()}catch(e){if(e.message!=="401")toast(e.message)}}
@@ -326,6 +353,12 @@ document.addEventListener("click",e=>{
   if(t.dataset.unban){
     if(!confirm("¿Desbloquear esta cuenta?"))return;
     act(()=>api(`accounts/${t.dataset.unban}/unban`,{method:"POST"}),"Cuenta desbloqueada");return}
+  if(t.dataset.delpost){
+    if(!confirm("¿Borrar esta publicación de Mi Gente? No se puede deshacer."))return;
+    act(()=>api(`gente/posts/${t.dataset.delpost}`,{method:"DELETE"}),"Publicación borrada");return}
+  if(t.dataset.delcomment){
+    if(!confirm("¿Borrar este comentario?"))return;
+    act(()=>api(`gente/comments/${t.dataset.delcomment}`,{method:"DELETE"}),"Comentario borrado");return}
   if(t.dataset.resolve){act(()=>api(`reports/${t.dataset.resolve}/resolve`,{method:"POST"}),"Marcada como revisada");return}
   if(t.dataset.delnews){
     if(!confirm("¿Borrar este aviso?"))return;
