@@ -5,6 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../chat/presentation/chat_screen.dart';
 import '../messaging/app_controller.dart';
 import 'community.dart';
+import '../business/business.dart';
+import '../business/business_screens.dart';
 import '../../core/l10n/l10n.dart';
 
 /// Comunidades por país: la lista y el número de miembros son REALES (del servidor).
@@ -123,6 +125,22 @@ class _CommunitiesViewState extends ConsumerState<CommunitiesView> {
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
+          if (kBusinessFeatures)
+            Card(
+              margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              color: bizRed,
+              child: ListTile(
+                contentPadding: const EdgeInsets.fromLTRB(16, 6, 12, 6),
+                leading: const Text('🏪', style: TextStyle(fontSize: 30)),
+                title: Text(tr('Negocios'),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
+                subtitle: Text(tr('Colmados, barberías, comida… pide y reserva por el chat'),
+                    style: const TextStyle(color: Colors.white)),
+                trailing: const Icon(Icons.chevron_right, color: Colors.white),
+                onTap: () => Navigator.of(context)
+                    .push(MaterialPageRoute(builder: (_) => const BusinessDirectoryScreen())),
+              ),
+            ),
           label('TU GENTE POR PAÍS'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

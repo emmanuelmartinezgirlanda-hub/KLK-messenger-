@@ -30,6 +30,7 @@ import 'sound_sticker.dart';
 import '../../communities/community.dart';
 import '../../san/san.dart';
 import '../../san/san_screens.dart';
+import '../../business/business_screens.dart';
 import '../../contacts/contact_actions.dart';
 import '../../contacts/contact_info_screen.dart';
 import '../../../core/l10n/l10n.dart';
@@ -1281,6 +1282,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onPressed: () => _call(chat, video: false),
             ),
           ],
+          if (_app.knownBusiness(widget.chatId) case final biz?)
+            IconButton(
+              tooltip: tr('Catálogo'),
+              icon: const Icon(Icons.storefront_outlined),
+              onPressed: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => BusinessProfileScreen(business: biz))),
+            ),
           PopupMenuButton<String>(
             tooltip: tr('Más opciones'),
             icon: const Icon(Icons.more_vert_rounded),
@@ -1405,6 +1413,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 : Column(mainAxisSize: MainAxisSize.min, children: [
                     if (_mentionQuery != null && !_recording) _mentionBar(cs),
                     if (_replyTo != null && !_recording) _replyBar(cs),
+                    if (!_recording && _voicePreview == null && !(chat?.isGroup ?? true)) _quickReplies(),
                     _recording
                         ? _recordingBar(cs)
                         : (_voicePreview != null ? _voicePreviewBar(cs) : _composer()),
@@ -1500,6 +1509,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           config: Config(height: 290, checkPlatformCompatibility: true),
         ),
       );
+
+  /// Respuestas rápidas del negocio ("Abierto hasta las 11", "Ya va en camino"…).
+  Widget _quickReplies() {
+    final quick = _app.isBusiness ? _app.myBusiness!.quick : const <String>[];
+    if (quick.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        children: [
+          for (final q in quick)
+            Padding(
+              padding: const EdgeInsets.only(right: 6, bottom: 4),
+              child: ActionChip(
+                label: Text(q, maxLines: 1, overflow: TextOverflow.ellipsis),
+                onPressed: () {
+                  _input.value = TextEditingValue(text: q, selection: TextSelection.collapsed(offset: q.length));
+                  _focus.requestFocus();
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _composer() => ValueListenableBuilder<TextEditingValue>(
         valueListenable: _input,

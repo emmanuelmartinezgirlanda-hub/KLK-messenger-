@@ -166,6 +166,36 @@ class ApiClient {
     return (j['members'] as List? ?? const []).cast<String>();
   }
 
+  // ---------- KLK Business ----------
+
+  /// Mi perfil de negocio (null si no tengo).
+  Future<Map<String, dynamic>?> myBusiness() async {
+    try {
+      return await _send('GET', '/v1/business/me') as Map<String, dynamic>;
+    } on ApiException catch (e) {
+      if (e.status == 404) return null;
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> saveBusiness(Map<String, dynamic> body) async =>
+      await _send('PUT', '/v1/business/me', body) as Map<String, dynamic>;
+
+  Future<void> deleteBusiness() => _send('DELETE', '/v1/business/me');
+
+  Future<Map<String, dynamic>> business(String accountId) async =>
+      await _send('GET', '/v1/business/${Uri.encodeComponent(accountId)}') as Map<String, dynamic>;
+
+  Future<List<Map<String, dynamic>>> searchBusinesses({String q = '', String kind = '', String country = ''}) async {
+    final qs = Uri(queryParameters: {
+      if (q.trim().isNotEmpty) 'q': q.trim(),
+      if (kind.isNotEmpty) 'kind': kind,
+      if (country.isNotEmpty) 'country': country,
+    }).query;
+    final j = await _send('GET', '/v1/business${qs.isEmpty ? '' : '?$qs'}') as Map<String, dynamic>;
+    return (j['businesses'] as List? ?? const []).cast<Map<String, dynamic>>();
+  }
+
   /// Avisos de KLK para todos (los más nuevos primero).
   Future<List<Map<String, dynamic>>> announcements() async {
     final j = await _send('GET', '/v1/announcements') as Map<String, dynamic>;

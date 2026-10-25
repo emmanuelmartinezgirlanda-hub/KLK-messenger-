@@ -34,6 +34,7 @@ import '../privacy/presentation/privacy_provider.dart';
 import '../communities/community.dart';
 import '../plus/plus_state.dart';
 import '../san/san.dart';
+import '../business/business.dart';
 import 'demo_data.dart';
 import 'models.dart';
 
@@ -324,6 +325,7 @@ class AppController extends ChangeNotifier {
     unawaited(_loadCalls());
     unawaited(_loadSanBanks());
     unawaited(_loadBlockedMembers());
+    unawaited(_loadBusiness());
     await _loadPinnedChats();
     _db = await LocalDb.open(await _store.databaseKey());
     try {
@@ -729,6 +731,8 @@ class AppController extends ChangeNotifier {
               }
             }
           }
+        case 'biz':
+          if (g == null) await _receiveBizStatus(p, from, chatId);
         case 'vote':
           {
             final m = await db.message(p.target ?? '');
@@ -849,7 +853,14 @@ class AppController extends ChangeNotifier {
           slots: san.slots);
       media = media.copyWith(san: fixed.toJson());
     }
-    final exp = media?.type == MediaType.san ? null : p.exp;
+    if (media?.type == MediaType.biz) {
+      // Un pedido o cita solo vale si me lo mandan a MÍ como negocio, en un chat
+      // individual, y siempre empieza como pendiente.
+      final deal = BizDeal.tryParse(media!.biz);
+      if (deal == null || isGroup || deal.biz != myId) return;
+      media = media.copyWith(biz: deal.fresh().toJson());
+    }
+    final exp = media?.type == MediaType.san || media?.type == MediaType.biz ? null : p.exp;
     final msg = Message(
       id: id,
       chatId: chatId,
@@ -1338,7 +1349,7 @@ class AppController extends ChangeNotifier {
   /// clave viaja dentro del mensaje (cifrado de punta a punta).
   Future<String> sendMedia(String chatId, MessageMedia media, {String caption = '', Message? replyTo}) async {
     // El san no desaparece aunque el chat tenga mensajes temporales.
-    final timer = media.type == MediaType.san ? null : _timerOf(chatId);
+    final timer = media.type == MediaType.san || media.type == MediaType.biz ? null : _timerOf(chatId);
     final now = DateTime.now();
     final m = Message(
       id: _uuid.v4(),
@@ -1461,6 +1472,283 @@ class AppController extends ChangeNotifier {
       debugPrint('San: $e');
     }
     return true;
+  }
+
+  // ---------- KLK Business: mi negocio, buscar, pedidos y citas ----------
+
+  static const _myBizKey = 'klk.biz.me';
+  static const _fiaoKey = 'klk.biz.fiao';
+  BizProfile? myBusiness; // mi perfil de negocio (null = cuenta normal)
+  List<FiaoAccount> fiao = [];
+  bool _bizLoaded = false;
+
+  bool get isBusiness => kBusinessFeatures && myBusiness != null;
+
+  // Negocios con los que he hablado (para el botón de catálogo en su chat).
+  static const _knownBizKey = 'klk.biz.known';
+  Map<String, BizProfile> _knownBiz = {};
+  BizProfile? knownBusiness(String chatId) => kBusinessFeatures ? _knownBiz[chatId] : null;
+
+  void _rememberBusiness(BizProfile b) {
+    _knownBiz = {..._knownBiz, b.id: b};
+    unawaited(_store
+        .write(_knownBizKey, jsonEncode([for (final x in _knownBiz.values.take(200)) x.toJson()]))
+        .catchError((_) {}));
+  }
+
+  Future<void> _loadBusiness() async {
+    if (_bizLoaded) return;
+    _bizLoaded = true;
+    try {
+      myBusiness = BizProfile.tryParse(jsonDecode(await _store.read(_myBizKey) ?? 'null'));
+      final known = jsonDecode(await _store.read(_knownBizKey) ?? '[]');
+      _knownBiz = {
+        if (known is List)
+          for (final x in known)
+            if (BizProfile.tryParse(x) case final b? when b.id.isNotEmpty) b.id: b,
+      };
+      final raw = jsonDecode(await _store.read(_fiaoKey) ?? '[]');
+      fiao = [
+        if (raw is List)
+          for (final x in raw)
+            if (FiaoAccount.tryParse(x) case final a?) a,
+      ];
+      notifyListeners();
+    } catch (_) {}
+    if (kBusinessFeatures) unawaited(refreshMyBusiness());
+  }
+
+  /// Vuelve a leer mi perfil de negocio del servidor (por si cambió en otro móvil).
+  Future<void> refreshMyBusiness() async {
+    if (isDemo || _api == null) return;
+    try {
+      final j = await _api!.myBusiness();
+      myBusiness = j == null ? null : BizProfile.tryParse(j);
+      await _saveMyBusinessLocal();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _saveMyBusinessLocal() async {
+    final b = myBusiness;
+    if (b == null) {
+      await _store.delete(_myBizKey);
+    } else {
+      await _store.write(_myBizKey, jsonEncode(b.toJson()));
+    }
+  }
+
+  /// Crea o cambia mi perfil de negocio (público).
+  Future<BizProfile> saveMyBusiness(BizProfile p) async {
+    var saved = p;
+    if (!isDemo) {
+      final j = await _api!.saveBusiness(p.toRequest());
+      saved = BizProfile.tryParse(j) ?? p;
+    } else {
+      saved = BizProfile.tryParse({...p.toJson(), 'id': myId}) ?? p;
+    }
+    myBusiness = saved;
+    await _saveMyBusinessLocal();
+    notifyListeners();
+    return saved;
+  }
+
+  /// Vuelvo a ser cuenta normal: el perfil deja de ser público.
+  Future<void> closeMyBusiness() async {
+    if (!isDemo) await _api!.deleteBusiness();
+    myBusiness = null;
+    await _saveMyBusinessLocal();
+    notifyListeners();
+  }
+
+  Future<List<BizProfile>> searchBusinesses({String q = '', BizKind? kind, String country = ''}) async {
+    if (isDemo) {
+      final all = demoBusinesses();
+      final t = foldForSearch(q);
+      return all
+          .where((b) => (kind == null || b.kind == kind) && (t.isEmpty || foldForSearch('${b.name} ${b.city}').contains(t)))
+          .toList();
+    }
+    final list = await _api!.searchBusinesses(q: q, kind: kind?.name ?? '', country: country);
+    return [
+      for (final j in list)
+        if (BizProfile.tryParse(j) case final b? when b.id != myId) b,
+    ];
+  }
+
+  Future<BizProfile?> businessProfile(String accountId) async {
+    if (isDemo) return demoBusinesses().where((b) => b.id == accountId).firstOrNull;
+    try {
+      final b = BizProfile.tryParse(await _api!.business(accountId));
+      if (b != null && _knownBiz.containsKey(b.id)) _rememberBusiness(b);
+      return b;
+    } on ApiException catch (e) {
+      if (e.status == 404) return null;
+      rethrow;
+    }
+  }
+
+  /// Abre (o crea) el chat con un negocio. Devuelve el id del chat.
+  Future<String> startChatWithBusiness(BizProfile b) async {
+    if (b.id == myId) throw const ApiException(400, 'self', 'Este es tu propio negocio.');
+    _rememberBusiness(b);
+    final existing = await _db!.chat(b.id);
+    if (existing != null) {
+      // Si no lo tenía guardado con nombre, le pongo el del negocio.
+      if (existing.phone.isEmpty && existing.title != b.name) await _db!.upsertChat(existing.copyWith(title: b.name));
+      await _reloadChats();
+      return b.id;
+    }
+    String? identity;
+    if (!isDemo) identity = base64Encode(await _api!.identityOf(b.id));
+    await _db!.upsertChat(Chat(id: b.id, title: b.name, identityKey: identity, updatedAt: DateTime.now()));
+    await _reloadChats();
+    if (!isDemo) unawaited(_broadcastProfile(b.id));
+    return b.id;
+  }
+
+  /// Envío un pedido o una cita al negocio. Devuelve el id del chat.
+  Future<String> sendBizDeal(BizProfile b, BizDeal deal) async {
+    final chatId = await startChatWithBusiness(b);
+    final id = await sendMedia(chatId, MessageMedia(type: MediaType.biz, biz: deal.toJson(), name: deal.summary()));
+    if (isDemo) {
+      // Demo: el negocio acepta a los pocos segundos.
+      Future.delayed(const Duration(seconds: 3), () async {
+        final m = await _db?.message(id);
+        final d = BizDeal.tryParse(m?.media?.biz);
+        final next = d?.apply({'s': BizStatus.accepted}, d.biz);
+        if (m == null || next == null) return;
+        await _db!.updateMessage(m.copyWith(media: m.media!.copyWith(biz: next.toJson())));
+        await _system(chatId, deal.isOrder ? '✅ ${b.name} aceptó tu pedido' : '✅ ${b.name} confirmó tu cita');
+        await _refresh();
+      });
+    }
+    return chatId;
+  }
+
+  /// Cambio el estado de un pedido o cita (aceptar, en camino, cancelar…).
+  Future<bool> bizAction(Message msg, String status) async {
+    final m = await _db!.message(msg.id) ?? msg;
+    final media = m.media;
+    if (media == null || media.type != MediaType.biz) return false;
+    final next = BizDeal.tryParse(media.biz)?.apply({'s': status}, myId);
+    if (next == null) return false;
+    final updated = m.copyWith(media: media.copyWith(biz: next.toJson()));
+    await _db!.updateMessage(updated);
+    await _refresh();
+    unawaited(_scheduleBiz(updated));
+    if (isDemo || isNotesChat(m.chatId)) return true;
+    try {
+      await _sendToChat(m.chatId, Payload(kind: 'biz', target: m.id, biz: {'s': status}), ref: 'x-${_uuid.v4()}');
+    } catch (e) {
+      debugPrint('Negocio: $e');
+    }
+    return true;
+  }
+
+  /// Llega un cambio de estado de un pedido o cita del chat [chatId].
+  Future<void> _receiveBizStatus(Payload p, String from, String chatId) async {
+    final db = _db!;
+    final m = await db.message(p.target ?? '');
+    final media = m?.media;
+    final ev = p.biz;
+    if (m == null || media == null || ev == null || media.type != MediaType.biz || m.chatId != chatId) return;
+    final deal = BizDeal.tryParse(media.biz);
+    final next = deal?.apply(ev, from);
+    if (deal == null || next == null) return;
+    final updated = m.copyWith(media: media.copyWith(biz: next.toJson()));
+    await db.updateMessage(updated);
+    unawaited(_scheduleBiz(updated));
+    final who = from == deal.biz ? deal.bizName : (chatById(chatId)?.title ?? 'El cliente');
+    final what = deal.isOrder ? 'tu pedido' : 'tu cita';
+    final text = switch (next.status) {
+      BizStatus.accepted => deal.isOrder ? '✅ $who aceptó $what' : '✅ $who confirmó $what',
+      BizStatus.rejected => '❌ $who no puede atender $what',
+      BizStatus.onTheWay => '🛵 $what de $who va en camino',
+      BizStatus.done => deal.isOrder ? '📦 $who marcó $what como entregado' : '✅ $who marcó $what como atendida',
+      BizStatus.cancelled => '🚫 $who canceló ${deal.isOrder ? 'el pedido' : 'la cita'}',
+      _ => '',
+    };
+    if (text.isEmpty) return;
+    await _system(chatId, text);
+    final chat = await db.chat(chatId);
+    if (chat != null && openChatId != chatId && !chat.hidden && !chat.muted) {
+      onNotify?.call(chat, Message(
+        id: 'biz-${m.id}-${next.status}',
+        chatId: chatId,
+        kind: MessageKind.incoming,
+        body: text,
+        status: MessageStatus.delivered,
+        createdAt: DateTime.now(),
+      ));
+    }
+  }
+
+  /// Recordatorio de una cita confirmada: 1 hora antes (cliente y negocio).
+  Future<void> _scheduleBiz(Message m) async {
+    final deal = BizDeal.tryParse(m.media?.biz);
+    if (deal == null || !deal.isBooking || deal.at == null) return;
+    final id = 'biz-cita-${m.id}'.hashCode & 0x3fffffff;
+    final at = deal.at!.subtract(const Duration(hours: 1));
+    if (deal.status == BizStatus.accepted && at.isAfter(DateTime.now())) {
+      final mineIsBiz = deal.biz == myId;
+      final who = mineIsBiz ? (chatById(m.chatId)?.title ?? 'un cliente') : deal.bizName;
+      await Alerts.instance.scheduleAt(id, '📅 Cita en 1 hora',
+          '${deal.service}${mineIsBiz ? ' con $who' : ' en $who'} a las ${DateFormat('h:mm a', 'es').format(deal.at!)}.', at,
+          chatId: m.chatId);
+    } else {
+      await Alerts.instance.cancelScheduled(id);
+    }
+  }
+
+  /// Citas ya pedidas a este negocio (para no ofrecer esas horas otra vez desde este móvil).
+  Future<Set<DateTime>> bookedSlots(String bizId) async {
+    if (_db == null) return {};
+    final out = <DateTime>{};
+    for (final m in await _db!.messagesOfType(bizId, MediaType.biz)) {
+      final d = BizDeal.tryParse(m.media?.biz);
+      if (d != null && d.isBooking && d.at != null && !d.closed) out.add(d.at!);
+    }
+    return out;
+  }
+
+  // ---------- La libreta del fiao (solo en este móvil) ----------
+
+  void _saveFiao() {
+    unawaited(_store.write(_fiaoKey, jsonEncode([for (final a in fiao) a.toJson()])).catchError((_) {}));
+    notifyListeners();
+  }
+
+  double get fiaoTotal => fiao.fold(0.0, (t, a) => t + (a.balance > 0 ? a.balance : 0));
+
+  /// Apunta [amount] a la cuenta de un cliente (negativo = pagó). La crea si no existe.
+  void fiaoAdd({required String id, required String name, required double amount, String note = ''}) {
+    final i = fiao.indexWhere((a) => (id.isNotEmpty && a.id == id) || (id.isEmpty && a.id.isEmpty && a.name == name));
+    final e = FiaoEntry(amount, note, DateTime.now());
+    if (i < 0) {
+      fiao = [...fiao, FiaoAccount(id: id, name: name, entries: [e])];
+    } else {
+      fiao = [...fiao]..[i] = fiao[i].add(e);
+    }
+    _saveFiao();
+  }
+
+  void fiaoRemove(FiaoAccount a) {
+    fiao = fiao.where((x) => !identical(x, a)).toList();
+    _saveFiao();
+  }
+
+  /// Le mando al cliente (por el chat, cifrado) cuánto debe.
+  Future<void> fiaoRemind(FiaoAccount a) async {
+    final b = myBusiness;
+    if (a.id.isEmpty || b == null) return;
+    await sendText(a.id,
+        'Hola ${a.name.split(' ').first} 👋 Tu cuenta en ${b.name} es de ${bizMoney(a.balance, b.currency)}. Cuando puedas, pasa a saldarla. ¡Gracias! 🙏');
+    final i = fiao.indexOf(a);
+    if (i >= 0) {
+      fiao = [...fiao]..[i] = a.reminded(DateTime.now());
+      _saveFiao();
+    }
   }
 
   // ---------- Datos del banco para cobrar el san ----------
@@ -2958,6 +3246,10 @@ class AppController extends ChangeNotifier {
     _sanAuto = {};
     _sanBanks = {};
     _myLastBank = null;
+    myBusiness = null;
+    fiao = [];
+    _knownBiz = {};
+    _bizLoaded = false;
     _calls = [];
     _messages.clear();
     _outbox.clear();

@@ -25,6 +25,8 @@ import '../home/tabs_provider.dart';
 import 'backup_screen.dart';
 import '../plus/plus_screen.dart';
 import '../plus/plus_state.dart';
+import '../business/business.dart';
+import '../business/business_owner.dart';
 import 'about_screen.dart';
 import 'notifications_screen.dart';
 import 'translator_settings_screen.dart';
@@ -111,6 +113,16 @@ class SettingsView extends ConsumerWidget {
             subtitle: Text(tr('Normal, Noche, Oro o Bandera')),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showAppIconPicker(context),
+          ),
+        if (kBusinessFeatures)
+          ListTile(
+            leading: const Icon(Icons.storefront_rounded),
+            title: Text(tr('Mi negocio'), style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(app.myBusiness == null
+                ? tr('Colmado, barbería, salón… pedidos, citas y fiao')
+                : app.myBusiness!.name),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyBusinessScreen())),
           ),
         ListTile(
           leading: const Icon(Icons.person_add_alt_1_rounded),

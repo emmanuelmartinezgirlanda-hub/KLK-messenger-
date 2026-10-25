@@ -342,6 +342,13 @@ class LocalDb {
     return rows.map(Message.fromRow).toList();
   }
 
+  /// Mensajes de un chat con un tipo de adjunto (p. ej. los pedidos y citas de un negocio).
+  Future<List<Message>> messagesOfType(String chatId, MediaType type) async {
+    final rows = await _db.query('messages',
+        where: "chat_id = ? AND media_json LIKE ?", whereArgs: [chatId, '%"t":"${type.name}"%']);
+    return rows.map(Message.fromRow).toList();
+  }
+
   /// Mis ubicaciones en tiempo real que quedaron activas (p. ej. al cerrar la app).
   Future<List<Message>> myLiveLocations() async {
     final rows = await _db.query('messages',

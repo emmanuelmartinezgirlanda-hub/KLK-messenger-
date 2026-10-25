@@ -363,7 +363,7 @@ const voiceStickerPrefix = 'klk-sticker:';
 /// Nombre que llevan los stickers propios (los demás usan el id del sticker del pack).
 const customStickerName = 'custom';
 
-enum MediaType { image, video, audio, file, location, sticker, trip, poll, live, san }
+enum MediaType { image, video, audio, file, location, sticker, trip, poll, live, san, biz }
 
 /// Adjunto de un mensaje: foto, vídeo, nota de voz, documento, ubicación,
 /// sticker, aviso de viaje ("Bajando pa' RD"), encuesta o ubicación en tiempo real.
@@ -405,6 +405,9 @@ class MessageMedia {
   // San (ahorro en grupo): ver features/san/san.dart
   final Map<String, dynamic>? san;
 
+  // Pedido o cita de KLK Business: ver features/business/business.dart
+  final Map<String, dynamic>? biz;
+
   const MessageMedia({
     required this.type,
     this.localPath,
@@ -432,6 +435,7 @@ class MessageMedia {
     this.liveUpdatedAt,
     this.transcript,
     this.san,
+    this.biz,
   });
 
   bool get hasFile =>
@@ -475,6 +479,7 @@ class MessageMedia {
       MediaType.poll => '📊 ${pollQuestion ?? 'Encuesta'}',
       MediaType.live => '📍 Ubicación en tiempo real',
       MediaType.san => '🤝 San ${(san?['n'] as String?) ?? ''}'.trim(),
+      MediaType.biz => biz?['t'] == 'cita' ? '📅 Cita' : '🛒 Pedido',
     };
   }
 
@@ -493,6 +498,7 @@ class MessageMedia {
     DateTime? liveUpdatedAt,
     String? transcript,
     Map<String, dynamic>? san,
+    Map<String, dynamic>? biz,
   }) =>
       MessageMedia(
         type: type,
@@ -521,6 +527,7 @@ class MessageMedia {
         liveUpdatedAt: liveUpdatedAt ?? this.liveUpdatedAt,
         transcript: transcript ?? this.transcript,
         san: san ?? this.san,
+        biz: biz ?? this.biz,
       );
 
   /// Versión que viaja al destinatario: sin la ruta local de este móvil.
@@ -546,6 +553,7 @@ class MessageMedia {
         liveUntil: liveUntil,
         liveEnded: liveEnded,
         san: san,
+        biz: biz,
       );
 
   Map<String, dynamic> toJson() => {
@@ -575,6 +583,7 @@ class MessageMedia {
         if (liveUpdatedAt != null) 'lup': liveUpdatedAt!.toUtc().toIso8601String(),
         if (transcript != null) 'tr': transcript,
         if (san != null) 'sn': san,
+        if (biz != null) 'bz': biz,
       };
 
   factory MessageMedia.fromJson(Map<String, dynamic> j) => MessageMedia(
@@ -609,6 +618,7 @@ class MessageMedia {
         liveUpdatedAt: j['lup'] == null ? null : DateTime.tryParse(j['lup'] as String)?.toLocal(),
         transcript: j['tr'] as String?,
         san: (j['sn'] as Map?)?.cast<String, dynamic>(),
+        biz: (j['bz'] as Map?)?.cast<String, dynamic>(),
       );
 }
 
@@ -718,6 +728,7 @@ class Payload {
   final Map<String, dynamic>? link; // text: vista previa del enlace
   final Map<String, dynamic>? about; // profile: mi «Info» ({t, u})
   final Map<String, dynamic>? san; // san: un cambio (pago, terminar…)
+  final Map<String, dynamic>? biz; // biz: cambio de estado de un pedido o cita
 
   const Payload({
     required this.kind,
@@ -741,6 +752,7 @@ class Payload {
     this.link,
     this.about,
     this.san,
+    this.biz,
   });
 
   List<int> encode() => utf8.encode(jsonEncode({
@@ -765,6 +777,7 @@ class Payload {
         if (link != null) 'lp': link,
         if (about != null) 'ab': about,
         if (san != null) 'sn': san,
+        if (biz != null) 'bz': biz,
       }));
 
   factory Payload.decode(List<int> bytes) {
@@ -792,6 +805,7 @@ class Payload {
       link: map('lp'),
       about: map('ab'),
       san: map('sn'),
+      biz: map('bz'),
     );
   }
 }
