@@ -6,10 +6,8 @@ class KlkEmblem extends StatelessWidget {
   const KlkEmblem({super.key, this.size = 32});
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(size * 0.24),
-        child: Image.asset('assets/brand/klk_emblem.png', width: size, height: size, fit: BoxFit.cover),
-      );
+  Widget build(BuildContext context) =>
+      Image.asset('assets/brand/klk_emblem.png', width: size, height: size, fit: BoxFit.contain);
 }
 
 /// Logo completo: escudo + "KLK messenger".
@@ -18,8 +16,6 @@ class KlkLogo extends StatelessWidget {
   const KlkLogo({super.key, this.height = 220});
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-        borderRadius: BorderRadius.circular(height * 0.12),
-        child: Image.asset('assets/brand/klk_logo.png', height: height, fit: BoxFit.contain),
-      );
+  Widget build(BuildContext context) =>
+      Image.asset('assets/brand/klk_logo.png', height: height, fit: BoxFit.contain);
 }
