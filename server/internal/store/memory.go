@@ -29,6 +29,7 @@ type Memory struct {
 	push        map[devKey]PushToken
 	plus        map[string]time.Time
 	appleSubs   map[string]string // originalTransactionId -> cuenta
+	business    map[string]Business
 }
 
 type memAttachment struct {

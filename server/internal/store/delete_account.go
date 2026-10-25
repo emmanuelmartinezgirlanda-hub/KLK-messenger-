@@ -15,6 +15,7 @@ func (m *Memory) DeleteAccount(_ context.Context, acc string) error {
 	}
 	delete(m.accounts, acc)
 	delete(m.plus, acc)
+	delete(m.business, acc)
 	delete(m.byPhone, a.Phone)
 	for k := range m.devices {
 		if k.acc == acc {

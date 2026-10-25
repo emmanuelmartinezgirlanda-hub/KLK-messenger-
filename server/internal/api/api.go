@@ -116,6 +116,7 @@ func (s *Server) Routes() http.Handler {
 
 	mux.HandleFunc("GET /c/{digits}", s.contactPage)
 
+	s.businessRoutes(mux)
 	s.adminRoutes(mux)
 	s.topupRoutes(mux)
 
