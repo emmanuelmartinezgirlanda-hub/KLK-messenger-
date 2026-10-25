@@ -21,6 +21,7 @@ Future<Database> openKlkDatabase(
   required int version,
   required OnDatabaseCreateFn onCreate,
   required OnDatabaseVersionChangeFn onUpgrade,
+  OnDatabaseVersionChangeFn? onDowngrade,
   required OnDatabaseConfigureFn onConfigure,
 }) {
   sqfliteFfiInit();
@@ -30,6 +31,7 @@ Future<Database> openKlkDatabase(
       version: version,
       onCreate: onCreate,
       onUpgrade: onUpgrade,
+      onDowngrade: onDowngrade,
       onConfigure: (db) async {
         // La clave tiene que ser lo primero que se ejecuta.
         await db.execute("PRAGMA key = '${key.replaceAll("'", "''")}'");
