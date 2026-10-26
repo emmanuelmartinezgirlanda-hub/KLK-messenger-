@@ -48,6 +48,9 @@ func (s *Server) genteRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/gente/comments/{id}", s.authed(s.genteDeleteComment))
 	mux.HandleFunc("POST /v1/gente/comments/{id}/report", s.authed(s.genteReportComment))
 	mux.HandleFunc("POST /v1/gente/images", s.authed(s.genteUploadImage))
+	mux.HandleFunc("GET /v1/gente/blocks", s.authed(s.genteListBlocks))
+	mux.HandleFunc("PUT /v1/gente/blocks/{id}", s.authed(s.genteBlock))
+	mux.HandleFunc("DELETE /v1/gente/blocks/{id}", s.authed(s.genteBlock))
 	mux.HandleFunc("GET /v1/gente/img/{id}", s.genteImage)
 
 	mux.HandleFunc("GET /admin/api/gente", s.admin(s.adminGentePosts))
@@ -86,6 +89,7 @@ func (s *Server) genteSetProfile(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name  string `json:"name"`
 		Photo string `json:"photo"`
+		Rules bool   `json:"rules"` // acepta las normas de Mi Gente
 	}
 	if !readJSON(w, r, &req) {
 		return
@@ -104,11 +108,85 @@ func (s *Server) genteSetProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	p := store.GenteProfile{AccountID: dev.AccountID, Name: name, Photo: req.Photo, UpdatedAt: time.Now().UTC()}
+	if req.Rules {
+		p.RulesAt = p.UpdatedAt
+	}
 	if err := s.store.PutGenteProfile(r.Context(), p); err != nil {
 		genteErr(w, err, "la cuenta")
 		return
 	}
 	writeJSON(w, http.StatusOK, store.GenteAuthor{ID: p.AccountID, Name: p.Name, Photo: p.Photo})
+}
+
+// ---------- Normas y bloqueos ----------
+
+// rulesOK exige haber aceptado las normas de Mi Gente para publicar o comentar.
+func (s *Server) rulesOK(w http.ResponseWriter, r *http.Request, acc string) bool {
+	p, err := s.store.GetGenteProfile(r.Context(), acc)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		genteErr(w, err, "la cuenta")
+		return false
+	}
+	if err != nil || p.RulesAt.IsZero() {
+		writeErr(w, http.StatusForbidden, "rules_required", "acepta las normas de Mi Gente para publicar")
+		return false
+	}
+	return true
+}
+
+// hiddenFor: cuentas que [acc] no ve ni con las que se cruza (bloqueó o le bloquearon).
+func (s *Server) hiddenFor(r *http.Request, acc string) (map[string]bool, error) {
+	blocked, by, err := s.store.GenteBlocks(r.Context(), acc)
+	if err != nil {
+		return nil, err
+	}
+	h := map[string]bool{}
+	for _, x := range append(blocked, by...) {
+		h[x] = true
+	}
+	return h, nil
+}
+
+func keys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
+// GET /v1/gente/blocks: a quién bloqueé.
+func (s *Server) genteListBlocks(w http.ResponseWriter, r *http.Request) {
+	blocked, _, err := s.store.GenteBlocks(r.Context(), deviceFrom(r).AccountID)
+	if err != nil {
+		genteErr(w, err, "la lista")
+		return
+	}
+	out := []store.GenteAuthor{}
+	for _, id := range blocked {
+		a := store.GenteAuthor{ID: id}
+		if p, err := s.store.GetGenteProfile(r.Context(), id); err == nil {
+			a.Name, a.Photo = p.Name, p.Photo
+		}
+		out = append(out, a)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"blocked": out})
+}
+
+// PUT/DELETE /v1/gente/blocks/{id}: bloquear o desbloquear a alguien en Mi Gente.
+// Ya no ves lo suyo, no ve lo tuyo y no puede comentar ni dar me gusta a lo tuyo.
+func (s *Server) genteBlock(w http.ResponseWriter, r *http.Request) {
+	dev := deviceFrom(r)
+	id := r.PathValue("id")
+	if id == dev.AccountID {
+		writeErr(w, http.StatusBadRequest, "self", "no puedes bloquearte a ti mismo")
+		return
+	}
+	if err := s.store.SetGenteBlock(r.Context(), dev.AccountID, id, r.Method == http.MethodPut); err != nil {
+		genteErr(w, err, "esa cuenta")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ---------- Publicaciones ----------
@@ -129,6 +207,16 @@ func (s *Server) genteFeed(w http.ResponseWriter, r *http.Request) {
 		}
 		query.Before = t
 	}
+	hidden, err := s.hiddenFor(r, query.Viewer)
+	if err != nil {
+		genteErr(w, err, "el muro")
+		return
+	}
+	if hidden[query.Author] {
+		writeJSON(w, http.StatusOK, map[string]any{"posts": []store.GentePost{}})
+		return
+	}
+	query.Hide = keys(hidden)
 	list, err := s.store.ListGentePosts(r.Context(), query)
 	if err != nil {
 		genteErr(w, err, "el muro")
@@ -162,6 +250,9 @@ func (s *Server) genteCreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	case req.Country != "" && !countryRe.MatchString(req.Country):
 		writeErr(w, http.StatusBadRequest, "bad_country", "país no válido")
+		return
+	}
+	if !s.rulesOK(w, r, dev.AccountID) {
 		return
 	}
 	seen := map[string]bool{}
@@ -198,12 +289,30 @@ func (s *Server) genteCreatePost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) genteGetPost(w http.ResponseWriter, r *http.Request) {
-	p, err := s.store.GetGentePost(r.Context(), r.PathValue("id"), deviceFrom(r).AccountID)
+	p, ok := s.visiblePost(w, r, r.PathValue("id"))
+	if ok {
+		writeJSON(w, http.StatusOK, p)
+	}
+}
+
+// visiblePost: la publicación, si existe y no hay un bloqueo entre su autor y yo.
+func (s *Server) visiblePost(w http.ResponseWriter, r *http.Request, id string) (store.GentePost, bool) {
+	me := deviceFrom(r).AccountID
+	p, err := s.store.GetGentePost(r.Context(), id, me)
 	if err != nil {
 		genteErr(w, err, "la publicación")
-		return
+		return p, false
 	}
-	writeJSON(w, http.StatusOK, p)
+	hidden, err := s.hiddenFor(r, me)
+	if err != nil {
+		genteErr(w, err, "la publicación")
+		return p, false
+	}
+	if hidden[p.Author.ID] {
+		writeErr(w, http.StatusNotFound, "not_found", "la publicación ya no existe")
+		return p, false
+	}
+	return p, true
 }
 
 // DELETE /v1/gente/posts/{id}: solo quien la publicó.
@@ -234,8 +343,7 @@ func (s *Server) genteLike(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if _, err := s.store.GetGentePost(r.Context(), id, ""); err != nil {
-		genteErr(w, err, "la publicación")
+	if _, ok := s.visiblePost(w, r, id); !ok {
 		return
 	}
 	n, err := s.store.SetGenteLike(r.Context(), id, dev.AccountID, on)
@@ -250,8 +358,7 @@ func (s *Server) genteLike(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) genteComments(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if _, err := s.store.GetGentePost(r.Context(), id, ""); err != nil {
-		genteErr(w, err, "la publicación")
+	if _, ok := s.visiblePost(w, r, id); !ok {
 		return
 	}
 	list, err := s.store.ListGenteComments(r.Context(), id, 200)
@@ -259,7 +366,18 @@ func (s *Server) genteComments(w http.ResponseWriter, r *http.Request) {
 		genteErr(w, err, "los comentarios")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"comments": list})
+	hidden, err := s.hiddenFor(r, deviceFrom(r).AccountID)
+	if err != nil {
+		genteErr(w, err, "los comentarios")
+		return
+	}
+	out := list[:0]
+	for _, c := range list {
+		if !hidden[c.Author.ID] {
+			out = append(out, c)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"comments": out})
 }
 
 func (s *Server) genteAddComment(w http.ResponseWriter, r *http.Request) {
@@ -277,8 +395,10 @@ func (s *Server) genteAddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if _, err := s.store.GetGentePost(r.Context(), id, ""); err != nil {
-		genteErr(w, err, "la publicación")
+	if _, ok := s.visiblePost(w, r, id); !ok {
+		return
+	}
+	if !s.rulesOK(w, r, dev.AccountID) {
 		return
 	}
 	if !s.genteComms.take(dev.AccountID, 1, maxGenteCommsDay, time.Now()) {

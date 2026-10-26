@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/l10n.dart';
 import '../chat/presentation/chat_avatar.dart';
@@ -361,6 +362,95 @@ Future<String?> askGenteReportReason(BuildContext context) => showModalBottomShe
       ),
     );
 
+/// Las normas de Mi Gente: hay que aceptarlas antes de publicar o comentar
+/// por primera vez (Apple lo pide para el contenido que suben los usuarios).
+Future<bool> ensureGenteRules(BuildContext context, WidgetRef ref) async {
+  final g = ref.read(genteProvider);
+  if (g.rulesAccepted || g.isDemo) return true;
+  final rules = [
+    ('🤝', tr('Respeta a todos. Nada de acoso, amenazas, insultos ni discriminación.')),
+    ('🚫', tr('Nada de contenido sexual, violento o ilegal.')),
+    ('💸', tr('Nada de estafas, spam ni ventas engañosas.')),
+    ('🔒', tr('No publiques datos personales ni fotos de otros sin su permiso.')),
+    ('🛡️', tr('Lo que incumpla las normas se borra y la cuenta se puede bloquear. Tolerancia cero.')),
+  ];
+  final ok = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(tr('Normas de KLK Mi Gente'), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 6),
+          Text(tr('Lo que publicas aquí lo ve la gente de KLK. Para que sea un sitio bonito para todos:'),
+              style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.7))),
+          const SizedBox(height: 10),
+          for (final (e, t) in rules)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(e, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 12),
+                Expanded(child: Text(t, style: const TextStyle(fontSize: 15))),
+              ]),
+            ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () {
+                final url = ref.read(appProvider).serverApi?.pageUrl('/normas');
+                if (url != null) launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+              },
+              child: Text(tr('Leer las normas completas')),
+            ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _rojo, minimumSize: const Size.fromHeight(50)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('Acepto las normas')),
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Ahora no'))),
+        ]),
+      ),
+    ),
+  );
+  if (ok != true) return false;
+  await g.acceptRules();
+  return true;
+}
+
+/// Pregunta y bloquea a alguien en Mi Gente. Devuelve true si lo bloqueó.
+Future<bool> confirmGenteBlock(BuildContext context, WidgetRef ref, GenteAuthor a) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('${tr('¿Bloquear a')} ${a.displayName}?'),
+      content: Text(tr('No verás lo que publica, no verá lo tuyo y no podrá comentar ni dar me gusta a tus publicaciones. '
+          'Puedes desbloquearlo cuando quieras.')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: _rojo),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(tr('Bloquear')),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return false;
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  try {
+    await ref.read(genteProvider).block(a.id);
+    messenger?.showSnackBar(SnackBar(content: Text('${a.displayName} ${tr('está bloqueado en Mi Gente')}')));
+    return true;
+  } catch (e) {
+    messenger?.showSnackBar(SnackBar(content: Text('${tr('No se pudo bloquear')}: $e')));
+    return false;
+  }
+}
+
 class GentePostCard extends ConsumerWidget {
   final GentePost post;
 
@@ -405,12 +495,9 @@ class GentePostCard extends ConsumerWidget {
         } catch (e) {
           if (context.mounted) _say(context, '${tr('No se pudo denunciar')}: $e');
         }
-      case 'hide':
-        await g.hideAuthor(post.author.id);
-        if (context.mounted) {
-          if (full) Navigator.of(context).pop();
-          _say(context, '${tr('Ya no verás lo que publique')} ${post.author.displayName}');
-        }
+      case 'block':
+        final done = await confirmGenteBlock(context, ref, post.author);
+        if (done && full && context.mounted) Navigator.of(context).pop();
       case 'copy':
         await Clipboard.setData(ClipboardData(text: post.text));
         if (context.mounted) _say(context, tr('Texto copiado'));
@@ -461,7 +548,7 @@ class GentePostCard extends ConsumerWidget {
               itemBuilder: (_) => [
                 if (post.text.isNotEmpty) PopupMenuItem(value: 'copy', child: Text(tr('Copiar texto'))),
                 if (mine) PopupMenuItem(value: 'delete', child: Text(tr('Borrar publicación'))),
-                if (!mine) PopupMenuItem(value: 'hide', child: Text('${tr('No ver más a')} ${post.author.displayName}')),
+                if (!mine) PopupMenuItem(value: 'block', child: Text('${tr('Bloquear a')} ${post.author.displayName}')),
                 if (!mine) PopupMenuItem(value: 'report', child: Text(tr('Denunciar'))),
               ],
             ),
@@ -589,6 +676,7 @@ class _GentePostScreenState extends ConsumerState<GentePostScreen> {
   Future<void> _send() async {
     final t = _text.text.trim();
     if (t.isEmpty || _sending) return;
+    if (!await ensureGenteRules(context, ref) || !mounted) return;
     setState(() => _sending = true);
     try {
       final c = await ref.read(genteProvider).addComment(widget.post.id, t);
@@ -631,6 +719,12 @@ class _GentePostScreenState extends ConsumerState<GentePostScreen> {
               title: Text(tr('Denunciar')),
               onTap: () => Navigator.pop(ctx, 'report'),
             ),
+          if (!mineComment)
+            ListTile(
+              leading: const Icon(Icons.block_rounded, color: Color(0xFFFF6B7A)),
+              title: Text('${tr('Bloquear a')} ${c.author.displayName}', style: const TextStyle(color: Color(0xFFFF6B7A))),
+              onTap: () => Navigator.pop(ctx, 'block'),
+            ),
         ]),
       ),
     );
@@ -646,6 +740,10 @@ class _GentePostScreenState extends ConsumerState<GentePostScreen> {
           g.setCommentCount(widget.post.id, _comments?.length ?? 0);
         } catch (e) {
           if (mounted) _say('${tr('No se pudo borrar')}: $e');
+        }
+      case 'block':
+        if (await confirmGenteBlock(context, ref, c.author) && mounted) {
+          setState(() => _comments = _comments?.where((x) => x.author.id != c.author.id).toList());
         }
       case 'report':
         final reason = await askGenteReportReason(context);
@@ -842,8 +940,40 @@ class _GenteAuthorScreenState extends ConsumerState<GenteAuthorScreen> {
           if (!mine && g.hiddenAuthors.contains(a.id))
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(tr('Ocultaste a esta persona en tu muro. Para volver a verla: Ajustes → Pestañas → Mi Gente.'),
-                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65))),
+              child: Row(children: [
+                Expanded(
+                  child: Text(tr('Bloqueaste a esta persona en Mi Gente.'),
+                      style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65))),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    try {
+                      await g.unblock(a.id);
+                      await _load();
+                      await g.refresh();
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${tr('No se pudo')}: $e')));
+                      }
+                    }
+                  },
+                  child: Text(tr('Desbloquear')),
+                ),
+              ]),
+            )
+          else if (!mine && !g.isDemo)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    if (await confirmGenteBlock(context, ref, a) && context.mounted) Navigator.of(context).pop();
+                  },
+                  icon: const Icon(Icons.block_rounded, size: 18),
+                  label: Text(tr('Bloquear')),
+                ),
+              ),
             ),
           if (_posts == null && _error == null)
             const Padding(padding: EdgeInsets.all(28), child: Center(child: CircularProgressIndicator()))
@@ -885,7 +1015,13 @@ class _GenteComposeScreenState extends ConsumerState<GenteComposeScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.pickPhotos) WidgetsBinding.instance.addPostFrameCallback((_) => _pick(ImageSource.gallery));
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!await ensureGenteRules(context, ref)) {
+        if (mounted) Navigator.of(context).pop();
+        return;
+      }
+      if (widget.pickPhotos && mounted) _pick(ImageSource.gallery);
+    });
   }
 
   @override
@@ -926,6 +1062,7 @@ class _GenteComposeScreenState extends ConsumerState<GenteComposeScreen> {
   Future<void> _publish() async {
     final text = _text.text.trim();
     if ((text.isEmpty && _photos.isEmpty) || _sending) return;
+    if (!await ensureGenteRules(context, ref) || !mounted) return;
     setState(() {
       _sending = true;
       _uploaded = 0;
@@ -987,7 +1124,7 @@ class _GenteComposeScreenState extends ConsumerState<GenteComposeScreen> {
           ),
         TextField(
           controller: _text,
-          autofocus: !widget.pickPhotos,
+          autofocus: false,
           minLines: 4,
           maxLines: 12,
           maxLength: 2000,

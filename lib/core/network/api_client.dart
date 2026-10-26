@@ -216,8 +216,22 @@ class ApiClient {
 
   // ---------- KLK Mi Gente ----------
 
-  Future<Map<String, dynamic>> genteSetProfile(String name, String photo) async =>
-      await _send('PUT', '/v1/gente/me', {'name': name, 'photo': photo}) as Map<String, dynamic>;
+  Future<Map<String, dynamic>> genteSetProfile(String name, String photo, {bool rules = false}) async =>
+      await _send('PUT', '/v1/gente/me', {'name': name, 'photo': photo, if (rules) 'rules': true})
+          as Map<String, dynamic>;
+
+  /// Bloquear (o desbloquear) a alguien en Mi Gente.
+  Future<void> genteBlock(String accountId, bool on) =>
+      _send(on ? 'PUT' : 'DELETE', '/v1/gente/blocks/${Uri.encodeComponent(accountId)}');
+
+  /// A quién he bloqueado en Mi Gente.
+  Future<List<Map<String, dynamic>>> genteBlocks() async {
+    final j = await _send('GET', '/v1/gente/blocks') as Map<String, dynamic>;
+    return (j['blocked'] as List? ?? const []).cast<Map<String, dynamic>>();
+  }
+
+  /// Dirección de una página del servidor (normas, privacidad…).
+  String pageUrl(String path) => _u(path).toString();
 
   Future<List<Map<String, dynamic>>> genteFeed({String country = '', String author = '', DateTime? before}) async {
     final qs = Uri(queryParameters: {

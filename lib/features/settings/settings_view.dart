@@ -213,8 +213,8 @@ class SettingsView extends ConsumerWidget {
                     if (ref.watch(genteProvider).hiddenAuthors.isNotEmpty)
                       ListTile(
                         leading: const Icon(Icons.visibility_outlined),
-                        title: Text(tr('Volver a ver a la gente que ocultaste')),
-                        subtitle: Text('${ref.watch(genteProvider).hiddenAuthors.length} ${tr('ocultas en Mi Gente')}'),
+                        title: Text(tr('Desbloquear a todos en Mi Gente')),
+                        subtitle: Text('${ref.watch(genteProvider).hiddenAuthors.length} ${tr('bloqueados')}'),
                         onTap: () => ref.read(genteProvider).unhideAll(),
                       ),
                   ],

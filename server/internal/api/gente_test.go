@@ -57,15 +57,22 @@ func TestGente(t *testing.T) {
 
 	// Perfil con foto
 	_, foto := e.uploadGente(ana.token, png)
+	// Sin aceptar las normas no se puede publicar
+	e.do("PUT", "/v1/gente/me", ana.token, map[string]any{"name": "Ana"}, nil)
+	if s := e.do("POST", "/v1/gente/posts", ana.token, map[string]any{"text": "hola"}, nil); s != 403 {
+		t.Fatalf("publicar sin normas: %d", s)
+	}
 	var me genteAuthor
-	if s := e.do("PUT", "/v1/gente/me", ana.token, map[string]any{"name": "  Ana   Pérez ", "photo": foto}, &me); s != 200 ||
+	if s := e.do("PUT", "/v1/gente/me", ana.token, map[string]any{"name": "  Ana   Pérez ", "photo": foto, "rules": true}, &me); s != 200 ||
 		me.Name != "Ana Pérez" || me.Photo != foto {
 		t.Fatalf("perfil: %d %+v", s, me)
 	}
 	if s := e.do("PUT", "/v1/gente/me", luis.token, map[string]any{"name": "Luis", "photo": foto}, nil); s != 400 {
 		t.Fatalf("foto ajena en el perfil: %d", s)
 	}
-	e.do("PUT", "/v1/gente/me", luis.token, map[string]any{"name": "Luis"}, nil)
+	e.do("PUT", "/v1/gente/me", luis.token, map[string]any{"name": "Luis", "rules": true}, nil)
+	// Cambiar el nombre después no borra la aceptación de las normas
+	e.do("PUT", "/v1/gente/me", ana.token, map[string]any{"name": "Ana Pérez", "photo": foto}, nil)
 
 	// Publicar: validaciones
 	bad := []map[string]any{
@@ -188,5 +195,74 @@ func TestGente(t *testing.T) {
 	e.do("GET", "/v1/gente/feed", ana.token, nil, &feed)
 	if len(feed.Posts) != 0 {
 		t.Fatalf("bloqueado sigue en el muro: %+v", feed.Posts)
+	}
+}
+
+func TestGenteBlocks(t *testing.T) {
+	e := newAdminEnv(t)
+	ana := e.register("+18095550301", 1)
+	luis := e.register("+18095550302", 2)
+	for _, u := range []user{ana, luis} {
+		e.do("PUT", "/v1/gente/me", u.token, map[string]any{"name": "X", "rules": true}, nil)
+	}
+	var pa, pl gentePost
+	e.do("POST", "/v1/gente/posts", ana.token, map[string]any{"text": "de Ana"}, &pa)
+	e.do("POST", "/v1/gente/posts", luis.token, map[string]any{"text": "de Luis"}, &pl)
+	var c genteComment
+	e.do("POST", "/v1/gente/posts/"+pl.ID+"/comments", ana.token, map[string]string{"text": "hola Luis"}, &c)
+
+	if s := e.do("PUT", "/v1/gente/blocks/"+ana.accountID, ana.token, nil, nil); s != 400 {
+		t.Fatalf("bloquearse a sí misma: %d", s)
+	}
+	if s := e.do("PUT", "/v1/gente/blocks/no-existe", ana.token, nil, nil); s != 404 {
+		t.Fatalf("bloquear cuenta inexistente: %d", s)
+	}
+	// Ana bloquea a Luis
+	if s := e.do("PUT", "/v1/gente/blocks/"+luis.accountID, ana.token, nil, nil); s != 204 {
+		t.Fatalf("bloquear: %d", s)
+	}
+	var feed struct {
+		Posts []gentePost `json:"posts"`
+	}
+	for _, u := range []user{ana, luis} { // ninguno ve lo del otro
+		feed.Posts = nil
+		e.do("GET", "/v1/gente/feed", u.token, nil, &feed)
+		if len(feed.Posts) != 1 || feed.Posts[0].Author.ID != u.accountID {
+			t.Fatalf("muro con bloqueo: %+v", feed.Posts)
+		}
+	}
+	feed.Posts = nil
+	e.do("GET", "/v1/gente/feed?author="+ana.accountID, luis.token, nil, &feed)
+	if len(feed.Posts) != 0 {
+		t.Fatalf("Luis ve el perfil de Ana: %+v", feed.Posts)
+	}
+	if s := e.do("POST", "/v1/gente/posts/"+pa.ID+"/comments", luis.token, map[string]string{"text": "x"}, nil); s != 404 {
+		t.Fatalf("Luis comenta a quien le bloqueó: %d", s)
+	}
+	if s := e.do("PUT", "/v1/gente/posts/"+pa.ID+"/like", luis.token, nil, nil); s != 404 {
+		t.Fatalf("Luis da me gusta a quien le bloqueó: %d", s)
+	}
+	var list struct {
+		Blocked []genteAuthor `json:"blocked"`
+	}
+	e.do("GET", "/v1/gente/blocks", ana.token, nil, &list)
+	if len(list.Blocked) != 1 || list.Blocked[0].ID != luis.accountID {
+		t.Fatalf("lista de bloqueados: %+v", list)
+	}
+	// Desbloquear: vuelve todo
+	if s := e.do("DELETE", "/v1/gente/blocks/"+luis.accountID, ana.token, nil, nil); s != 204 {
+		t.Fatalf("desbloquear: %d", s)
+	}
+	feed.Posts = nil
+	e.do("GET", "/v1/gente/feed", luis.token, nil, &feed)
+	if len(feed.Posts) != 2 {
+		t.Fatalf("tras desbloquear: %+v", feed.Posts)
+	}
+	var cs struct {
+		Comments []genteComment `json:"comments"`
+	}
+	e.do("GET", "/v1/gente/posts/"+pl.ID+"/comments", luis.token, nil, &cs)
+	if len(cs.Comments) != 1 {
+		t.Fatalf("comentarios tras desbloquear: %+v", cs)
 	}
 }

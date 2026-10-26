@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -159,6 +160,7 @@ List<GentePost> demoGentePosts() {
 
 const _hiddenKey = 'klk.gente.hidden';
 const _meKey = 'klk.gente.me';
+const _rulesKey = 'klk.gente.rules';
 
 /// Estado de Mi Gente: el muro, los filtros y mi perfil público.
 class GenteController extends ChangeNotifier {
@@ -178,7 +180,11 @@ class GenteController extends ChangeNotifier {
   bool hasMore = true;
   bool loadedOnce = false;
   String? error;
+  /// Gente que he bloqueado en Mi Gente (copia local de lo que guarda el servidor).
   Set<String> hiddenAuthors = {};
+
+  /// ¿Acepté ya las normas de Mi Gente en esta cuenta?
+  bool rulesAccepted = false;
 
   bool get isDemo => _api == null;
 
@@ -198,6 +204,36 @@ class GenteController extends ChangeNotifier {
     try {
       final v = jsonDecode(await _store.read(_hiddenKey) ?? '[]');
       if (v is List) hiddenAuthors = {for (final x in v) if (x is String) x};
+      rulesAccepted = (await _store.read(_rulesKey)) == app.myId;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _saveHidden() async {
+    try {
+      await _store.write(_hiddenKey, jsonEncode(hiddenAuthors.toList()));
+    } catch (_) {}
+  }
+
+  /// Trae del servidor a quién he bloqueado (por si cambié de móvil).
+  Future<void> syncBlocks() async {
+    final api = _api;
+    if (api == null) return;
+    try {
+      final list = await api.genteBlocks();
+      hiddenAuthors = {for (final j in list) if (GenteAuthor.fromJson(j).id.isNotEmpty) GenteAuthor.fromJson(j).id};
+      notifyListeners();
+      await _saveHidden();
+    } catch (_) {}
+  }
+
+  /// Acepto las normas: se avisa al servidor la próxima vez que suba mi perfil.
+  Future<void> acceptRules() async {
+    rulesAccepted = true;
+    notifyListeners();
+    try {
+      await _store.write(_rulesKey, app.myId);
+      await _store.delete(_meKey); // fuerza a subir el perfil con la aceptación
     } catch (_) {}
   }
 
@@ -211,6 +247,7 @@ class GenteController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    if (!loadedOnce) unawaited(syncBlocks());
     if (isDemo) {
       _posts = [for (final p in demoGentePosts()) if (country.isEmpty || p.country == country) p];
       hasMore = false;
@@ -313,7 +350,9 @@ class GenteController extends ChangeNotifier {
       final v = jsonDecode(await _store.read(_meKey) ?? '{}');
       if (v is Map<String, dynamic>) saved = v;
     } catch (_) {}
-    if (saved['name'] == name && saved['key'] == photoKey && saved['acc'] == app.myId) return;
+    if (saved['name'] == name && saved['key'] == photoKey && saved['acc'] == app.myId && saved['rules'] == rulesAccepted) {
+      return;
+    }
     var photo = '';
     if (file != null) {
       photo = saved['key'] == photoKey && saved['acc'] == app.myId ? (saved['photo'] as String? ?? '') : '';
@@ -325,8 +364,9 @@ class GenteController extends ChangeNotifier {
         }
       }
     }
-    await api.genteSetProfile(name, photo);
-    await _store.write(_meKey, jsonEncode({'name': name, 'key': photoKey, 'photo': photo, 'acc': app.myId}));
+    await api.genteSetProfile(name, photo, rules: rulesAccepted);
+    await _store.write(
+        _meKey, jsonEncode({'name': name, 'key': photoKey, 'photo': photo, 'acc': app.myId, 'rules': rulesAccepted}));
   }
 
   /// Publica [text] con hasta 4 fotos (ya reducidas). Sale arriba del todo.
@@ -362,21 +402,30 @@ class GenteController extends ChangeNotifier {
     if (!isDemo) await _api!.genteReport(commentId: c.id, reason: reason);
   }
 
-  /// Dejo de ver las publicaciones de alguien (solo en mi móvil).
-  Future<void> hideAuthor(String id) async {
+  /// Bloqueo a alguien en Mi Gente: no veo lo suyo, no ve lo mío y no puede
+  /// comentar ni dar me gusta a lo mío. Se guarda en el servidor.
+  Future<void> block(String id) async {
+    if (!isDemo) await _api!.genteBlock(id, true);
     hiddenAuthors = {...hiddenAuthors, id};
     notifyListeners();
-    try {
-      await _store.write(_hiddenKey, jsonEncode(hiddenAuthors.toList()));
-    } catch (_) {}
+    await _saveHidden();
   }
 
-  Future<void> unhideAll() async {
-    hiddenAuthors = {};
+  Future<void> unblock(String id) async {
+    if (!isDemo) await _api!.genteBlock(id, false);
+    hiddenAuthors = {...hiddenAuthors}..remove(id);
     notifyListeners();
-    try {
-      await _store.write(_hiddenKey, '[]');
-    } catch (_) {}
+    await _saveHidden();
+  }
+
+  /// Desbloquea a todos los que bloqueé en Mi Gente.
+  Future<void> unhideAll() async {
+    for (final id in [...hiddenAuthors]) {
+      try {
+        await unblock(id);
+      } catch (_) {}
+    }
+    await refresh();
   }
 
   Future<List<GenteComment>> comments(String postId) async {

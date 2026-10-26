@@ -27,6 +27,7 @@ type GenteProfile struct {
 	Name      string
 	Photo     string
 	UpdatedAt time.Time
+	RulesAt   time.Time // cuándo aceptó las normas de Mi Gente (cero = nunca)
 }
 
 type GentePost struct {
@@ -55,6 +56,7 @@ type GenteQuery struct {
 	Country string    // "DO", "IE"…
 	Author  string    // solo las de esta cuenta
 	Before  time.Time // para pedir más (las anteriores a esta hora)
+	Hide    []string  // cuentas que no se enseñan (bloqueos)
 	Limit   int
 }
 
@@ -74,6 +76,11 @@ func (q GenteQuery) before() time.Time {
 
 type GenteStore interface {
 	PutGenteProfile(ctx context.Context, p GenteProfile) error
+	// GetGenteProfile devuelve ErrNotFound si la cuenta aún no tiene perfil.
+	GetGenteProfile(ctx context.Context, account string) (GenteProfile, error)
+	SetGenteBlock(ctx context.Context, blocker, blocked string, on bool) error
+	// GenteBlocks: a quién bloqueé yo y quién me bloqueó a mí.
+	GenteBlocks(ctx context.Context, account string) (blocked, blockedBy []string, err error)
 	AddGentePost(ctx context.Context, p GentePost) error
 	// GetGentePost devuelve ErrNotFound si no existe o su autor está bloqueado.
 	GetGentePost(ctx context.Context, id, viewer string) (GentePost, error)
@@ -100,6 +107,7 @@ type memGente struct {
 	likes    map[string]map[string]bool
 	comments map[string]GenteComment
 	images   map[string]BusinessImage
+	blocks   map[string]map[string]bool // quien bloquea -> bloqueados
 }
 
 func (m *Memory) gente() *memGente {
@@ -110,6 +118,7 @@ func (m *Memory) gente() *memGente {
 			likes:    map[string]map[string]bool{},
 			comments: map[string]GenteComment{},
 			images:   map[string]BusinessImage{},
+			blocks:   map[string]map[string]bool{},
 		}
 	}
 	return m.gent
@@ -137,11 +146,60 @@ func (m *Memory) gentePostLocked(p GentePost, viewer string) GentePost {
 	return p
 }
 
+func (m *Memory) GetGenteProfile(_ context.Context, acc string) (GenteProfile, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.gente().profiles[acc]
+	if !ok {
+		return GenteProfile{}, ErrNotFound
+	}
+	return p, nil
+}
+
+func (m *Memory) SetGenteBlock(_ context.Context, blocker, blocked string, on bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.accounts[blocked]; !ok && on {
+		return ErrNotFound
+	}
+	g := m.gente()
+	if on {
+		if g.blocks[blocker] == nil {
+			g.blocks[blocker] = map[string]bool{}
+		}
+		g.blocks[blocker][blocked] = true
+	} else {
+		delete(g.blocks[blocker], blocked)
+	}
+	return nil
+}
+
+func (m *Memory) GenteBlocks(_ context.Context, acc string) ([]string, []string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	blocked, by := []string{}, []string{}
+	for who, list := range m.gente().blocks {
+		if who == acc {
+			for b := range list {
+				blocked = append(blocked, b)
+			}
+		} else if list[acc] {
+			by = append(by, who)
+		}
+	}
+	sort.Strings(blocked)
+	sort.Strings(by)
+	return blocked, by, nil
+}
+
 func (m *Memory) PutGenteProfile(_ context.Context, p GenteProfile) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.accounts[p.AccountID]; !ok {
 		return ErrNotFound
+	}
+	if old, ok := m.gente().profiles[p.AccountID]; ok && p.RulesAt.IsZero() {
+		p.RulesAt = old.RulesAt
 	}
 	m.gente().profiles[p.AccountID] = p
 	return nil
@@ -175,13 +233,17 @@ func (m *Memory) ListGentePosts(_ context.Context, q GenteQuery) ([]GentePost, e
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	before := q.before()
+	hide := map[string]bool{}
+	for _, h := range q.Hide {
+		hide[h] = true
+	}
 	out := []GentePost{}
 	for _, p := range m.gente().posts {
 		if _, ok := m.accounts[p.Author.ID]; !ok || m.bannedLocked(p.Author.ID) {
 			continue
 		}
 		if (q.Country != "" && p.Country != q.Country) || (q.Author != "" && p.Author.ID != q.Author) ||
-			!p.CreatedAt.Before(before) {
+			!p.CreatedAt.Before(before) || hide[p.Author.ID] {
 			continue
 		}
 		out = append(out, m.gentePostLocked(p, q.Viewer))
@@ -341,6 +403,10 @@ func (m *Memory) deleteGenteLocked(acc string) {
 	}
 	g := m.gent
 	delete(g.profiles, acc)
+	delete(g.blocks, acc)
+	for _, list := range g.blocks {
+		delete(list, acc)
+	}
 	for id, p := range g.posts {
 		if p.Author.ID == acc {
 			delete(g.posts, id)
@@ -370,11 +436,83 @@ func (p *Postgres) PutGenteProfile(ctx context.Context, g GenteProfile) error {
 	if !isUUID(g.AccountID) {
 		return ErrNotFound
 	}
+	var rules *time.Time
+	if !g.RulesAt.IsZero() {
+		rules = &g.RulesAt
+	}
 	_, err := p.pool.Exec(ctx, `
-		INSERT INTO gente_profiles (account_id, name, photo, updated_at) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (account_id) DO UPDATE SET name = EXCLUDED.name, photo = EXCLUDED.photo, updated_at = EXCLUDED.updated_at`,
-		g.AccountID, g.Name, g.Photo, g.UpdatedAt)
+		INSERT INTO gente_profiles (account_id, name, photo, updated_at, rules_at) VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (account_id) DO UPDATE SET name = EXCLUDED.name, photo = EXCLUDED.photo,
+		  updated_at = EXCLUDED.updated_at, rules_at = coalesce(EXCLUDED.rules_at, gente_profiles.rules_at)`,
+		g.AccountID, g.Name, g.Photo, g.UpdatedAt, rules)
 	return err
+}
+
+func (p *Postgres) GetGenteProfile(ctx context.Context, acc string) (GenteProfile, error) {
+	if !isUUID(acc) {
+		return GenteProfile{}, ErrNotFound
+	}
+	g := GenteProfile{AccountID: acc}
+	var rules *time.Time
+	err := p.pool.QueryRow(ctx, `SELECT name, photo, updated_at, rules_at FROM gente_profiles WHERE account_id = $1`, acc).
+		Scan(&g.Name, &g.Photo, &g.UpdatedAt, &rules)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return GenteProfile{}, ErrNotFound
+	}
+	if rules != nil {
+		g.RulesAt = *rules
+	}
+	return g, err
+}
+
+func (p *Postgres) SetGenteBlock(ctx context.Context, blocker, blocked string, on bool) error {
+	if !isUUID(blocker) || !isUUID(blocked) {
+		return ErrNotFound
+	}
+	if !on {
+		_, err := p.pool.Exec(ctx, `DELETE FROM gente_blocks WHERE blocker = $1 AND blocked = $2`, blocker, blocked)
+		return err
+	}
+	tag, err := p.pool.Exec(ctx, `
+		INSERT INTO gente_blocks (blocker, blocked) SELECT $1, $2 WHERE EXISTS (SELECT 1 FROM accounts WHERE id = $2)
+		ON CONFLICT DO NOTHING`, blocker, blocked)
+	if err == nil && tag.RowsAffected() == 0 {
+		var ok bool
+		p.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM accounts WHERE id = $1)`, blocked).Scan(&ok)
+		if !ok {
+			return ErrNotFound
+		}
+	}
+	return err
+}
+
+func (p *Postgres) GenteBlocks(ctx context.Context, acc string) ([]string, []string, error) {
+	blocked, by := []string{}, []string{}
+	if !isUUID(acc) {
+		return blocked, by, nil
+	}
+	rows, err := p.pool.Query(ctx, `
+		SELECT blocked::text, true FROM gente_blocks WHERE blocker = $1
+		UNION ALL
+		SELECT blocker::text, false FROM gente_blocks WHERE blocked = $1
+		ORDER BY 1`, acc)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var mine bool
+		if err := rows.Scan(&id, &mine); err != nil {
+			return nil, nil, err
+		}
+		if mine {
+			blocked = append(blocked, id)
+		} else {
+			by = append(by, id)
+		}
+	}
+	return blocked, by, rows.Err()
 }
 
 func (p *Postgres) AddGentePost(ctx context.Context, g GentePost) error {
@@ -431,7 +569,8 @@ func (p *Postgres) ListGentePosts(ctx context.Context, q GenteQuery) ([]GentePos
 		  AND ($2 = '' OR p.country = $2)
 		  AND ($3 = '' OR p.author::text = $3)
 		  AND p.created_at < $4
-		ORDER BY p.created_at DESC LIMIT $5`, q.Viewer, q.Country, q.Author, q.before(), q.limit())
+		  AND NOT (p.author::text = ANY($6))
+		ORDER BY p.created_at DESC LIMIT $5`, q.Viewer, q.Country, q.Author, q.before(), q.limit(), append([]string{}, q.Hide...))
 	if err != nil {
 		return nil, err
 	}
@@ -569,7 +708,7 @@ func (p *Postgres) PutGenteImage(ctx context.Context, img BusinessImage) error {
 		return ErrNotFound
 	}
 	_, err := p.pool.Exec(ctx, `INSERT INTO gente_images (id, owner, mime, data) VALUES ($1, $2, $3, $4)`,
-		img.ID, img.Owner, img.Mime, img.Data)
+		img.ID, img.Owner, img.Mime, nonNil(img.Data))
 	return err
 }
 
