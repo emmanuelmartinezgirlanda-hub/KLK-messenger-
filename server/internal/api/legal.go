@@ -39,7 +39,7 @@ func (s *Server) legalData() Legal {
 		l.Owner = "KLK messenger"
 	}
 	if l.Updated == "" {
-		l.Updated = "23 de octubre de 2026"
+		l.Updated = "26 de octubre de 2026"
 	}
 	return l
 }
@@ -81,6 +81,7 @@ var privacyTmpl = template.Must(template.New("p").Parse(legalHead + `<title>Pol�
 <ul>
 <li>Tus mensajes, fotos, audios y llamadas van <b>cifrados de punta a punta</b>. Solo tú y la persona con quien hablas pueden verlos. KLK <b>no puede leerlos</b>.</li>
 <li>Los mensajes se guardan <b>en tu móvil</b>, no en nuestros servidores. El servidor solo los guarda (cifrados) hasta que llegan al otro móvil.</li>
+<li>Lo que publicas en <b>KLK Mi Gente</b> (el muro) y el perfil de tu <b>negocio</b> son <b>públicos</b> para la gente de KLK: eso no va cifrado, porque está hecho para que otros lo vean.</li>
 <li>No vendemos tus datos ni ponemos publicidad.</li>
 <li>Puedes <b>borrar tu cuenta</b> cuando quieras desde la app.</li>
 </ul></section>
@@ -95,11 +96,12 @@ var privacyTmpl = template.Must(template.New("p").Parse(legalHead + `<title>Pol�
 <li><b>Mensajes y archivos cifrados en tránsito</b>: el servidor los guarda cifrados hasta que se entregan. Los archivos (fotos, vídeos, audios) se borran del servidor a los 30 días como máximo.</li>
 <li><b>Tu agenda</b> (solo si das permiso): la app consulta qué números de tu agenda usan KLK. No guardamos tu agenda.</li>
 <li><b>Última conexión y datos técnicos</b> (dirección IP, tipo de dispositivo): para que el servicio funcione, evitar abusos y estafas, y contar cuántas personas usan KLK.</li>
-<li><b>Tu nombre y foto de perfil</b>: viajan cifrados a tus contactos; el servidor no los ve.</li>
+<li><b>Tu nombre y foto de perfil</b>: en los chats viajan cifrados a tus contactos y el servidor no los ve. Si usas KLK Mi Gente, tu nombre y tu foto se guardan en el servidor y salen <b>públicos</b> junto a lo que publicas o comentas.</li>
+<li><b>KLK Mi Gente</b> (solo si lo usas): tus publicaciones (texto y fotos), tus comentarios, tus «me gusta», el país desde el que publicas y la fecha. Son <b>públicos</b> para cualquier persona que use KLK. También guardamos a quién bloqueas en Mi Gente (eso no se muestra a nadie) y cuándo aceptaste sus normas. Puedes borrar cada publicación o comentario cuando quieras.</li>
 <li><b>Denuncias</b>: si denuncias a alguien, recibimos su número y, si tú lo eliges, los mensajes que adjuntes, para revisar el caso.</li>
 <li><b>Ubicación</b> (solo si la envías en un chat): va cifrada; el servidor no la ve.</li>
 <li><b>San</b>: los turnos y pagos viajan cifrados dentro del chat. Los datos de banco que pongas para cobrar se guardan solo en tu móvil y se envían cifrados únicamente a quien organiza el san; el servidor no los ve. KLK no mueve dinero.</li>
-<li><b>Cuenta de negocio</b> (solo si la creas): el nombre, tipo, ciudad, horario, dirección y catálogo de tu negocio son <b>públicos</b> para que los clientes te encuentren. Los pedidos y citas viajan cifrados en el chat, como cualquier mensaje. La libreta del fiao se guarda solo en tu móvil.</li>
+<li><b>Cuenta de negocio</b> (solo si la creas): el nombre, tipo, ciudad, horario, dirección, logo, catálogo y fotos de los productos de tu negocio son <b>públicos</b> para que los clientes te encuentren, dentro de KLK y en la página web de tu negocio que puedes compartir (por ejemplo, por WhatsApp o Instagram). Tu número de teléfono no se muestra. Los pedidos y citas viajan cifrados en el chat, como cualquier mensaje. La libreta del fiao se guarda solo en tu móvil.</li>
 <li><b>Recargas de móvil</b> (cuando estén disponibles): el número a recargar, el monto y el estado del pago. Los datos de tu tarjeta los trata directamente el procesador de pagos; KLK no los ve ni los guarda.</li>
 </ul></section>
 
@@ -107,6 +109,7 @@ var privacyTmpl = template.Must(template.New("p").Parse(legalHead + `<title>Pol�
 <p>Solo con los proveedores que necesitamos para que KLK funcione, y solo lo imprescindible:</p>
 <ul>
 <li>Alojamiento del servidor y la base de datos (Render).</li>
+<li>Almacenamiento de archivos (Cloudflare R2): los archivos de los chats (cifrados) y las fotos públicas de Mi Gente y de los negocios.</li>
 <li>Envío de los códigos por SMS (Twilio): tu número de teléfono.</li>
 <li>Recargas (cuando estén activas): el procesador de pagos (Stripe) y el proveedor de recargas (Reloadly).</li>
 <li>Avisos (notificaciones) de Apple y Google: un aviso sin el contenido del mensaje.</li>
@@ -117,8 +120,9 @@ var privacyTmpl = template.Must(template.New("p").Parse(legalHead + `<title>Pol�
 <section><h2>Cuánto tiempo los guardamos</h2>
 <ul>
 <li>Mensajes en el servidor: hasta que se entregan.</li>
-<li>Archivos en el servidor: 30 días como máximo.</li>
-<li>Tu cuenta: hasta que la borras. Al borrarla se eliminan del servidor tu número, tus claves, tus mensajes pendientes, tus denuncias, tus comunidades y tus recargas.</li>
+<li>Archivos de los chats en el servidor: 30 días como máximo (1 año con KLK Plus).</li>
+<li>Publicaciones, comentarios y fotos de Mi Gente, y el perfil y las fotos de tu negocio: hasta que los borras, dejas de ser negocio o borras tu cuenta. Si se borran por incumplir las normas, también desaparecen.</li>
+<li>Tu cuenta: hasta que la borras. Al borrarla se eliminan del servidor tu número, tus claves, tus mensajes pendientes, tus denuncias, tus comunidades, tus recargas, tu negocio y todo lo que publicaste en Mi Gente (publicaciones, fotos, comentarios y «me gusta»).</li>
 <li>Si una cuenta se bloquea por estafa o acoso, podemos guardar el número bloqueado para que no vuelva a registrarse.</li>
 </ul></section>
 
@@ -154,7 +158,7 @@ var termsTmpl = template.Must(template.New("t").Parse(legalHead + `<title>Normas
 <p class="muted">Última actualización: {{.Updated}}. Al crear tu cuenta aceptas estas normas y la <a href="/privacidad">política de privacidad</a>.</p>
 
 <section><h2>Tolerancia cero</h2>
-<p>En KLK <b>no se permite</b>, en chats, grupos, comunidades, estados ni perfiles:</p>
+<p>En KLK <b>no se permite</b>, en chats, grupos, comunidades, estados, perfiles, KLK Mi Gente ni negocios:</p>
 <ul>
 <li>Acoso, amenazas, intimidación o insultos a una persona o grupo.</li>
 <li>Odio o discriminación por origen, raza, religión, sexo, orientación, discapacidad u otra condición.</li>
@@ -170,8 +174,15 @@ var termsTmpl = template.Must(template.New("t").Parse(legalHead + `<title>Normas
 <ul>
 <li><b>Un mensaje</b>: mantenlo pulsado y elige <b>Denunciar</b>.</li>
 <li><b>Una persona</b>: toca su nombre (en un chat, grupo o comunidad) y elige <b>Denunciar</b> o <b>Bloquear</b>. Al bloquearla dejas de recibir sus mensajes.</li>
+<li><b>En KLK Mi Gente</b>: toca <b>⋯</b> en una publicación (o mantén pulsado un comentario) y elige <b>Denunciar</b> o <b>Bloquear</b>. Si bloqueas a alguien, no verás lo suyo, no verá lo tuyo y no podrá comentar ni dar «me gusta» a tus publicaciones.</li>
 </ul>
 <p>Revisamos las denuncias en <b>24 horas</b> como máximo y actuamos contra las cuentas que incumplen las normas.{{if .SupportEmail}} También puedes escribirnos a <a href="mailto:{{.SupportEmail}}">{{.SupportEmail}}</a>.{{end}}</p></section>
+
+<section><h2>KLK Mi Gente</h2>
+<p>Mi Gente es el muro público de KLK: lo que publicas y comentas lo puede ver cualquiera que use KLK. Antes de publicar por primera vez tienes que aceptar estas normas. Publica solo fotos tuyas o con permiso, y nada de datos personales de otros. Borramos lo que incumpla las normas y podemos bloquear la cuenta.</p></section>
+
+<section><h2>Negocios</h2>
+<p>Si pones tu negocio en KLK, la información y los precios que publicas deben ser reales y eres responsable de lo que vendes. Los pedidos y citas son un acuerdo entre el negocio y el cliente: <b>KLK no cobra, no entrega y no es parte de ese acuerdo</b>.</p></section>
 
 <section><h2>Comunidades</h2>
 <p>Las comunidades por país son abiertas a los dominicanos de ese país. Trata a todos con respeto; tu número de teléfono no se muestra a los demás miembros.</p></section>

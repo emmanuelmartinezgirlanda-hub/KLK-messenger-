@@ -448,7 +448,7 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
                             : Text(
                                 chosen == null
-                                    ? 'Suscribirse: muy pronto'
+                                    ? 'Suscripción no disponible'
                                     : trial != null
                                         ? 'Probar $trial'
                                         : 'Probar KLK Plus',
@@ -466,7 +466,7 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                     ] else if (!_loadingStore)
                       const Padding(
                         padding: EdgeInsets.only(top: 8),
-                        child: Text('Muy pronto podrás suscribirte desde aquí.',
+                        child: Text('No se pudo conectar con la App Store. Revisa tu conexión e inténtalo otra vez.',
                             textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: muted)),
                       ),
                   ],
