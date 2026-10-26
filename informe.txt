@@ -1,0 +1,60 @@
+01.0 [0.90] que lo que me sende la app de los dominicanos. Ahora con más que nunca.
+01.1 [0.90] que lo que me sendí la app de los dominicanos ahora con más que nunca.
+01.2 [0.90] que lo que me esenyer la app de los dominicanos, ahora con más que nunca.
+01.3 [0.90] que lo que me esenyer, la app de los dominicanos, ahora con más que nunca.
+==> 01 (0.90) fin=3.94
+02.0 [0.87] chats, grupos y llamadas cifradas con tu gente, este es donde estés.
+02.1 [0.87] chats, grupos y llamadas cifradas con tu gente, este es donde estés.
+02.2 [1.00] chats, grupos y llamadas cifradas con tu gente estés donde estés.
+02.3 [1.00] chats, grupos y llamadas cifradas con tu gente estés donde estés.
+==> 02 (1.00) fin=3.86
+03.0 [1.00] audios que se pasan a texto y stickers criollos con tu propia voz.
+03.1 [1.00] audios que se pasan a texto y stickers criollos con tu propia voz.
+03.2 [0.92] audios que se pasan a texto y stickes criollos con tu propia voz.
+03.3 [0.92] audios que se pasan a texto y stickes criollos con tu propia voz.
+==> 03 (1.00) fin=3.92
+04.0 [0.95] nuevo que lo que mi gente publica tus fotos dale me gusta y comenta dentro de tu misma apetía
+04.1 [0.95] Nuevo que lo que mi gente. Pública tus fotos, dale me gusta y comenta. Dentro de tu misma Apermento.
+04.2 [0.95] Nuevo, que lo que mi gente, publica tus fotos, dale me gusta y comenta, dentro de tu misma AP.
+04.3 [0.89] nuevo, que lo que mi gente. ¡Publigate tus fotos! Dale me gusta y comenta dentro de tu misma absiente.
+==> 04 (0.95) fin=None
+05.0 [0.92] Haces un san que lo que sorté a los turnos, lleva quien pagó y cada uno sale con su foto.
+05.1 [0.87] Haces un Sam, que lo que sorté a los turnos lleva quien pagó y cada uno sale con su foto.
+05.2 [0.92] Haces un san que lo que sorté a los turnos lleva quien pagó y cada uno sale con su foto.
+05.3 [0.92] ¿Haces un san? Que lo que sorté a los turnos lleva quien pagó y cada uno sale con su foto.
+==> 05 (0.92) fin=5.44
+06.0 [0.90] Tienes un colmado, una barbería o un salón. Pon tu negocio en que bloque.
+06.1 [0.90] Tienes un colmado, una barbería o un salón. Pon tu negocio en que bloque.
+06.2 [0.83] Tienes un culmado, una barbería o un salón. Pon tu negocio en que bloque.
+06.3 [0.90] Tienes un colmado, una barbería o un salón. Pon tu negocio en que bloque.
+==> 06 (0.90) fin=None
+07.0 [1.00] Sube tu logo y tus productos con foto y precio y recibe pedidos y citas por el chat.
+07.1 [1.00] Sube tu logo y tus productos con foto y precio y recibe pedidos y citas por el chat.
+07.2 [1.00] Sube tu logo y tus productos con foto y precio y recibe pedidos y citas por el chat.
+07.3 [1.00] Sube tu logo y tus productos con foto y precio y recibe pedidos y citas por el chat.
+==> 07 (1.00) fin=5.22
+08.0 [0.94] Lleve el fiao en tu libreta y comparte tu negocio por WhatsApp, Instagram o tus estados.
+08.1 [1.00] Lleva el fiao en tu libreta y comparte tu negocio por WhatsApp, Instagram o tus estados.
+08.2 [1.00] Lleva el fiao en tu libreta y comparte tu negocio por WhatsApp, Instagram o tus estados.
+08.3 [0.94] Lleva el fío en tu libreta y comparte tu negocio por WhatsApp, Instagram o tus estados.
+==> 08 (1.00) fin=5.28
+09.0 [0.78] con Queloque Plus, temas, iconos y stickers exclusivos.
+09.1 [1.00] con que lo que plus, temas, iconos y stickers exclusivos.
+09.2 [1.00] con que lo que plus, temas, iconos y stickers exclusivos.
+09.3 [1.00] con que lo que plus, temas, iconos y stickers exclusivos.
+==> 09 (1.00) fin=4.02
+10.0 [1.00] y en la próxima actualización, recargas a cualquier móvil de República Dominicana.
+10.1 [0.85] y en la próxima actualización le cargas a cualquier móvil de la República Dominicana.
+10.2 [0.88] y en la próxima actualización, te cargas a cualquier móvil de República Dominicana.
+10.3 [1.00] y en la próxima actualización, recargas a cualquier móvil de República Dominicana.
+==> 10 (1.00) fin=4.94
+11.0 [0.93] y es privada de verdad, cifrado de punta a punta, ping y chats ocultos.
+11.1 [0.93] y es privada de verdad, cifrado de punta a punta, ping y chats ocultos.
+11.2 [1.00] y es privada de verdad, cifrado de punta a punta, pin y chats ocultos.
+11.3 [0.79] y es privada de verdad, cifrado de punta a punta, ping y chat socurtos.
+==> 11 (1.00) fin=4.72
+12.0 [0.53] que lo que me enseñé te descarga la gratis.
+12.1 [0.57] que lo que me enseñar, descarga la gratis.
+12.2 [0.57] que lo que me sende, descarga la gratis.
+12.3 [0.57] que lo que me señer descarga la gratis.
+==> 12 (0.57) fin=2.68
