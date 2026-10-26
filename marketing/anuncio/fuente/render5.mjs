@@ -14,7 +14,7 @@ if (mode==='preview'){
 } else {
   fs.mkdirSync('frames5',{recursive:true});
   const fps=30, total=await p.evaluate(()=>TOTAL);
-  const first=+(process.argv[3]||0), last=+(process.argv[4]||Math.ceil(total*fps));
+  const first=+(process.argv[3]||0), last=Math.min(+(process.argv[4]||1e9),Math.ceil(total*fps));
   for (let i=first;i<last;i++){
     await p.evaluate(t=>seek(t), i/fps);
     await p.screenshot({path:`frames5/${String(i).padStart(5,'0')}.jpg`, type:'jpeg', quality:92});
