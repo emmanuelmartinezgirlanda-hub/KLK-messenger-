@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<style>
+:root{
+  --navy:#002D62; --navy2:#001A3D; --red:#CE1126; --red2:#E5243B; --green:#1F7A4D; --gold:#E0B54A;
+  /* App en modo oscuro (KLK oscuro) */
+  --bg:#121B22; --chat:#0B141B; --ink:#E9EDEF; --muted:#8FA0AB; --card:#1C262E; --card2:#233039; --line:#26333C;
+  --mine:#16406F; --their:#1F2C34; --blue:#6EA8FF;
+  --display:'Inter Display','Inter',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:540px;height:960px;overflow:hidden;background:var(--navy2)}
+body{font-family:var(--body);color:#fff;-webkit-font-smoothing:antialiased}
+#stage{position:absolute;inset:0;overflow:hidden;
+  background:radial-gradient(120% 70% at 50% 0%,#0A4A93 0%,var(--navy) 45%,var(--navy2) 100%)}
+.glow{position:absolute;width:520px;height:520px;border-radius:50%;filter:blur(70px);opacity:.33}
+.scene{position:absolute;inset:0;opacity:0}
+
+/* Títulos de arriba */
+.cap{position:absolute;left:30px;right:30px;top:46px;opacity:0;text-align:center}
+.cap .k{display:inline-flex;gap:7px;align-items:center;font:800 13px var(--body);letter-spacing:1.4px;text-transform:uppercase;
+  background:#ffffff16;border:1px solid #ffffff2a;border-radius:999px;padding:6px 13px}
+.cap .k.new{background:var(--red);border-color:var(--red)}
+.cap .k.soon{background:#FFD60A;color:#111;border-color:#FFD60A}
+.cap .k.gold{background:linear-gradient(90deg,#F6D77B,#D9A43A);color:#3A2600;border-color:#F6D77B}
+.cap h2{font:900 37px/1.04 var(--display);letter-spacing:-1px;margin-top:12px;text-wrap:balance}
+.cap p{font:500 16.5px/1.32 var(--body);color:#C9D7EA;margin-top:8px;text-wrap:balance}
+
+/* Móvil */
+#phone{position:absolute;left:115px;top:262px;width:310px;height:650px;border-radius:48px;background:#05070A;
+  padding:10px;box-shadow:0 40px 90px #000000a0,0 0 0 2px #2A3240 inset;opacity:0}
+#screen{position:relative;width:100%;height:100%;border-radius:39px;overflow:hidden;background:var(--bg);color:var(--ink)}
+.notch{position:absolute;top:8px;left:50%;width:90px;height:26px;margin-left:-45px;border-radius:20px;background:#05070A;z-index:80}
+.status{position:absolute;top:0;left:0;right:0;height:40px;display:flex;justify-content:space-between;align-items:center;
+  padding:5px 24px 0;font:700 12.5px var(--body);z-index:70;color:var(--ink)}
+.status .r{display:flex;gap:5px;align-items:center}
+.status.onred{color:#fff}
+.bat{width:21px;height:10px;border:1.5px solid currentColor;border-radius:3px;padding:1px}.bat i{display:block;height:100%;width:62%;background:#3DDC84;border-radius:1px}
+.view{position:absolute;inset:0;padding-top:40px;background:var(--bg);opacity:0}
+
+/* Barra de pestañas de cristal (como la app) */
+.glass{position:absolute;left:10px;right:10px;bottom:12px;height:58px;border-radius:30px;background:#222832d6;
+  border:1px solid #ffffff22;display:flex;align-items:center;padding:0 4px;backdrop-filter:blur(14px);z-index:30;
+  box-shadow:0 10px 26px #00000070}
+.glass div{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font:600 8.6px var(--body);color:#C3CAD5;padding:5px 0;border-radius:22px}
+.glass div.on{background:#ffffff21;color:#fff;font-weight:800}
+.glass svg{width:20px;height:20px}
+.glass .me{width:22px;height:22px;border-radius:50%;background:#C0703F;display:grid;place-items:center;font:800 10px var(--body);color:#fff}
+
+/* Cabecera */
+.hdr{height:50px;display:flex;align-items:center;gap:5px;padding:0 12px}
+.hdr img{height:30px}
+.hdr .t{font:800 17px var(--display);color:var(--ink)}
+.hdr .acts{margin-left:auto;display:flex;gap:8px;align-items:center}
+.rnd{width:32px;height:32px;border-radius:50%;display:grid;place-items:center}
+.rnd.g{background:#2B2D31}.rnd.r{background:var(--red2)}
+.hdr2{height:48px;display:flex;align-items:center;gap:10px;padding:0 12px;font:800 17px var(--display)}
+
+/* Lista de chats */
+.search{margin:2px 12px 7px;height:34px;border-radius:999px;background:#202C33;display:flex;align-items:center;gap:8px;padding:0 13px;color:#8696a0;font-size:13px}
+.chips{display:flex;gap:6px;padding:2px 12px 6px}
+.chips span{white-space:nowrap;padding:5px 10px;border-radius:999px;background:#202C33;color:#AEBAC1;font:600 11.5px var(--body)}
+.chips span.on{background:#16406F;color:#D3E4FD}
+.row{display:flex;gap:10px;align-items:center;padding:7px 12px;position:relative}
+.av{flex:0 0 42px;height:42px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 16px var(--body);overflow:hidden;position:relative}
+.row .mid{flex:1;min-width:0;padding-bottom:7px;border-bottom:1px solid #1E2A31}
+.row .top{display:flex;justify-content:space-between;align-items:baseline}
+.row .nm{font:700 14.5px var(--body)}
+.row .tm{font-size:10.5px;color:var(--muted)}
+.row .tm.u{color:#25D366;font-weight:700}
+.row .ls{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px}
+.row .ls span{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{min-width:19px;height:19px;border-radius:10px;background:var(--red2);color:#fff;font:700 10.5px var(--body);display:grid;place-items:center;padding:0 5px}
+
+/* Llamada */
+.call{position:absolute;inset:0;z-index:40;opacity:0;background:radial-gradient(90% 60% at 50% 30%,#1B4B85,#0A1D35 70%);
+  display:flex;flex-direction:column;align-items:center;padding-top:96px;color:#fff}
+.call .ava{width:104px;height:104px;border-radius:50%;background:#B5477A;display:grid;place-items:center;font:800 42px var(--body);box-shadow:0 0 0 8px #ffffff14}
+.call h4{font:800 23px var(--display);margin-top:18px}
+.call .s{font-size:13px;color:#C9D7EA;margin-top:6px;display:flex;gap:6px;align-items:center}
+.call .btns{position:absolute;bottom:60px;display:flex;gap:26px}
+.call .btns i{width:56px;height:56px;border-radius:50%;display:grid;place-items:center}
+.pulse{position:absolute;top:96px;left:50%;width:104px;height:104px;margin-left:-52px;border-radius:50%;border:2px solid #ffffff80;opacity:0}
+
+/* Chat */
+.chathead{height:52px;display:flex;align-items:center;gap:9px;padding:0 9px;background:var(--bg);border-bottom:1px solid #1E2A31;position:relative;z-index:2}
+.chathead .av{flex-basis:34px;height:34px;font-size:14px}
+.chathead .nm{font:700 14.5px var(--body)}
+.chathead .st{font-size:11px;color:#25D366}
+.chatbody{position:absolute;top:92px;bottom:56px;left:0;right:0;background:var(--chat);padding:10px 9px;display:flex;flex-direction:column;gap:6px;justify-content:flex-end;overflow:hidden}
+.chatbody::before{content:"";position:absolute;inset:0;opacity:.07;background-image:radial-gradient(#6EA8FF 1.1px,transparent 1.2px);background-size:17px 17px}
+.enc{align-self:center;background:#1C2A33;color:#E3C66B;border-radius:8px;padding:5px 9px;font-size:10.5px;text-align:center;max-width:240px;position:relative;line-height:1.3}
+.b{max-width:226px;padding:6px 9px 5px;border-radius:11px;font-size:13.5px;line-height:1.32;position:relative;box-shadow:0 1px 1px #0000002a}
+.b.th{align-self:flex-start;background:var(--their);border-top-left-radius:3px}
+.b.me{align-self:flex-end;background:var(--mine);border-top-right-radius:3px}
+.b small{display:flex;justify-content:flex-end;gap:3px;align-items:center;font-size:10px;color:#9FB0BC;margin-top:2px}
+.ticks{color:#53BDEB;font-weight:800;letter-spacing:-3px;padding-right:3px}
+.audio{display:flex;align-items:center;gap:7px;width:206px}
+.audio .play{width:28px;height:28px;border-radius:50%;background:var(--blue);display:grid;place-items:center;flex:0 0 28px}
+.wave{display:flex;gap:2px;align-items:center;height:26px;flex:1}
+.wave i{width:3px;border-radius:2px;background:#5A6E7C}
+.speed{font:800 10px var(--body);background:#2A3B47;color:#D3E4FD;border-radius:9px;padding:3px 5px}
+.tr{height:0;overflow:hidden;opacity:0;border-top:1px solid #34444F;font-size:12.5px;line-height:1.35}
+.tr b{display:block;font:700 10px var(--body);color:#3DDC84;margin:5px 0 2px}
+.sticker{align-self:flex-end;width:138px;height:138px;position:relative}
+.sticker .s{position:absolute;inset:6px;border-radius:24px;background:linear-gradient(160deg,#0A4A93,var(--navy));border:5px solid #fff;
+  box-shadow:0 3px 10px #00000050;display:grid;place-items:center;overflow:hidden}
+.sticker .flag{font-size:56px;margin-top:-24px}
+.sticker .tx{position:absolute;bottom:11px;left:0;right:0;text-align:center;font:900 italic 19px var(--display);color:#FFD60A;
+  -webkit-text-stroke:5px #000;paint-order:stroke fill}
+.sticker .snd{position:absolute;right:-2px;top:-2px;width:30px;height:30px;border-radius:50%;background:var(--red2);display:grid;place-items:center;font-size:14px;border:2px solid #fff}
+.composer{position:absolute;bottom:0;left:0;right:0;height:56px;background:var(--chat);display:flex;align-items:center;gap:7px;padding:0 7px 6px}
+.composer .in{flex:1;height:40px;border-radius:20px;background:#202C33;display:flex;align-items:center;gap:9px;padding:0 13px;color:#8696a0;font-size:13.5px}
+.composer .mic{width:40px;height:40px;border-radius:50%;background:var(--blue);display:grid;place-items:center}
+
+/* Mi Gente */
+.gcomp{margin:4px 10px 6px;background:#1C262E;border-radius:16px;display:flex;align-items:center;gap:8px;padding:8px 8px 8px 10px}
+.gcomp .in{flex:1;border:1px solid #33424C;border-radius:20px;padding:8px 12px;font-size:12.5px;color:var(--muted)}
+.gchips{display:flex;gap:6px;padding:0 10px 6px}
+.gchips span{padding:5px 10px;border-radius:9px;border:1px solid #33424C;font:600 11.5px var(--body);color:#C3CAD5}
+.gchips span.on{background:#16406F;border-color:#16406F;color:#D3E4FD}
+.post{margin:4px 10px 8px;background:#1A242B;border-radius:16px;overflow:hidden}
+.post .ph{display:flex;gap:8px;align-items:center;padding:9px 10px 6px}
+.post .ph .av{flex-basis:36px;height:36px;font-size:14px}
+.post .nm{font:800 13.5px var(--body)} .post .wh{font-size:11px;color:var(--muted)}
+.post .tx{padding:0 11px 8px;font-size:13.5px;line-height:1.35}
+.post .img{height:178px;position:relative;overflow:hidden}
+.post .cnt{display:flex;align-items:center;gap:5px;padding:7px 11px 0;font-size:11.5px;color:#AEBAC1}
+.post .cnt .h{width:16px;height:16px;border-radius:50%;background:var(--red2);display:grid;place-items:center}
+.post .cnt .c{margin-left:auto}
+.post .acts{display:flex;border-top:1px solid #26333C;margin:7px 9px 0}
+.post .acts div{flex:1;display:flex;gap:6px;align-items:center;justify-content:center;padding:8px 0;font:700 12px var(--body);color:#C3CAD5}
+.cmt{display:flex;gap:7px;padding:4px 10px 8px;opacity:0}
+.cmt .av{flex-basis:28px;height:28px;font-size:11px}
+.cmt .bub{background:#26333C;border-radius:13px;padding:6px 10px;font-size:12.5px}
+.cmt .bub b{display:block;font-size:11.5px}
+.heart{position:absolute;left:50%;top:50%;font-size:70px;margin:-45px 0 0 -35px;opacity:0;z-index:5;filter:drop-shadow(0 6px 14px #0008)}
+
+/* San */
+.sanhero{margin:6px 10px 8px;border-radius:20px;padding:14px;background:linear-gradient(135deg,#1F7A4D,#0E4D2F);color:#fff}
+.sanhero .top{display:flex;gap:10px;align-items:center}
+.sanhero h4{font:900 19px/1.1 var(--display)}
+.sanpills{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.sanpills span{background:#ffffff22;border-radius:999px;padding:4px 9px;font:700 10.5px var(--body)}
+.turn{display:flex;gap:9px;align-items:center;margin:0 10px 6px;background:#1C262E;border-radius:14px;padding:7px 10px;position:relative}
+.turn .ta{position:relative;width:40px;height:38px;flex:0 0 40px}
+.turn .ta .av{position:absolute;left:0;top:1px;width:34px;height:34px;flex:none;font-size:13px}
+.turn .ta b{position:absolute;right:0;bottom:-1px;min-width:19px;height:19px;border-radius:10px;background:var(--navy);border:2px solid #1C262E;
+  display:grid;place-items:center;font:800 9.5px var(--body);color:#fff}
+.turn .nm{font:700 13.5px var(--body)} .turn .d{font-size:11px;color:var(--muted)}
+.turn .st{margin-left:auto;font:800 11px var(--body);color:#8FA0AB;display:flex;gap:4px;align-items:center}
+.turn .st.ok{color:#3DDC84}
+.cam{position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;border-radius:50%;background:var(--green);border:1.5px solid #1C262E;display:grid;place-items:center;z-index:3}
+
+/* Negocio (como la app: cabecera roja) */
+.bizhead{background:var(--red);padding:44px 14px 14px;margin-top:-40px;color:#fff}
+.bizhead .tp{display:flex;gap:11px;align-items:center}
+.logo{width:62px;height:62px;border-radius:17px;background:#fff;flex:0 0 62px;display:grid;place-items:center;position:relative;overflow:hidden}
+.logo .ini{font:800 23px var(--display);color:var(--red)}
+.logo .img{position:absolute;inset:0;opacity:0}
+.bizhead h4{font:800 19px/1.1 var(--display)}
+.bizhead .m{font-size:11.5px;margin-top:3px;opacity:.95}
+.bizhead .w{margin-top:11px;height:38px;border-radius:999px;background:#fff;color:var(--red);display:flex;gap:7px;align-items:center;justify-content:center;font:700 13.5px var(--body)}
+.sect{font:800 11px var(--body);letter-spacing:1.3px;color:#FF6B7A;padding:12px 14px 4px}
+.prod{display:flex;gap:10px;align-items:center;padding:7px 14px;opacity:0}
+.prod .pi{width:50px;height:50px;border-radius:12px;overflow:hidden;flex:0 0 50px;background:#26333C}
+.prod .n{font:700 14px var(--body)} .prod .p{font-size:12.5px;color:#AEBAC1;margin-top:1px}
+.prod .add{margin-left:auto;width:38px;height:38px;border-radius:50%;background:var(--red);display:grid;place-items:center}
+.prod .q{margin-left:auto;display:flex;align-items:center;gap:7px;font:800 14px var(--body);opacity:0;position:absolute;right:14px}
+.cart{position:absolute;left:10px;right:10px;bottom:14px;height:46px;border-radius:14px;background:#0E1217;border:1px solid #2E3A44;display:flex;align-items:center;padding:0 14px;font:700 13.5px var(--body);transform:translateY(90px)}
+.cart span{margin-left:auto;font-weight:900}
+
+/* Mi negocio */
+.mycard{margin:4px 10px 6px;background:var(--red);border-radius:18px;padding:12px;display:flex;gap:11px;align-items:center;color:#fff}
+.mycard .logo{width:50px;height:50px;flex-basis:50px;border-radius:14px}
+.tile{display:flex;gap:11px;align-items:center;padding:8px 12px;position:relative}
+.tile .ic{width:38px;height:38px;border-radius:50%;background:#3A1A20;display:grid;place-items:center;flex:0 0 38px}
+.tile .t{font:700 13.5px var(--body)} .tile .s{font-size:11.5px;color:var(--muted);margin-top:1px}
+.tile .ch{margin-left:auto;color:#6B7B86}
+.dim{position:absolute;inset:0;background:#000;opacity:0;z-index:35}
+.share{position:absolute;left:0;right:0;bottom:0;background:#1F2A31;border-radius:22px 22px 0 0;z-index:36;padding:10px 14px 26px;transform:translateY(110%)}
+.handle{width:34px;height:4px;border-radius:2px;background:#56646E;margin:0 auto 12px}
+.prev{display:flex;gap:10px;align-items:center;background:#2A3740;border-radius:14px;padding:9px}
+.prev .logo{width:42px;height:42px;flex-basis:42px;border-radius:11px}
+.prev .t{font:800 13px var(--body)} .prev .u{font-size:11px;color:#9FB0BC;margin-top:1px}
+.apps{display:flex;justify-content:space-between;margin-top:16px}
+.apps div{display:flex;flex-direction:column;align-items:center;gap:6px;font:600 10.5px var(--body);color:#D9E1E6;width:62px;opacity:0}
+.apps i{width:50px;height:50px;border-radius:15px;display:grid;place-items:center}
+
+/* Recarga */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1F2A31;border-radius:22px 22px 0 0;z-index:36;padding:10px 16px 26px;transform:translateY(110%)}
+.sheet h4{font:800 17px var(--display);display:flex;align-items:center;gap:8px}
+.sheet .op{color:var(--muted);font-size:11.5px;margin:3px 0 12px}
+.inp{border:1.5px solid #46565F;border-radius:10px;height:44px;display:flex;align-items:center;gap:9px;padding:0 11px;font:600 14.5px var(--body);position:relative}
+.inp label{position:absolute;top:-8px;left:9px;background:#1F2A31;padding:0 4px;font:500 10.5px var(--body);color:var(--muted)}
+.ops{display:flex;gap:6px;margin:12px 0 10px}
+.ops span{flex:1;text-align:center;padding:7px 0;border-radius:10px;border:1.5px solid #3A4952;font:700 12.5px var(--body)}
+.ops span.on{border-color:var(--blue);background:#16406F}
+.amts{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.amt{border:1.5px solid #3A4952;border-radius:10px;height:40px;display:grid;place-items:center;font:800 13.5px var(--body);position:relative;overflow:hidden}
+.amt .sel{position:absolute;inset:0;background:#16406F;border:2px solid var(--blue);border-radius:9px;opacity:0;display:grid;place-items:center;color:#fff}
+.pay{margin-top:14px;height:46px;border-radius:999px;background:#33424C;color:#fff;display:grid;place-items:center;font:700 15px var(--body);position:relative;overflow:hidden}
+.pay .act{position:absolute;inset:0;background:var(--green);display:grid;place-items:center;opacity:0}
+
+/* Pantallas completas */
+.center{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 34px}
+.bigtitle{font:900 46px/1.02 var(--display);letter-spacing:-1.4px;text-wrap:balance}
+.lead{font:500 19px/1.35 var(--body);color:#C9D7EA;margin-top:14px;text-wrap:balance}
+.biz-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:34px;width:100%}
+.bz{background:#ffffff12;border:1px solid #ffffff26;border-radius:20px;padding:16px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;font:800 17px var(--display);opacity:0}
+.bz i{font-style:normal;font-size:40px}
+.plus-cards{display:flex;flex-direction:column;gap:14px;margin-top:30px;width:100%}
+.pc{display:flex;gap:14px;align-items:center;background:#ffffff10;border:1px solid #F6D77B55;border-radius:22px;padding:14px 16px;text-align:left;opacity:0}
+.pc h3{font:800 23px/1.1 var(--display)} .pc p{font:500 15px/1.3 var(--body);color:#C9D7EA;margin-top:4px}
+.pc{padding:18px 18px!important}
+.sw{display:flex;gap:5px;flex:0 0 auto}
+.sw i{width:22px;height:46px;border-radius:8px}
+.icons{display:grid;grid-template-columns:repeat(2,24px);gap:5px;flex:0 0 auto}
+.icons i{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font:900 italic 9px var(--display);color:#fff}
+.lockwrap{position:absolute;left:0;right:0;top:250px;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 40px}
+.ring{position:absolute;top:0;left:50%;width:170px;height:170px;margin-left:-85px;border-radius:50%;border:3px solid #6EA8FF;opacity:0}
+.lockico{width:170px;height:170px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#1C5BA6,var(--navy) 70%);display:grid;place-items:center;box-shadow:0 20px 50px #00000060,0 0 0 6px #ffffff14}
+.lockwrap h2{font:900 40px/1.05 var(--display);margin-top:36px;letter-spacing:-1px;text-wrap:balance}
+.lockwrap p{font:500 18px/1.4 var(--body);color:#C9D7EA;margin-top:14px;text-wrap:balance}
+.pills{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:28px}
+.pill{background:#ffffff14;border:1px solid #ffffff2a;border-radius:999px;padding:9px 15px;font:700 14.5px var(--body);opacity:0}
+.stores{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:26px}
+.store{display:flex;align-items:center;gap:9px;background:#000;color:#fff;border:2px solid #ffffff55;border-radius:14px;padding:8px 15px 8px 12px}
+.store .a{font:600 10.5px var(--body);opacity:.85;text-align:left}.store .b2{font:800 18px var(--display);letter-spacing:-.3px;text-align:left}
+.tags{display:flex;gap:8px;margin-top:22px;font:700 14px var(--body)}
+.tags span{padding:7px 13px;border-radius:999px;background:var(--red)}
+.feat{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin-top:22px}
+.feat span{background:#ffffff16;border:1px solid #ffffff2a;border-radius:999px;padding:6px 11px;font:700 12.5px var(--body)}
+.tap{position:absolute;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:#fff;opacity:0;z-index:90;pointer-events:none}
+.flagbar{position:absolute;left:0;right:0;bottom:0;height:10px;display:flex}
+.flagbar i{flex:1}
+</style></head>
+<body>
+<div id="stage">
+  <div class="glow" style="left:-200px;top:520px;background:#CE1126"></div>
+  <div class="glow" style="right:-220px;top:-160px;background:#2E7BE0"></div>
+
+  <!-- 1. Intro -->
+  <div class="scene" id="s1">
+    <div class="center" style="top:130px">
+      <img id="introLogo" src="klk_logo.png" style="width:360px;height:360px">
+      <div class="bigtitle" id="introT" style="margin-top:6px;opacity:0">La app de los dominicanos</div>
+      <div class="lead" id="introL" style="opacity:0">¡Ahora con más que nunca! 🇩🇴</div>
+    </div>
+  </div>
+
+  <!-- Títulos de las escenas con móvil -->
+  <div class="cap" id="c2"><span class="k">💬 Chats y llamadas</span><h2>Tu gente, estés donde estés</h2><p>Grupos, comunidades por país y videollamadas cifradas.</p></div>
+  <div class="cap" id="c3"><span class="k">🎤 Audios y stickers</span><h2>¿No puedes escuchar? Léelo</h2><p>Audios a texto y stickers criollos con tu propia voz.</p></div>
+  <div class="cap" id="c4"><span class="k new">✨ Nuevo</span><h2>KLK Mi Gente</h2><p>Tu red social dentro de KLK: fotos, me gusta y comentarios.</p></div>
+  <div class="cap" id="c5"><span class="k">🤝 El San</span><h2>Haz tu san sin enredos</h2><p>Sorteo de turnos, quién pagó y cada uno con su foto.</p></div>
+  <div class="cap" id="c7"><span class="k new">🏪 KLK Negocios</span><h2>Tu logo, tu catálogo, tus pedidos</h2><p>Productos con foto y precio. Pedidos y citas por el chat.</p></div>
+  <div class="cap" id="c8"><span class="k new">🏪 KLK Negocios</span><h2>Libreta del fiao y compartir</h2><p>Comparte tu negocio por WhatsApp, Instagram o tus estados.</p></div>
+  <div class="cap" id="c10"><span class="k soon">⚡ Próxima actualización</span><h2>Recargas a RD</h2><p>Claro, Altice y Viva, desde el mismo chat.</p></div>
+
+  <!-- 6. ¿Tienes un negocio? -->
+  <div class="scene" id="s6">
+    <div class="center" style="top:120px">
+      <span class="cap" style="position:static;opacity:1"><span class="k new">🏪 Nuevo: KLK Negocios</span></span>
+      <div class="bigtitle" id="bizT" style="margin-top:16px">¿Tienes un negocio?</div>
+      <div class="lead" id="bizL">Ponlo en KLK gratis y que tu gente te encuentre.</div>
+      <div class="biz-grid">
+        <div class="bz" id="bz0"><i>🏪</i>Colmado</div><div class="bz" id="bz1"><i>💈</i>Barbería</div>
+        <div class="bz" id="bz2"><i>💅</i>Salón y uñas</div><div class="bz" id="bz3"><i>🍽️</i>Comida</div>
+        <div class="bz" id="bz4"><i>🛍️</i>Tienda</div><div class="bz" id="bz5"><i>🔧</i>Taller</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Plus -->
+  <div class="scene" id="s9">
+    <div class="center" style="top:170px">
+      <span class="cap" style="position:static;opacity:1"><span class="k gold">⭐ KLK Plus</span></span>
+      <div class="bigtitle" style="margin-top:16px">Hazla tuya con <span style="background:linear-gradient(90deg,#F6D77B,#D9A43A);-webkit-background-clip:text;color:transparent">Plus</span></div>
+      <div class="plus-cards">
+        <div class="pc" id="pc0"><div class="sw"><i style="background:linear-gradient(#0A4A93,#002D62)"></i><i style="background:linear-gradient(#E5243B,#7A0E1C)"></i><i style="background:linear-gradient(#1F7A4D,#0E4D2F)"></i><i style="background:linear-gradient(#F6D77B,#B07A1A)"></i></div><div><h3>Temas exclusivos</h3><p>Colores, burbujas y fondos para tus chats.</p></div></div>
+        <div class="pc" id="pc1"><div class="icons"><i style="background:#CE1126">KLK</i><i style="background:#002D62">KLK</i><i style="background:#111">KLK</i><i style="background:linear-gradient(#F6D77B,#B07A1A)">KLK</i></div><div><h3>Íconos de la app</h3><p>Cambia el ícono de KLK en tu pantalla.</p></div></div>
+        <div class="pc" id="pc2"><div style="font-size:42px;flex:0 0 auto">🇩🇴😎</div><div><h3>Stickers exclusivos</h3><p>Paquetes criollos solo para Plus.</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11. Privacidad -->
+  <div class="scene" id="s11">
+    <div class="lockwrap" style="top:200px">
+      <div class="ring" id="ring1"></div><div class="ring" id="ring2"></div>
+      <div class="lockico" id="lockI">
+        <svg width="78" height="78" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5" fill="#fff"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.6" r="1.6" fill="#002D62" stroke="none"/></svg>
+      </div>
+      <h2 id="lockT">Privada de verdad</h2>
+      <p id="lockP">Solo tú y tu gente leen tus chats. Ni KLK puede verlos.</p>
+      <div class="pills">
+        <div class="pill" id="pl1">🔒 Cifrado de punta a punta</div>
+        <div class="pill" id="pl2">🔢 PIN</div>
+        <div class="pill" id="pl3">🙈 Chats ocultos</div>
+        <div class="pill" id="pl4">🚨 Botón de pánico</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 12. Final -->
+  <div class="scene" id="s12">
+    <div class="center" style="top:86px">
+      <img id="outLogo" src="klk_logo.png" style="width:300px;height:300px">
+      <div class="bigtitle" id="outT">¡Descárgala gratis!</div>
+      <div class="feat" id="outF"><span>💬 Chats</span><span>📞 Llamadas</span><span>✨ Mi Gente</span><span>🤝 San</span><span>🏪 Negocios</span><span>⭐ Plus</span><span>📱 Recargas pronto</span></div>
+      <div class="stores" id="outS">
+        <div class="store"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><div><div class="a">Descárgala en el</div><div class="b2">App Store</div></div></div>
+        <div class="store"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><div><div class="a">Para</div><div class="b2">Android</div></div></div>
+        <div class="store"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><div><div class="a">Para</div><div class="b2">Windows</div></div></div>
+      </div>
+      <div class="tags" id="outG"><span>Gratis</span><span style="background:#fff;color:#002D62">Privada</span><span>Dominicana 🇩🇴</span></div>
+    </div>
+  </div>
+
+  <!-- El móvil -->
+  <div id="phone"><div id="screen">
+    <div class="notch"></div>
+    <div class="status" id="stbar"><span>9:41</span><span class="r">
+      <svg width="16" height="10" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+      <span style="font-size:11.5px">5G</span><span class="bat"><i></i></span></span></div>
+
+    <!-- Chats -->
+    <div class="view" id="vList">
+      <div class="hdr"><img src="klk_header.png"><span class="t">messenger</span>
+        <span class="acts"><span class="rnd g"><svg width="17" height="17" viewBox="0 0 24 24" fill="#fff"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.4" fill="#2B2D31"/></svg></span><span class="rnd r"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#C3CAD5"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></span></div>
+      <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Buscar</div>
+      <div class="chips"><span class="on">Todos</span><span>No leídos</span><span>Grupos</span><span>Negocios</span></div>
+      <div id="rows"></div>
+      <div class="glass" data-nav="0"></div>
+      <div class="call" id="call">
+        <div class="pulse" id="pu1"></div><div class="pulse" id="pu2"></div>
+        <div class="ava">Y</div><h4>Yokasta</h4>
+        <div class="s"><svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" stroke="#fff" stroke-width="2.4" fill="none"/></svg>Videollamada cifrada · 0:12</div>
+        <div class="btns"><i style="background:#ffffff26"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></i><i style="background:#ffffff26"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></svg></i><i style="background:#E5243B"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M3 15c5-5 13-5 18 0l-2.5 2.5-3-1.5v-2.5c-2.3-.7-4.7-.7-7 0V16l-3 1.5z"/></svg></i></div>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="view" id="vChat">
+      <div class="chathead">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C3CAD5" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg>
+        <div class="av" style="background:#B5477A">Y</div>
+        <div><div class="nm">Yokasta</div><div class="st">en línea</div></div>
+        <span style="margin-left:auto;display:flex;gap:15px;color:#C3CAD5"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3"/></svg><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></span>
+      </div>
+      <div class="chatbody" id="cbody">
+        <div class="enc">🔒 Los mensajes están cifrados de punta a punta.</div>
+        <div class="b th" id="m1">¡Klk mi pana! ¿Qué lo que? 👋<small>9:41</small></div>
+        <div class="b me" id="m2">Tranquilo, aquí en Dublín 😎<small>9:41 <span class="ticks">✓✓</span></small></div>
+        <div class="b th" id="m3"><div class="audio"><div class="play"><svg width="11" height="13" viewBox="0 0 12 14" fill="#fff"><path d="M1 1l10 6-10 6z"/></svg></div><div class="wave" id="wave"></div><span class="speed">1.5×</span></div><div class="tr" id="tr"><b>📝 TRANSCRIPCIÓN</b><span id="trT"></span></div><small>9:42</small></div>
+        <div class="sticker" id="m4"><div class="s"><div class="flag">🇩🇴</div><div class="tx">¡TAMO ACTIVO!</div></div><div class="snd">🔊</div></div>
+      </div>
+      <div class="composer"><div class="in">😊 Mensaje
+        <svg style="margin-left:auto" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="mic"><svg width="17" height="17" viewBox="0 0 24 24" fill="#fff"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="#fff" stroke-width="2" fill="none"/></svg></div></div>
+    </div>
+
+    <!-- Mi Gente -->
+    <div class="view" id="vGente">
+      <div class="hdr"><img src="klk_header.png"><span class="t">Mi Gente</span>
+        <span class="acts"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C3CAD5" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.4"/></svg><svg width="18" height="18" viewBox="0 0 24 24" fill="#C3CAD5"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></span></div>
+      <div class="gcomp"><div class="av" style="flex-basis:34px;height:34px;background:#C0703F;font-size:13px">E</div><div class="in">¿Qué hay, Emmanuel?</div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3DDC84" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg></div>
+      <div class="gchips"><span class="on">🌎 Todo</span><span>🇮🇪 Mi país</span><span>🇩🇴 RD</span></div>
+      <div id="gfeed" style="position:relative">
+        <div class="post" id="post1">
+          <div class="ph"><div class="av" style="background:#B5477A">R</div><div><div class="nm">Rosa Martínez</div><div class="wh">hace 12 min · 🇩🇴</div></div><svg style="margin-left:auto" width="18" height="18" viewBox="0 0 24 24" fill="#8FA0AB"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></div>
+          <div class="tx">¡Klk mi gente! Domingo de playa en Boca Chica 🏖️☀️</div>
+          <div class="img">
+            <svg width="100%" height="100%" viewBox="0 0 290 178" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF9A5A"/><stop offset=".55" stop-color="#FFD27A"/><stop offset="1" stop-color="#FFE9B0"/></linearGradient><linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1FA3C4"/><stop offset="1" stop-color="#0B6E8E"/></linearGradient></defs><rect width="290" height="178" fill="url(#sky)"/><circle cx="200" cy="78" r="30" fill="#FFF3C4"/><rect y="96" width="290" height="50" fill="url(#sea)"/><path d="M0 104 Q 36 99 72 104 T 145 104 T 218 104 T 290 104" stroke="#ffffff70" stroke-width="2" fill="none"/><path d="M0 140 Q 80 128 160 138 T 290 132 V178 H0z" fill="#F2D3A1"/><path d="M58 150 C 62 112 58 82 50 54" stroke="#6B4423" stroke-width="6" fill="none" stroke-linecap="round"/><g fill="#2E8B47"><path d="M50 54 q -30 -6 -46 12 q 22 -8 46 -12z"/><path d="M50 54 q 26 -16 50 -6 q -26 -2 -50 6z"/><path d="M50 54 q -14 -24 -38 -26 q 20 10 38 26z"/><path d="M50 54 q 6 -26 30 -34 q -18 14 -30 34z"/><path d="M50 54 q 16 4 30 26 q -14 -16 -30 -26z"/></g><text x="230" y="168" font-family="Inter" font-weight="800" font-size="11" fill="#7A5A30">🇩🇴</text></svg>
+            <div class="heart" id="heart">❤️</div>
+          </div>
+          <div class="cnt"><span class="h"><svg width="9" height="9" viewBox="0 0 24 24" fill="#fff"><path d="M12 21s-8-5.5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.5-8 11-8 11z"/></svg></span><span id="likeN">24</span><span class="c" id="cmN">6 comentarios</span></div>
+          <div class="acts"><div id="likeB"><svg id="hO" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C3CAD5" stroke-width="2.2"><path d="M12 21s-8-5.5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.5-8 11-8 11z"/></svg><span id="likeT">Me gusta</span></div><div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C3CAD5" stroke-width="2.2"><path d="M4 5h16v11H9l-5 4z"/></svg>Comentar</div></div>
+          <div class="cmt" id="cmt1"><div class="av" style="background:#C0703F">J</div><div class="bub"><b>Junior (NY)</b>¡Qué envidia, mi hermana! 😍🇩🇴</div></div>
+        </div>
+      </div>
+      <div class="glass" data-nav="5"></div>
+    </div>
+
+    <!-- San -->
+    <div class="view" id="vSan">
+      <div class="hdr2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C3CAD5" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg>San de la familia</div>
+      <div class="sanhero" id="sanH">
+        <div class="top"><div style="padding:2px;background:#fff;border-radius:50%"><div class="av" style="flex-basis:38px;width:38px;height:38px;background:#B5477A;font-size:15px">Y</div></div><h4>Le toca a Yokasta</h4></div>
+        <div class="sanpills"><span>💵 RD$ 1.000 cada quincena</span><span>🏆 Se lleva RD$ 5.000</span><span>🏁 1/5 cobrados</span></div>
+      </div>
+      <div id="turns"></div>
+    </div>
+
+    <!-- Negocio (vista del cliente) -->
+    <div class="view" id="vBiz">
+      <div class="bizhead">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font:700 13.5px var(--body)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6"><path d="M15 5l-7 7 7 7"/></svg>Así te ven tus clientes</div>
+        <div class="tp">
+          <div class="logo" id="bizLogo"><span class="ini">CL</span><div class="img" id="bizLogoImg"></div></div>
+          <div><h4>Colmado La Gente</h4><div class="m">🏪 Colmado · Santo Domingo</div><div class="m">Abierto ahora · Lun a Sáb · 7:00 a. m. – 12:00 a. m.</div></div>
+        </div>
+        <div class="w"><svg width="16" height="16" viewBox="0 0 24 24" fill="#CE1126"><path d="M4 4h16v12H8l-4 4z"/></svg>Escribir</div>
+      </div>
+      <div class="sect">PRODUCTOS</div>
+      <div id="prods"></div>
+      <div class="cart" id="cart">🛒 Ver pedido · <b id="cartN" style="margin-left:4px">2</b><span id="cartT">RD$ 50</span></div>
+    </div>
+
+    <!-- Mi negocio -->
+    <div class="view" id="vMine">
+      <div class="hdr2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C3CAD5" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg>Mi negocio</div>
+      <div class="mycard"><div class="logo"><div class="img" style="opacity:1" data-logo></div></div><div><div style="font:800 17px var(--display)">Colmado La Gente</div><div style="font-size:11.5px">🏪 Colmado · Lun a Sáb · 7 a. m. – 12 a. m.</div></div></div>
+      <div class="tile" id="t1"><div class="ic">🏪</div><div><div class="t">Editar perfil</div><div class="s">Logo, horario, dirección y delivery</div></div><span class="ch">›</span></div>
+      <div class="tile" id="t2"><div class="ic">📋</div><div><div class="t">Productos</div><div class="s">3 en el catálogo</div></div><span class="ch">›</span></div>
+      <div class="tile" id="t3"><div class="ic">📒</div><div><div class="t">Libreta del fiao</div><div class="s" id="fiaoS">1 cliente · RD$ 200</div></div><span class="ch">›</span></div>
+      <div class="tile" id="t4"><div class="ic">📅</div><div><div class="t">Pedidos y citas</div><div class="s">Te llegan por el chat, cifrados</div></div><span class="ch">›</span></div>
+      <div class="tile" id="t5"><div class="ic">📤</div><div><div class="t">Compartir mi negocio</div><div class="s">Para tus estados, WhatsApp o Instagram</div></div><span class="ch">›</span></div>
+      <div class="dim" id="dimS"></div>
+      <div class="share" id="share">
+        <div class="handle"></div>
+        <div class="prev"><div class="logo"><div class="img" style="opacity:1" data-logo></div></div><div><div class="t">🏪 Colmado La Gente (Santo Domingo)</div><div class="u">Mira mi catálogo y haz tu pedido por KLK messenger</div></div></div>
+        <div class="apps">
+          <div id="ap0"><i style="background:#25D366"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M4 4h16v12H8l-4 4z"/></svg></i>WhatsApp</div>
+          <div id="ap1"><i style="background:linear-gradient(45deg,#F9A825,#E1306C 55%,#7B3FE4)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.6"/></svg></i>Instagram</div>
+          <div id="ap2"><i style="background:var(--red2)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><circle cx="12" cy="12" r="8" stroke-dasharray="4 3"/></svg></i>Mis estados</div>
+          <div id="ap3"><i style="background:#3A4952"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.6 0l3-3a4 4 0 0 0-5.6-5.6l-1 1M14 10a4 4 0 0 0-5.6 0l-3 3a4 4 0 0 0 5.6 5.6l1-1"/></svg></i>Copiar enlace</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recarga -->
+    <div class="view" id="vTop" style="background:var(--chat)">
+      <div class="chathead"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C3CAD5" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg><div class="av" style="background:#CE1126">M</div><div><div class="nm">Mami ❤️</div><div class="st">en línea</div></div></div>
+      <div class="dim" style="opacity:.45"></div>
+      <div class="sheet" id="sheet">
+        <div class="handle"></div>
+        <h4>📱 Recarga a RD</h4>
+        <div class="op">Llega en segundos a cualquier móvil dominicano</div>
+        <div class="inp"><label>Número de RD</label>📞 809 555 1234</div>
+        <div class="ops"><span class="on">Claro</span><span>Altice</span><span>Viva</span></div>
+        <div class="amts">
+          <div class="amt">RD$100</div><div class="amt">RD$200<div class="sel" id="selA">RD$200</div></div><div class="amt">RD$300</div>
+          <div class="amt">RD$500</div><div class="amt">RD$1.000</div><div class="amt">RD$150</div>
+        </div>
+        <div class="pay">Elige cuánto<div class="act" id="payA">🔒 Recargar RD$200</div></div>
+      </div>
+    </div>
+
+    <div class="tap" id="tap"></div>
+  </div></div>
+
+  <div class="flagbar"><i style="background:#002D62"></i><i style="background:#fff"></i><i style="background:#CE1126"></i></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+// ---------- Motor: animaciones con tiempo absoluto ----------
+const used=new Set(); let uid=0;
+function A(el,kf,start,dur,ease='cubic-bezier(.2,.8,.2,1)'){
+  if(typeof el==='string')el=$(el);
+  if(!el.dataset.k)el.dataset.k=++uid;
+  const props=Object.keys(kf[0]).filter(k=>k!=='offset').sort().join(',');
+  const key=el.dataset.k+'|'+props;
+  const fill=used.has(key)?'forwards':'both'; used.add(key);
+  el.animate(kf,{delay:start*1000,duration:Math.max(.01,dur)*1000,fill,easing:ease});
+}
+const fadeIn=(el,t,d=.45,y=14)=>A(el,[{opacity:0,transform:`translateY(${y}px)`},{opacity:1,transform:'translateY(0)'}],t,d);
+const fadeOut=(el,t,d=.35)=>A(el,[{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(-10px)'}],t,d,'ease-in');
+const pop=(el,t,d=.5)=>A(el,[{opacity:0,transform:'scale(.6)'},{opacity:1,transform:'scale(1.06)',offset:.7},{opacity:1,transform:'scale(1)'}],t,d);
+function view(id,a,b){
+  const el=$(id);
+  A(el,[{opacity:0,transform:'translateX(36px)'},{opacity:1,transform:'translateX(0)'}],a,.4);
+  if(b!=null)A(el,[{opacity:1,transform:'translateX(0)'},{opacity:0,transform:'translateX(-36px)'}],b-.35,.35,'ease-in');
+}
+function tap(x,y,t){
+  const el=$('#tap').cloneNode(); $('#screen').appendChild(el);
+  el.style.left=x+'px';el.style.top=y+'px';
+  A(el,[{opacity:0,transform:'scale(.3)'},{opacity:.35,transform:'scale(.6)',offset:.3},{opacity:0,transform:'scale(1.5)'}],t,.55,'ease-out');
+}
+function typeIn(el,text,t,cps=30){
+  el=$(el);
+  [...text].forEach((ch,i)=>{const s=document.createElement('span');s.textContent=ch;el.appendChild(s);
+    A(s,[{opacity:0},{opacity:1}],t+i/cps,.05,'linear');});
+}
+function swapText(el,t,text){ swapSeq(el,[[t,text]]); }
+// el texto de [el] cambia en cada [t, texto]
+function swapSeq(el,steps){
+  el=$(el); const parts=[el.textContent,...steps.map(x=>x[1])];
+  el.style.display='inline-grid'; el.innerHTML='';
+  const sp=parts.map(txt=>{const x=document.createElement('span');x.textContent=txt;x.style.gridArea='1/1';el.appendChild(x);return x;});
+  steps.forEach(([t],k)=>{
+    A(sp[k],[{opacity:1},{opacity:0}],t,.12,'linear');
+    A(sp[k+1],[{opacity:0},{opacity:1}],t,.12,'linear');
+  });
+}
+
+// ---------- Barra de cristal ----------
+const NAV=[['Estados','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8" stroke-dasharray="4 3"/></svg>'],
+ ['Llamadas','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>'],
+ ['Mi Gente','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="7" rx="2"/><rect x="4" y="13" width="16" height="8" rx="2"/></svg>'],
+ ['Comunidades','<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 19c0-3 3-5 6-5s6 2 6 5zM10 19c0-3 3-5 6-5s6 2 6 5z"/></svg>'],
+ ['Chats','<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v12H8l-4 4z"/></svg>'],
+ ['Tú','<span class="me">E</span>']];
+const TAB_OF={0:4,5:2};
+document.querySelectorAll('.glass').forEach(g=>{
+  const on=TAB_OF[g.dataset.nav];
+  g.innerHTML=NAV.map(([l,i],k)=>`<div class="${k===on?'on':''}">${i}${l}</div>`).join('');
+});
+
+// ---------- Datos ----------
+const chats=[
+  ['Mami ❤️','#CE1126','M','Bendición mijo, ¿ya comiste? 🙏','9:38',2],
+  ['Yokasta','#B5477A','Y','🎤 Nota de voz (0:21)','9:41',1],
+  ['Los Primos 🇩🇴','#1F7A4D','LP','Junior: ¿Quién va pal colmado? 🍻','9:12',5],
+  ['Colmado La Gente','#CE1126','🏪','✅ Tu pedido va en camino 🛵','8:50',0],
+  ['Dominicanos en Irlanda','#002D62','🇮🇪','Comunidad · 342 miembros','Ayer',0],
+  ['Junior (NY)','#C0703F','J','¡Wepa! Nos vemos el domingo','Ayer',0],
+];
+$('#rows').innerHTML=chats.map((c,i)=>`<div class="row" id="r${i}"><div class="av" style="background:${c[1]};${c[2].length>2||/\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(c[2])?'font-size:19px':''}">${c[2]}</div><div class="mid"><div class="top"><span class="nm">${c[0]}</span><span class="tm ${c[5]?'u':''}">${c[4]}</span></div><div class="ls"><span>${c[3]}</span>${c[5]?`<span class="badge">${c[5]}</span>`:''}</div></div></div>`).join('');
+const hs=[8,14,22,12,26,18,9,20,25,15,10,22,17,8,13,24,19,11,7,16];
+$('#wave').innerHTML=hs.map((h,i)=>`<i style="height:${h}px"></i>`).join('');
+
+// Logo del colmado (original): toldo rojo y azul con «LA GENTE»
+const LOGO=`<svg width="100%" height="100%" viewBox="0 0 64 64"><rect width="64" height="64" fill="#fff"/><path d="M8 22 L14 10 H50 L56 22z" fill="#002D62"/><g>${[0,1,2,3,4,5].map(k=>`<path d="M${8+k*8} 22 h8 v5 a4 4 0 0 1 -8 0z" fill="${k%2?'#fff':'#CE1126'}" stroke="#CE1126" stroke-width="1"/>`).join('')}</g><rect x="12" y="29" width="40" height="22" rx="2" fill="#FFE9B0" stroke="#002D62" stroke-width="2"/><text x="32" y="44" text-anchor="middle" font-family="Inter Display,Inter" font-weight="900" font-size="9.5" fill="#CE1126">LA GENTE</text><rect x="8" y="51" width="48" height="4" rx="2" fill="#002D62"/></svg>`;
+document.querySelectorAll('[data-logo]').forEach(e=>e.innerHTML=LOGO);
+$('#bizLogoImg').innerHTML=LOGO;
+
+// Fotos de productos (dibujos originales)
+const RICE=`<svg viewBox="0 0 50 50" width="50" height="50"><rect width="50" height="50" fill="#E8D9B8"/><path d="M12 14 q13 -6 26 0 l3 28 h-32z" fill="#fff" stroke="#C9B68D" stroke-width="1.5"/><rect x="14" y="22" width="22" height="11" rx="2" fill="#CE1126"/><text x="25" y="30.5" text-anchor="middle" font-family="Inter" font-weight="900" font-size="7" fill="#fff">ARROZ</text><path d="M15 14 q10 -3 20 0" stroke="#C9B68D" fill="none"/></svg>`;
+const BEANS=`<svg viewBox="0 0 50 50" width="50" height="50"><rect width="50" height="50" fill="#F3D6A4"/><ellipse cx="25" cy="30" rx="18" ry="11" fill="#fff"/><ellipse cx="25" cy="27" rx="15" ry="7" fill="#7A2E1F"/>${Array.from({length:12},(_,i)=>`<ellipse cx="${14+(i%6)*4.5}" cy="${25+Math.floor(i/6)*4}" rx="2" ry="1.3" fill="#A8432C"/>`).join('')}</svg>`;
+const SODA=`<svg viewBox="0 0 50 50" width="50" height="50"><rect width="50" height="50" fill="#BFE3F2"/><path d="M21 6 h8 v6 q5 4 5 10 v20 q0 3 -3 3 h-12 q-3 0 -3 -3 v-20 q0 -6 5 -10z" fill="#3A2010"/><rect x="16" y="24" width="18" height="9" fill="#CE1126"/><rect x="21" y="3" width="8" height="4" rx="1" fill="#CE1126"/></svg>`;
+const prods=[['Arroz (libra)','RD$ 30',RICE],['Habichuela','RD$ 20',BEANS],['Refresco 2 L','RD$ 120',SODA]];
+$('#prods').innerHTML=prods.map((p,i)=>`<div class="prod" id="p${i}" style="position:relative"><div class="pi">${p[2]}</div><div><div class="n">${p[0]}</div><div class="p">${p[1]}</div></div><div class="add" id="pa${i}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div><div class="q" id="pq${i}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C3CAD5" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>1<svg width="24" height="24" viewBox="0 0 24 24" fill="#CE1126"><circle cx="12" cy="12" r="10"/><path d="M12 7v10M7 12h10" stroke="#fff" stroke-width="2.4"/></svg></div></div>`).join('');
+
+// Gente del san (Doña Rosa no tiene KLK: el organizador le pone foto)
+const ROSA=`<svg viewBox="0 0 40 40" width="100%" height="100%"><rect width="40" height="40" fill="#F6C89F"/><circle cx="20" cy="17" r="8" fill="#8D5A3B"/><path d="M8 40 q12 -18 24 0z" fill="#CE1126"/><path d="M11 15 q9 -14 18 0 q-2 -6 -9 -7 q-7 1 -9 7z" fill="#2B1B12"/><circle cx="17" cy="17" r="1" fill="#2B1B12"/><circle cx="23" cy="17" r="1" fill="#2B1B12"/><path d="M17 21 q3 2 6 0" stroke="#5A2E1E" fill="none" stroke-width="1.2"/></svg>`;
+const people=[['Yokasta','#B5477A','Y','5 nov',2],['Emmanuel (tú)','#C0703F','E','19 nov',1],['Doña Rosa','#6A2C91','R','3 dic',1,1],['Junior (NY)','#C0703F','J','17 dic',0],['Mami ❤️','#CE1126','M','31 dic',0]];
+$('#turns').innerHTML=people.map((p,i)=>`<div class="turn" id="tu${i}"><div class="ta"><div class="av" style="background:${p[1]}">${p[2]}${p[5]?`<div id="rosaP" style="position:absolute;inset:0;opacity:0">${ROSA}</div>`:''}</div>${p[5]?'<span class="cam" id="rosaC"><svg width="8" height="8" viewBox="0 0 24 24" fill="#fff"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/></svg></span>':''}<b>${i+1}</b></div><div><div class="nm">${p[0]}</div><div class="d">${p[3]}${p[5]?' · sin KLK':''}</div></div><div class="st" id="ts${i}">${p[4]===2?'💰 Cobró':'Falta'}</div></div>`).join('');
+
+// ---------- Duraciones (de la voz; si no hay, aproximadas) ----------
+const D=window.DUR||[4.6,4.6,4.8,6.6,6.2,4.8,6.0,6.2,4.2,5.2,4.8,5.0];
+const S=[]; {let t=0; for(const d of D){S.push(t); t+=d;} window.TOTAL=t+.6;}
+const E=i=>S[i]+D[i]; // fin de la escena i (0 = intro)
+const PH=[1,2,3,4,6,7,9]; // escenas con móvil (índices)
+const capShow=(id,i)=>{fadeIn(id,S[i]+.1,.45,16); fadeOut(id,E(i)-.4,.35);};
+
+// 1. Intro
+A('#s1',[{opacity:1},{opacity:1}],0,.01);
+A('#introLogo',[{opacity:0,transform:'scale(.4) rotate(-8deg)'},{opacity:1,transform:'scale(1.07) rotate(2deg)',offset:.65},{opacity:1,transform:'scale(1) rotate(0)'}],.15,.9);
+A('#introLogo',[{transform:'scale(1) rotate(0)'},{transform:'scale(1.04) rotate(-1deg)'}],1.05,D[0]-1.3,'ease-in-out');
+fadeIn('#introT',.9,.55,20); fadeIn('#introL',1.5,.55,16);
+A('#s1',[{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.94)'}],E(0)-.45,.45,'ease-in');
+
+// Móvil: entra en la escena 2 y sale/entra en los cortes de pantalla completa
+const phoneIn=t=>A('#phone',[{opacity:0,transform:'translateY(140px) scale(.92)'},{opacity:1,transform:'translateY(0) scale(1)'}],t,.6);
+const phoneOut=t=>A('#phone',[{opacity:1,transform:'translateY(0) scale(1)'},{opacity:0,transform:'translateY(70px) scale(.93)'}],t,.4,'ease-in');
+const full=(id,i)=>{A(id,[{opacity:0},{opacity:1}],S[i]+.1,.35,'linear'); A(id,[{opacity:1},{opacity:0}],E(i)-.35,.35,'ease-in');};
+
+// 2. Chats y llamadas
+let i=1; phoneIn(S[i]); capShow('#c2',i); view('#vList',S[i]+.05,E(i));
+chats.forEach((c,k)=>fadeIn('#r'+k,S[i]+.3+k*.1,.4,16));
+const callAt=S[i]+D[i]*.52;
+A('#call',[{opacity:0,transform:'scale(1.04)'},{opacity:1,transform:'scale(1)'}],callAt,.35);
+[0,1,2].forEach(k=>A(k%2?'#pu2':'#pu1',[{opacity:.8,transform:'scale(1)'},{opacity:0,transform:'scale(1.8)'}],callAt+.3+k*.55,1.1,'ease-out'));
+
+// 3. Chat: audio a texto y sticker con sonido
+i=2; capShow('#c3',i); view('#vChat',S[i],E(i));
+['#m1','#m2','#m3'].forEach((m,k)=>A(m,[{opacity:0,transform:'translateY(14px) scale(.96)'},{opacity:1,transform:'translateY(0) scale(1)'}],S[i]+.25+k*.45,.4));
+$('#wave').querySelectorAll('i').forEach((b,k)=>A(b,[{background:'#5A6E7C'},{background:'#6EA8FF'}],S[i]+1.5+k*.07,.08,'linear'));
+A('#tr',[{height:'0px',opacity:0},{height:'66px',opacity:1}],S[i]+1.9,.45);
+typeIn('#trT','Oye, el domingo hay sancocho en casa de mami. ¡No faltes! 🍲',S[i]+2.1,34);
+pop('#m4',S[i]+D[i]*.68,.55);
+A('#m4 .snd',[{transform:'scale(1)'},{transform:'scale(1.25)'},{transform:'scale(1)'}],S[i]+D[i]*.68+.6,.5,'ease-in-out');
+
+// 4. Mi Gente
+i=3; capShow('#c4',i); view('#vGente',S[i],E(i));
+A('#post1',[{opacity:0,transform:'translateY(30px)'},{opacity:1,transform:'translateY(0)'}],S[i]+.4,.5);
+const likeAt=S[i]+D[i]*.42;
+tap(150,404,likeAt-.25);
+A('#heart',[{opacity:0,transform:'scale(.3)'},{opacity:1,transform:'scale(1.15)',offset:.35},{opacity:1,transform:'scale(1)',offset:.7},{opacity:0,transform:'scale(1.1)'}],likeAt-.2,.9);
+A('#hO',[{fill:'none',stroke:'#C3CAD5'},{fill:'#E5243B',stroke:'#E5243B'}],likeAt,.15,'linear');
+A('#likeB',[{color:'#C3CAD5'},{color:'#FF5A6A'}],likeAt,.15,'linear');
+swapText('#likeN',likeAt,'25');
+const cmAt=S[i]+D[i]*.66;
+A('#cmt1',[{opacity:0,transform:'translateY(10px)'},{opacity:1,transform:'translateY(0)'}],cmAt,.4);
+swapText('#cmN',cmAt,'7 comentarios');
+A('#gfeed',[{transform:'translateY(0)'},{transform:'translateY(-52px)'}],cmAt,.6);
+
+// 5. San
+i=4; capShow('#c5',i); view('#vSan',S[i],E(i));
+A('#sanH',[{opacity:0,transform:'scale(.95)'},{opacity:1,transform:'scale(1)'}],S[i]+.2,.45);
+people.forEach((p,k)=>fadeIn('#tu'+k,S[i]+.45+k*.12,.4,16));
+const rosaAt=S[i]+D[i]*.62;
+tap(52,371,rosaAt-.3);
+A('#rosaP',[{opacity:0,transform:'scale(.6)'},{opacity:1,transform:'scale(1)'}],rosaAt,.4);
+[1,2,3].forEach((k,n)=>{const at=S[i]+D[i]*.3+n*.45; const el=$('#ts'+k);
+  A(el,[{color:'#8FA0AB'},{color:'#3DDC84'}],at,.2,'linear'); swapText('#ts'+k,at,'✓ Pagó');});
+
+// 6. ¿Tienes un negocio?
+i=5; phoneOut(S[i]-.05); full('#s6',i);
+fadeIn('#bizT',S[i]+.25,.5,20); fadeIn('#bizL',S[i]+.6,.5,16);
+[0,1,2,3,4,5].forEach(k=>pop('#bz'+k,S[i]+1.0+k*.18,.45));
+
+// 7. Perfil del negocio: logo, productos con foto y pedido
+i=6; phoneIn(S[i]); capShow('#c7',i); view('#vBiz',S[i]+.05,E(i));
+A('#stbar',[{color:'#E9EDEF'},{color:'#fff'}],S[i],.01,'linear');
+A('#bizLogoImg',[{opacity:0,transform:'scale(.5) rotate(-10deg)'},{opacity:1,transform:'scale(1) rotate(0)'}],S[i]+.9,.5);
+prods.forEach((p,k)=>fadeIn('#p'+k,S[i]+1.3+k*.25,.4,16));
+const add1=S[i]+D[i]*.58, add2=add1+.6;
+[[0,add1],[1,add2]].forEach(([k,t])=>{tap(268,268+k*64,t-.2);
+  A('#pa'+k,[{opacity:1},{opacity:0}],t,.15,'linear'); A('#pq'+k,[{opacity:0},{opacity:1}],t,.15,'linear');});
+A('#cart',[{transform:'translateY(90px)'},{transform:'translateY(0)'}],add1+.1,.45);
+swapSeq('#cartN',[[add1+.1,'1'],[add2,'2']]); swapSeq('#cartT',[[add1+.1,'RD$ 30'],[add2,'RD$ 50']]);
+A('#stbar',[{color:'#fff'},{color:'#E9EDEF'}],E(i)-.05,.01,'linear');
+
+// 8. Mi negocio: fiao y compartir
+i=7; capShow('#c8',i); view('#vMine',S[i],E(i));
+['#t1','#t2','#t3','#t4','#t5'].forEach((t,k)=>fadeIn(t,S[i]+.2+k*.1,.35,12));
+A('#t3',[{background:'#ffffff00'},{background:'#ffffff14'},{background:'#ffffff00'}],S[i]+D[i]*.2,1.2,'ease-in-out');
+const shAt=S[i]+D[i]*.45;
+tap(150,410,shAt-.25);
+A('#dimS',[{opacity:0},{opacity:.5}],shAt,.3,'linear');
+A('#share',[{transform:'translateY(110%)'},{transform:'translateY(0)'}],shAt,.45);
+[0,1,2,3].forEach(k=>pop('#ap'+k,shAt+.35+k*.12,.4));
+A('#ap0 i',[{transform:'scale(1)'},{transform:'scale(1.15)'},{transform:'scale(1)'}],shAt+1.3,.45,'ease-in-out');
+A('#ap1 i',[{transform:'scale(1)'},{transform:'scale(1.15)'},{transform:'scale(1)'}],shAt+1.75,.45,'ease-in-out');
+A('#ap2 i',[{transform:'scale(1)'},{transform:'scale(1.15)'},{transform:'scale(1)'}],shAt+2.2,.45,'ease-in-out');
+
+// 9. Plus
+i=8; phoneOut(S[i]-.05); full('#s9',i);
+[0,1,2].forEach(k=>A('#pc'+k,[{opacity:0,transform:'translateX(40px)'},{opacity:1,transform:'translateX(0)'}],S[i]+.5+k*.35,.45));
+
+// 10. Recargas (próxima actualización)
+i=9; phoneIn(S[i]); capShow('#c10',i); view('#vTop',S[i]+.05,E(i));
+A('#sheet',[{transform:'translateY(110%)'},{transform:'translateY(0)'}],S[i]+.5,.5);
+const selAt=S[i]+D[i]*.5; tap(145,465,selAt-.2);
+A('#selA',[{opacity:0},{opacity:1}],selAt,.15,'linear');
+A('#payA',[{opacity:0},{opacity:1}],selAt+.1,.2,'linear');
+
+// 11. Privacidad
+i=10; phoneOut(S[i]-.05); full('#s11',i);
+pop('#lockI',S[i]+.2,.6);
+[0,1].forEach(k=>A(k?'#ring2':'#ring1',[{opacity:.8,transform:'scale(1)'},{opacity:0,transform:'scale(1.9)'}],S[i]+.6+k*.7,1.4,'ease-out'));
+[0,1].forEach(k=>A(k?'#ring2':'#ring1',[{opacity:.8,transform:'scale(1)'},{opacity:0,transform:'scale(1.9)'}],S[i]+2.0+k*.7,1.4,'ease-out'));
+fadeIn('#lockT',S[i]+.5,.5,18); fadeIn('#lockP',S[i]+.9,.5,14);
+['#pl1','#pl2','#pl3','#pl4'].forEach((p,k)=>pop(p,S[i]+1.5+k*.22,.4));
+
+// 12. Final
+i=11; A('#s12',[{opacity:0},{opacity:1}],S[i]+.05,.3,'linear');
+A('#outLogo',[{opacity:0,transform:'scale(.5)'},{opacity:1,transform:'scale(1.06)',offset:.7},{opacity:1,transform:'scale(1)'}],S[i]+.1,.7);
+A('#outLogo',[{transform:'scale(1)'},{transform:'scale(1.035)'}],S[i]+.8,D[i],'ease-in-out');
+fadeIn('#outT',S[i]+.5,.5,20); fadeIn('#outF',S[i]+.9,.5,14); fadeIn('#outS',S[i]+1.3,.5,14); fadeIn('#outG',S[i]+1.7,.5,14);
+
+window.seek=t=>{document.getAnimations().forEach(a=>{a.pause();a.currentTime=t*1000})};
+seek(0);
+</script>
+</body></html>
