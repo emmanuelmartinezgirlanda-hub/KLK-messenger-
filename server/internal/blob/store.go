@@ -69,5 +69,6 @@ func (b *Store) PurgeAttachments(ctx context.Context, before time.Time) (int, er
 			}
 		}
 	}
+	n += b.sweepImages(ctx, time.Now())
 	return n, nil
 }

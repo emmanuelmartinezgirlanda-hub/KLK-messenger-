@@ -28,6 +28,7 @@ type BusinessImageStore interface {
 	// y se subieron antes de [before] (las recién subidas aún no se han guardado
 	// en el perfil). Devuelve cuántas borró.
 	PruneBusinessImages(ctx context.Context, owner string, keep map[string]bool, before time.Time) (int, error)
+	ImageExists(ctx context.Context, kind, id string) (bool, error)
 }
 
 // ---------- Memoria ----------
@@ -95,7 +96,7 @@ func (p *Postgres) PutBusinessImage(ctx context.Context, img BusinessImage) erro
 	}
 	_, err := p.pool.Exec(ctx,
 		`INSERT INTO business_images (id, owner, mime, data) VALUES ($1, $2, $3, $4)`,
-		img.ID, img.Owner, img.Mime, img.Data)
+		img.ID, img.Owner, img.Mime, nonNil(img.Data))
 	return err
 }
 
@@ -141,4 +142,44 @@ func (p *Postgres) PruneBusinessImages(ctx context.Context, owner string, keep m
 		return 0, err
 	}
 	return int(tag.RowsAffected()), nil
+}
+
+// nonNil: en R2 la ficha va sin bytes, pero la columna no admite NULL.
+func nonNil(b []byte) []byte {
+	if b == nil {
+		return []byte{}
+	}
+	return b
+}
+
+// ImageExists dice si queda la ficha de una foto (kind = "biz" o "gente"),
+// aunque su dueño esté bloqueado. Sirve para limpiar los archivos de R2 huérfanos.
+func (m *Memory) ImageExists(_ context.Context, kind, id string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	switch kind {
+	case "biz":
+		_, ok := m.bizImages[id]
+		return ok, nil
+	case "gente":
+		if m.gent == nil {
+			return false, nil
+		}
+		_, ok := m.gent.images[id]
+		return ok, nil
+	}
+	return false, nil
+}
+
+func (p *Postgres) ImageExists(ctx context.Context, kind, id string) (bool, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return false, nil
+	}
+	table := map[string]string{"biz": "business_images", "gente": "gente_images"}[kind]
+	if table == "" {
+		return false, nil
+	}
+	var ok bool
+	err := p.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM `+table+` WHERE id = $1)`, id).Scan(&ok)
+	return ok, err
 }
