@@ -742,7 +742,6 @@ class _GentePostScreenState extends ConsumerState<GentePostScreen> {
   @override
   void dispose() {
     _text.dispose();
-    _price.dispose();
     super.dispose();
   }
 
@@ -1121,6 +1120,7 @@ class _GenteComposeScreenState extends ConsumerState<GenteComposeScreen> {
   @override
   void dispose() {
     _text.dispose();
+    _price.dispose();
     super.dispose();
   }
 
