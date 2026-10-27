@@ -37,4 +37,33 @@ void main() {
     expect(flagOf('ie'), '🇮🇪');
     expect(flagOf(''), '');
   });
+
+  test('ventas: precio escrito a mano y cómo se enseña', () {
+    expect(parseSalePrice('1500'), 1500);
+    expect(parseSalePrice('1.500'), 1500);
+    expect(parseSalePrice('1,500'), 1500);
+    expect(parseSalePrice('12,50'), 12.5);
+    expect(parseSalePrice('12.5'), 12.5);
+    expect(parseSalePrice('1.250.000'), 1250000);
+    expect(parseSalePrice(''), isNull);
+    expect(parseSalePrice('0'), isNull);
+    expect(parseSalePrice('99999999'), isNull);
+    expect(saleMoney(1500, 'RD\$'), 'RD\$ 1.500');
+    expect(saleMoney(12.5, '€'), '12,50 €');
+    expect(saleMoney(120, 'US\$'), 'US\$ 120');
+    final p = GentePost.tryParse({
+      'id': 'v1',
+      'author': {'id': 'a'},
+      'text': 'Vendo bici',
+      'createdAt': '2026-10-27T09:00:00Z',
+      'sale': true,
+      'price': 120,
+      'currency': '€',
+    })!;
+    expect(p.sale, isTrue);
+    expect(p.priceLabel, '120 €');
+    expect(p.copyWith(sold: true).sold, isTrue);
+    expect(saleCurrencyFor('IE'), '€');
+    expect(saleCurrencyFor('DO'), 'RD\$');
+  });
 }

@@ -233,9 +233,11 @@ class ApiClient {
   /// Dirección de una página del servidor (normas, privacidad…).
   String pageUrl(String path) => _u(path).toString();
 
-  Future<List<Map<String, dynamic>>> genteFeed({String country = '', String author = '', DateTime? before}) async {
+  Future<List<Map<String, dynamic>>> genteFeed(
+      {String country = '', String author = '', DateTime? before, bool sale = false}) async {
     final qs = Uri(queryParameters: {
       if (country.isNotEmpty) 'country': country,
+      if (sale) 'sale': '1',
       if (author.isNotEmpty) 'author': author,
       if (before != null) 'before': before.toUtc().toIso8601String(),
     }).query;
@@ -243,9 +245,18 @@ class ApiClient {
     return (j['posts'] as List? ?? const []).cast<Map<String, dynamic>>();
   }
 
-  Future<Map<String, dynamic>> genteCreatePost(String text, List<String> photos, String country) async =>
-      await _send('POST', '/v1/gente/posts', {'text': text, 'photos': photos, 'country': country})
-          as Map<String, dynamic>;
+  Future<Map<String, dynamic>> genteCreatePost(String text, List<String> photos, String country,
+          {double? price, String currency = ''}) async =>
+      await _send('POST', '/v1/gente/posts', {
+        'text': text,
+        'photos': photos,
+        'country': country,
+        if (price != null) 'sale': {'price': price, 'currency': currency},
+      }) as Map<String, dynamic>;
+
+  /// Quien vende marca (o quita) «Vendido».
+  Future<void> genteSold(String id, bool sold) =>
+      _send(sold ? 'PUT' : 'DELETE', '/v1/gente/posts/${Uri.encodeComponent(id)}/sold');
 
   Future<Map<String, dynamic>> gentePost(String id) async =>
       await _send('GET', '/v1/gente/posts/${Uri.encodeComponent(id)}') as Map<String, dynamic>;

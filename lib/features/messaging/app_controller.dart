@@ -1611,19 +1611,28 @@ class AppController extends ChangeNotifier {
   Future<String> startChatWithBusiness(BizProfile b) async {
     if (b.id == myId) throw const ApiException(400, 'self', 'Este es tu propio negocio.');
     _rememberBusiness(b);
-    final existing = await _db!.chat(b.id);
+    return startChatWithAccount(b.id, b.name);
+  }
+
+  /// Abre (o crea) un chat con una cuenta de KLK de la que solo sé el id y
+  /// el nombre (un negocio, alguien que vende en Mi Gente…). Su número no se ve.
+  Future<String> startChatWithAccount(String accountId, String name) async {
+    if (accountId == myId) throw const ApiException(400, 'self', 'Eres tú.');
+    final existing = await _db!.chat(accountId);
     if (existing != null) {
-      // Si no lo tenía guardado con nombre, le pongo el del negocio.
-      if (existing.phone.isEmpty && existing.title != b.name) await _db!.upsertChat(existing.copyWith(title: b.name));
+      // Si no lo tenía guardado con nombre, le pongo este.
+      if (existing.phone.isEmpty && existing.title != name && name.isNotEmpty) {
+        await _db!.upsertChat(existing.copyWith(title: name));
+      }
       await _reloadChats();
-      return b.id;
+      return accountId;
     }
     String? identity;
-    if (!isDemo) identity = base64Encode(await _api!.identityOf(b.id));
-    await _db!.upsertChat(Chat(id: b.id, title: b.name, identityKey: identity, updatedAt: DateTime.now()));
+    if (!isDemo) identity = base64Encode(await _api!.identityOf(accountId));
+    await _db!.upsertChat(Chat(id: accountId, title: name, identityKey: identity, updatedAt: DateTime.now()));
     await _reloadChats();
-    if (!isDemo) unawaited(_broadcastProfile(b.id));
-    return b.id;
+    if (!isDemo) unawaited(_broadcastProfile(accountId));
+    return accountId;
   }
 
   /// Envío un pedido o una cita al negocio. Devuelve el id del chat.

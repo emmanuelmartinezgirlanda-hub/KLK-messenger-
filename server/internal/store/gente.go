@@ -40,6 +40,12 @@ type GentePost struct {
 	Likes     int         `json:"likes"`
 	Comments  int         `json:"comments"`
 	Liked     bool        `json:"liked"` // ¿le di me gusta yo?
+
+	// «Vendo»: algo a la venta, con su precio. Sold = ya se vendió.
+	Sale     bool    `json:"sale"`
+	Price    float64 `json:"price,omitempty"`
+	Currency string  `json:"currency,omitempty"`
+	Sold     bool    `json:"sold"`
 }
 
 type GenteComment struct {
@@ -57,6 +63,7 @@ type GenteQuery struct {
 	Author  string    // solo las de esta cuenta
 	Before  time.Time // para pedir más (las anteriores a esta hora)
 	Hide    []string  // cuentas que no se enseñan (bloqueos)
+	Sale    bool      // solo lo que está a la venta
 	Limit   int
 }
 
@@ -86,6 +93,7 @@ type GenteStore interface {
 	GetGentePost(ctx context.Context, id, viewer string) (GentePost, error)
 	ListGentePosts(ctx context.Context, q GenteQuery) ([]GentePost, error)
 	DeleteGentePost(ctx context.Context, id string) error
+	SetGenteSold(ctx context.Context, id string, sold bool) error
 	// SetGenteLike pone o quita mi me gusta y devuelve cuántos tiene la publicación.
 	SetGenteLike(ctx context.Context, post, account string, on bool) (int, error)
 	AddGenteComment(ctx context.Context, c GenteComment) error
@@ -243,7 +251,7 @@ func (m *Memory) ListGentePosts(_ context.Context, q GenteQuery) ([]GentePost, e
 			continue
 		}
 		if (q.Country != "" && p.Country != q.Country) || (q.Author != "" && p.Author.ID != q.Author) ||
-			!p.CreatedAt.Before(before) || hide[p.Author.ID] {
+			!p.CreatedAt.Before(before) || hide[p.Author.ID] || (q.Sale && !p.Sale) {
 			continue
 		}
 		out = append(out, m.gentePostLocked(p, q.Viewer))
@@ -253,6 +261,18 @@ func (m *Memory) ListGentePosts(_ context.Context, q GenteQuery) ([]GentePost, e
 		out = out[:q.limit()]
 	}
 	return out, nil
+}
+
+func (m *Memory) SetGenteSold(_ context.Context, id string, sold bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.gente().posts[id]
+	if !ok || !p.Sale {
+		return ErrNotFound
+	}
+	p.Sold = sold
+	m.gente().posts[id] = p
+	return nil
 }
 
 func (m *Memory) DeleteGentePost(_ context.Context, id string) error {
@@ -521,8 +541,9 @@ func (p *Postgres) AddGentePost(ctx context.Context, g GentePost) error {
 	}
 	photos, _ := json.Marshal(append([]string{}, g.Photos...))
 	_, err := p.pool.Exec(ctx, `
-		INSERT INTO gente_posts (id, author, country, body, photos, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
-		g.ID, g.Author.ID, g.Country, g.Text, photos, g.CreatedAt)
+		INSERT INTO gente_posts (id, author, country, body, photos, created_at, sale, price, currency)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		g.ID, g.Author.ID, g.Country, g.Text, photos, g.CreatedAt, g.Sale, g.Price, g.Currency)
 	return err
 }
 
@@ -531,7 +552,8 @@ const gentePostCols = `
 	(SELECT count(*) FROM gente_likes l WHERE l.post = p.id),
 	(SELECT count(*) FROM gente_comments c JOIN accounts ca ON ca.id = c.author
 	  WHERE c.post = p.id AND ca.banned_at IS NULL),
-	EXISTS (SELECT 1 FROM gente_likes l WHERE l.post = p.id AND l.account::text = $1)`
+	EXISTS (SELECT 1 FROM gente_likes l WHERE l.post = p.id AND l.account::text = $1),
+	p.sale, p.price, p.currency, p.sold`
 
 const gentePostFrom = `
 	FROM gente_posts p JOIN accounts a ON a.id = p.author
@@ -542,7 +564,7 @@ func scanGentePost(row pgx.Row) (GentePost, error) {
 	var g GentePost
 	var photos []byte
 	err := row.Scan(&g.ID, &g.Author.ID, &g.Author.Name, &g.Author.Photo, &g.Country, &g.Text, &photos,
-		&g.CreatedAt, &g.Likes, &g.Comments, &g.Liked)
+		&g.CreatedAt, &g.Likes, &g.Comments, &g.Liked, &g.Sale, &g.Price, &g.Currency, &g.Sold)
 	g.Photos = []string{}
 	if err == nil {
 		json.Unmarshal(photos, &g.Photos)
@@ -570,7 +592,8 @@ func (p *Postgres) ListGentePosts(ctx context.Context, q GenteQuery) ([]GentePos
 		  AND ($3 = '' OR p.author::text = $3)
 		  AND p.created_at < $4
 		  AND NOT (p.author::text = ANY($6))
-		ORDER BY p.created_at DESC LIMIT $5`, q.Viewer, q.Country, q.Author, q.before(), q.limit(), append([]string{}, q.Hide...))
+		  AND (NOT $7 OR p.sale)
+		ORDER BY p.created_at DESC LIMIT $5`, q.Viewer, q.Country, q.Author, q.before(), q.limit(), append([]string{}, q.Hide...), q.Sale)
 	if err != nil {
 		return nil, err
 	}
@@ -584,6 +607,17 @@ func (p *Postgres) ListGentePosts(ctx context.Context, q GenteQuery) ([]GentePos
 		out = append(out, g)
 	}
 	return out, rows.Err()
+}
+
+func (p *Postgres) SetGenteSold(ctx context.Context, id string, sold bool) error {
+	if !isUUID(id) {
+		return ErrNotFound
+	}
+	tag, err := p.pool.Exec(ctx, `UPDATE gente_posts SET sold = $2 WHERE id = $1 AND sale`, id, sold)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (p *Postgres) DeleteGentePost(ctx context.Context, id string) error {

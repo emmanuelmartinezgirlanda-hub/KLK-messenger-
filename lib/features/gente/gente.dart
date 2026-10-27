@@ -40,6 +40,12 @@ class GentePost {
   final int comments;
   final bool liked;
 
+  /// «Vendo»: está a la venta con este precio. [sold] = ya se vendió.
+  final bool sale;
+  final double price;
+  final String currency;
+  final bool sold;
+
   const GentePost({
     required this.id,
     required this.author,
@@ -50,6 +56,10 @@ class GentePost {
     this.likes = 0,
     this.comments = 0,
     this.liked = false,
+    this.sale = false,
+    this.price = 0,
+    this.currency = '',
+    this.sold = false,
   });
 
   static GentePost? tryParse(Object? j) {
@@ -71,10 +81,17 @@ class GentePost {
       likes: (j['likes'] as num?)?.toInt() ?? 0,
       comments: (j['comments'] as num?)?.toInt() ?? 0,
       liked: j['liked'] == true,
+      sale: j['sale'] == true,
+      price: (j['price'] as num?)?.toDouble() ?? 0,
+      currency: _s(j['currency']),
+      sold: j['sold'] == true,
     );
   }
 
-  GentePost copyWith({int? likes, bool? liked, int? comments}) => GentePost(
+  /// "RD$ 1.500" / "150 €".
+  String get priceLabel => saleMoney(price, currency);
+
+  GentePost copyWith({int? likes, bool? liked, int? comments, bool? sold}) => GentePost(
         id: id,
         author: author,
         country: country,
@@ -84,7 +101,47 @@ class GentePost {
         likes: likes ?? this.likes,
         comments: comments ?? this.comments,
         liked: liked ?? this.liked,
+        sale: sale,
+        price: price,
+        currency: currency,
+        sold: sold ?? this.sold,
       );
+}
+
+/// Monedas para vender.
+const saleCurrencies = ['RD\$', 'US\$', '€', '£'];
+
+/// Moneda probable según el país.
+String saleCurrencyFor(String country) => switch (country) {
+      'DO' || '' => 'RD\$',
+      'US' || 'PR' => 'US\$',
+      'GB' => '£',
+      _ => '€',
+    };
+
+/// Lee un precio escrito a mano: "1500", "1.500", "1,500", "12,50", "12.50".
+/// Devuelve null si no vale (vacío, 0 o más de 10 millones).
+double? parseSalePrice(String raw) {
+  var t = raw.trim().replaceAll(' ', '');
+  if (t.isEmpty) return null;
+  final lastSep = t.lastIndexOf(RegExp(r'[.,]'));
+  if (lastSep >= 0 && t.length - lastSep - 1 <= 2 && t.length - lastSep - 1 > 0) {
+    // Lo último es la parte decimal (1-2 cifras).
+    t = '${t.substring(0, lastSep).replaceAll(RegExp(r'[.,]'), '')}.${t.substring(lastSep + 1)}';
+  } else {
+    t = t.replaceAll(RegExp(r'[.,]'), ''); // separadores de miles
+  }
+  final v = double.tryParse(t);
+  return v == null || v <= 0 || v > 10000000 ? null : v;
+}
+
+String saleMoney(double v, String cur) {
+  final whole = v == v.roundToDouble();
+  final n = whole ? v.toStringAsFixed(0) : v.toStringAsFixed(2).replaceAll('.', ',');
+  final parts = n.split(',');
+  final whole0 = parts[0].replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]}.');
+  final out = parts.length > 1 ? '$whole0,${parts[1]}' : whole0;
+  return cur == '€' ? '$out €' : '$cur $out';
 }
 
 class GenteComment {
@@ -147,6 +204,18 @@ List<GentePost> demoGentePosts() {
       comments: 13,
     ),
     GentePost(
+      id: 'demo-4',
+      author: const GenteAuthor(id: 'demo-luis', name: 'Luis Peña'),
+      country: 'IE',
+      text: 'Vendo bicicleta casi nueva, la usé dos meses. Recogida en Dublín centro 🚲',
+      createdAt: now.subtract(const Duration(hours: 5)),
+      likes: 8,
+      comments: 2,
+      sale: true,
+      price: 120,
+      currency: '€',
+    ),
+    GentePost(
       id: 'demo-3',
       author: const GenteAuthor(id: 'demo-colmado', name: 'Colmado La Esquina'),
       country: 'DO',
@@ -175,6 +244,9 @@ class GenteController extends ChangeNotifier {
 
   /// '' = todos los países; si no, el código del país ("DO").
   String country = '';
+
+  /// Ver solo lo que está a la venta.
+  bool saleOnly = false;
   List<GentePost> _posts = [];
   bool loading = false;
   bool hasMore = true;
@@ -237,6 +309,15 @@ class GenteController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> setSaleOnly(bool v) async {
+    if (v == saleOnly) return;
+    saleOnly = v;
+    _posts = [];
+    hasMore = true;
+    notifyListeners();
+    await refresh();
+  }
+
   Future<void> setCountry(String c) async {
     if (c == country) return;
     country = c;
@@ -249,7 +330,10 @@ class GenteController extends ChangeNotifier {
   Future<void> refresh() async {
     if (!loadedOnce) unawaited(syncBlocks());
     if (isDemo) {
-      _posts = [for (final p in demoGentePosts()) if (country.isEmpty || p.country == country) p];
+      _posts = [
+        for (final p in demoGentePosts())
+          if ((country.isEmpty || p.country == country) && (!saleOnly || p.sale)) p
+      ];
       hasMore = false;
       loadedOnce = true;
       notifyListeners();
@@ -259,7 +343,7 @@ class GenteController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final list = await _api!.genteFeed(country: country);
+      final list = await _api!.genteFeed(country: country, sale: saleOnly);
       _posts = [for (final j in list) if (GentePost.tryParse(j) != null) GentePost.tryParse(j)!];
       hasMore = list.length >= 20;
     } catch (e) {
@@ -276,7 +360,7 @@ class GenteController extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      final list = await _api!.genteFeed(country: country, before: _posts.last.createdAt);
+      final list = await _api!.genteFeed(country: country, sale: saleOnly, before: _posts.last.createdAt);
       final have = {for (final p in _posts) p.id};
       _posts = [
         ..._posts,
@@ -370,7 +454,8 @@ class GenteController extends ChangeNotifier {
   }
 
   /// Publica [text] con hasta 4 fotos (ya reducidas). Sale arriba del todo.
-  Future<GentePost> publish(String text, List<Uint8List> photos, {void Function(int done)? onPhoto}) async {
+  Future<GentePost> publish(String text, List<Uint8List> photos,
+      {void Function(int done)? onPhoto, double? price, String currency = ''}) async {
     final api = _api;
     if (api == null) throw const ApiException(0, 'demo', 'En el modo demo no se puede publicar.');
     await ensureProfile();
@@ -379,13 +464,20 @@ class GenteController extends ChangeNotifier {
       ids.add(await api.uploadGenteImage(b));
       onPhoto?.call(ids.length);
     }
-    final j = await api.genteCreatePost(text.trim(), ids, myCountry);
+    final j = await api.genteCreatePost(text.trim(), ids, myCountry, price: price, currency: currency);
     final p = GentePost.tryParse(j)!;
-    if (country.isEmpty || country == p.country) {
+    if ((country.isEmpty || country == p.country) && (!saleOnly || p.sale)) {
       _posts = [p, ..._posts];
       notifyListeners();
     }
     return p;
+  }
+
+  /// Marco (o quito) «Vendido» en algo que vendo.
+  Future<void> setSold(GentePost p, bool sold) async {
+    if (!isDemo) await _api!.genteSold(p.id, sold);
+    _posts = [for (final x in _posts) x.id == p.id ? x.copyWith(sold: sold) : x];
+    notifyListeners();
   }
 
   Future<void> delete(GentePost p) async {

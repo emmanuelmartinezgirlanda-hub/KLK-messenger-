@@ -8,10 +8,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/l10n.dart';
 import '../chat/presentation/chat_avatar.dart';
+import '../chat/presentation/chat_screen.dart';
 import '../messaging/app_controller.dart';
 import 'gente.dart';
 
 const _rojo = Color(0xFFCE1126);
+const _verde = Color(0xFF1F7A4D);
 const _azul = Color(0xFF002D62);
 
 // =====================================================================
@@ -84,6 +86,13 @@ class _GenteViewState extends ConsumerState<GenteView> {
                     selected: g.country == 'DO',
                     onSelected: (_) => g.setCountry('DO'),
                   ),
+                FilterChip(
+                  label: Text('🏷️ ${tr('En venta')}'),
+                  selected: g.saleOnly,
+                  showCheckmark: false,
+                  selectedColor: _verde.withValues(alpha: 0.25),
+                  onSelected: (v) => g.setSaleOnly(v),
+                ),
               ]),
             );
           }
@@ -501,6 +510,31 @@ class GentePostCard extends ConsumerWidget {
       case 'copy':
         await Clipboard.setData(ClipboardData(text: post.text));
         if (context.mounted) _say(context, tr('Texto copiado'));
+      case 'sold' || 'unsold':
+        try {
+          await g.setSold(post, action == 'sold');
+          if (context.mounted) _say(context, action == 'sold' ? tr('Marcado como vendido 🎉') : tr('Vuelve a estar a la venta'));
+        } catch (e) {
+          if (context.mounted) _say(context, '${tr('No se pudo')}: $e');
+        }
+    }
+  }
+
+  /// Abre el chat con quien vende, con un mensaje ya escrito.
+  Future<void> _writeSeller(BuildContext context, WidgetRef ref) async {
+    try {
+      final id = await ref.read(appProvider).startChatWithAccount(post.author.id, post.author.displayName);
+      if (!context.mounted) return;
+      final what = post.text.split('\n').first;
+      final short = what.length > 60 ? '${what.substring(0, 60).trimRight()}…' : what;
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          chatId: id,
+          initialText: '${tr('¡Hola! Vi en Mi Gente que vendes')} «$short» (${post.priceLabel}). ${tr('¿Sigue disponible?')}',
+        ),
+      ));
+    } catch (e) {
+      if (context.mounted) _say(context, '${tr('No se pudo abrir el chat')}: $e');
     }
   }
 
@@ -547,6 +581,10 @@ class GentePostCard extends ConsumerWidget {
               onSelected: (v) => _menu(context, ref, v),
               itemBuilder: (_) => [
                 if (post.text.isNotEmpty) PopupMenuItem(value: 'copy', child: Text(tr('Copiar texto'))),
+                if (mine && post.sale)
+                  PopupMenuItem(
+                      value: post.sold ? 'unsold' : 'sold',
+                      child: Text(post.sold ? tr('Volver a poner a la venta') : tr('Marcar como vendido'))),
                 if (mine) PopupMenuItem(value: 'delete', child: Text(tr('Borrar publicación'))),
                 if (!mine) PopupMenuItem(value: 'block', child: Text('${tr('Bloquear a')} ${post.author.displayName}')),
                 if (!mine) PopupMenuItem(value: 'report', child: Text(tr('Denunciar'))),
@@ -554,6 +592,36 @@ class GentePostCard extends ConsumerWidget {
             ),
           ]),
         ),
+        if (post.sale)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+                decoration: BoxDecoration(
+                  color: post.sold ? cs.onSurface.withValues(alpha: 0.12) : _verde,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('🏷️ ${post.priceLabel}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      color: post.sold ? cs.onSurface.withValues(alpha: 0.55) : Colors.white,
+                      decoration: post.sold ? TextDecoration.lineThrough : null,
+                    )),
+              ),
+              const SizedBox(width: 8),
+              if (post.sold)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(color: _rojo, borderRadius: BorderRadius.circular(999)),
+                  child: Text(tr('VENDIDO'),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 11.5, letterSpacing: .6)),
+                )
+              else
+                Text(tr('Vendo'), style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface.withValues(alpha: 0.6))),
+            ]),
+          ),
         if (post.text.isNotEmpty)
           InkWell(
             onTap: full ? null : openPost,
@@ -620,8 +688,28 @@ class GentePostCard extends ConsumerWidget {
                 label: Text(tr('Comentar')),
               ),
             ),
+            if (post.sale && !mine && !post.sold)
+              Expanded(
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(foregroundColor: _verde),
+                  onPressed: () => _writeSeller(context, ref),
+                  icon: const Icon(Icons.storefront_rounded),
+                  label: Text(tr('Escribir')),
+                ),
+              ),
           ]),
         ),
+        if (full && post.sale && !mine)
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 2, 12, 10),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: const Color(0xFFFFD60A).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
+            child: Text(
+              tr('🛡️ Para comprar seguro: queda en un sitio público, mira el producto antes de pagar y no pagues por adelantado ni envíes códigos. '
+                  'KLK no cobra ni hace envíos: el trato es entre ustedes.'),
+              style: const TextStyle(fontSize: 12.5, height: 1.35),
+            ),
+          ),
       ]),
     );
   }
@@ -654,6 +742,7 @@ class _GentePostScreenState extends ConsumerState<GentePostScreen> {
   @override
   void dispose() {
     _text.dispose();
+    _price.dispose();
     super.dispose();
   }
 
@@ -1008,9 +1097,14 @@ class GenteComposeScreen extends ConsumerStatefulWidget {
 
 class _GenteComposeScreenState extends ConsumerState<GenteComposeScreen> {
   final _text = TextEditingController();
+  final _price = TextEditingController();
   final List<Uint8List> _photos = [];
   bool _sending = false;
   int _uploaded = 0;
+  bool _sale = false; // «Vendo»
+  late String _currency = saleCurrencyFor(ref.read(genteProvider).myCountry);
+
+  double? get _priceValue => parseSalePrice(_price.text);
 
   @override
   void initState() {
@@ -1062,13 +1156,22 @@ class _GenteComposeScreenState extends ConsumerState<GenteComposeScreen> {
   Future<void> _publish() async {
     final text = _text.text.trim();
     if ((text.isEmpty && _photos.isEmpty) || _sending) return;
+    if (_sale && text.isEmpty) {
+      _say(tr('Escribe qué vendes.'));
+      return;
+    }
+    if (_sale && _priceValue == null) {
+      _say(tr('Pon el precio.'));
+      return;
+    }
     if (!await ensureGenteRules(context, ref) || !mounted) return;
     setState(() {
       _sending = true;
       _uploaded = 0;
     });
     try {
-      await ref.read(genteProvider).publish(text, _photos, onPhoto: (n) {
+      await ref.read(genteProvider).publish(text, _photos, price: _sale ? _priceValue : null, currency: _currency,
+          onPhoto: (n) {
         if (mounted) setState(() => _uploaded = n);
       });
       if (!mounted) return;
@@ -1085,7 +1188,9 @@ class _GenteComposeScreenState extends ConsumerState<GenteComposeScreen> {
     final app = ref.watch(appProvider);
     final g = ref.read(genteProvider);
     final cs = Theme.of(context).colorScheme;
-    final canSend = (_text.text.trim().isNotEmpty || _photos.isNotEmpty) && !_sending;
+    final canSend = (_text.text.trim().isNotEmpty || _photos.isNotEmpty) &&
+        !_sending &&
+        (!_sale || (_text.text.trim().isNotEmpty && _priceValue != null));
     final country = g.myCountry;
     return Scaffold(
       appBar: AppBar(
@@ -1131,8 +1236,58 @@ class _GenteComposeScreenState extends ConsumerState<GenteComposeScreen> {
           textCapitalization: TextCapitalization.sentences,
           onChanged: (_) => setState(() {}),
           style: const TextStyle(fontSize: 18),
-          decoration: InputDecoration(hintText: tr('¿Qué quieres contarle a tu gente?'), border: InputBorder.none),
+          decoration: InputDecoration(
+            hintText: _sale
+                ? tr('¿Qué vendes? Ej.: Bicicleta casi nueva, recogida en Dublín centro')
+                : tr('¿Qué quieres contarle a tu gente?'),
+            border: InputBorder.none,
+          ),
         ),
+        Material(
+          color: _sale ? _verde.withValues(alpha: 0.12) : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 12, 2),
+            child: Column(children: [
+              SwitchListTile(
+                contentPadding: const EdgeInsets.only(left: 12),
+                value: _sale,
+                onChanged: _sending ? null : (v) => setState(() => _sale = v),
+                title: Text('🏷️ ${tr('Vendo algo')}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(tr('Sale con su precio y en «En venta». Te escriben por el chat.')),
+              ),
+              if (_sale)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 0, 12),
+                  child: Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _price,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+                        onChanged: (_) => setState(() {}),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                        decoration: InputDecoration(
+                          labelText: tr('Precio'),
+                          hintText: '1500',
+                          isDense: true,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    DropdownButton<String>(
+                      value: _currency,
+                      underline: const SizedBox.shrink(),
+                      items: [for (final c in saleCurrencies) DropdownMenuItem(value: c, child: Text(c))],
+                      onChanged: _sending ? null : (v) => setState(() => _currency = v ?? _currency),
+                    ),
+                  ]),
+                ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (_photos.isNotEmpty)
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (var i = 0; i < _photos.length; i++)
@@ -1177,6 +1332,15 @@ class _GenteComposeScreenState extends ConsumerState<GenteComposeScreen> {
               'No publiques datos personales. Lo que incumpla las normas se borra.'),
           style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6)),
         ),
+        if (_sale)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              tr('Solo cosas tuyas y legales: nada de armas, drogas, medicinas, animales, alcohol ni cosas robadas o falsificadas. '
+                  'KLK no cobra ni hace envíos.'),
+              style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.6)),
+            ),
+          ),
       ]),
     );
   }
