@@ -239,6 +239,7 @@ function renderGente(){
   return head+list.map(p=>`<div class="card rep">
       <div class="top"><b>${esc(p.author.name||"Sin nombre")}</b>
         ${p.country?`<span class="tag">${esc(p.country)}</span>`:""}
+        ${p.sale?`<span class="tag estafa">🏷️ Vendo ${esc(p.currency)} ${nf.format(p.price)}${p.sold?" · vendido":""}</span>`:""}
         <span class="muted small">${dt(p.createdAt)} · ❤️ ${p.likes} · 💬 ${p.comments}</span></div>
       ${p.text?`<p style="margin:10px 0 0;white-space:pre-wrap">${esc(p.text)}</p>`:""}
       ${p.photos&&p.photos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${p.photos.map(id=>`<img src="/v1/gente/img/${esc(id)}" alt="" style="width:96px;height:96px;object-fit:cover;border-radius:10px">`).join("")}</div>`:""}

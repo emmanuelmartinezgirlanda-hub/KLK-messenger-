@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -40,6 +41,8 @@ func (s *Server) genteRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/gente/posts", s.authed(s.genteCreatePost))
 	mux.HandleFunc("GET /v1/gente/posts/{id}", s.authed(s.genteGetPost))
 	mux.HandleFunc("DELETE /v1/gente/posts/{id}", s.authed(s.genteDeletePost))
+	mux.HandleFunc("PUT /v1/gente/posts/{id}/sold", s.authed(s.genteSold))
+	mux.HandleFunc("DELETE /v1/gente/posts/{id}/sold", s.authed(s.genteSold))
 	mux.HandleFunc("PUT /v1/gente/posts/{id}/like", s.authed(s.genteLike))
 	mux.HandleFunc("DELETE /v1/gente/posts/{id}/like", s.authed(s.genteLike))
 	mux.HandleFunc("GET /v1/gente/posts/{id}/comments", s.authed(s.genteComments))
@@ -194,7 +197,8 @@ func (s *Server) genteBlock(w http.ResponseWriter, r *http.Request) {
 // GET /v1/gente/feed?country=DO&author=…&before=2026-…: el muro, lo más nuevo primero.
 func (s *Server) genteFeed(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	query := store.GenteQuery{Viewer: deviceFrom(r).AccountID, Country: q.Get("country"), Author: q.Get("author"), Limit: 20}
+	query := store.GenteQuery{Viewer: deviceFrom(r).AccountID, Country: q.Get("country"), Author: q.Get("author"),
+		Sale: q.Get("sale") == "1", Limit: 20}
 	if query.Country != "" && !countryRe.MatchString(query.Country) {
 		writeErr(w, http.StatusBadRequest, "bad_country", "país no válido")
 		return
@@ -232,6 +236,10 @@ func (s *Server) genteCreatePost(w http.ResponseWriter, r *http.Request) {
 		Text    string   `json:"text"`
 		Photos  []string `json:"photos"`
 		Country string   `json:"country"`
+		Sale    *struct {
+			Price    float64 `json:"price"`
+			Currency string  `json:"currency"`
+		} `json:"sale"` // «Vendo»: precio y moneda
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	if !readJSON(w, r, &req) {
@@ -251,6 +259,19 @@ func (s *Server) genteCreatePost(w http.ResponseWriter, r *http.Request) {
 	case req.Country != "" && !countryRe.MatchString(req.Country):
 		writeErr(w, http.StatusBadRequest, "bad_country", "país no válido")
 		return
+	}
+	if req.Sale != nil {
+		switch {
+		case text == "":
+			writeErr(w, http.StatusBadRequest, "sale_text", "di qué vendes")
+			return
+		case req.Sale.Price <= 0 || req.Sale.Price > 10_000_000:
+			writeErr(w, http.StatusBadRequest, "bad_price", "pon un precio válido")
+			return
+		case !saleCurrencies[req.Sale.Currency]:
+			writeErr(w, http.StatusBadRequest, "bad_currency", "moneda no válida")
+			return
+		}
 	}
 	if !s.rulesOK(w, r, dev.AccountID) {
 		return
@@ -275,6 +296,9 @@ func (s *Server) genteCreatePost(w http.ResponseWriter, r *http.Request) {
 		Text:      text,
 		Photos:    append([]string{}, req.Photos...),
 		CreatedAt: time.Now().UTC(),
+	}
+	if req.Sale != nil {
+		p.Sale, p.Price, p.Currency = true, math.Round(req.Sale.Price*100)/100, req.Sale.Currency
 	}
 	if err := s.store.AddGentePost(r.Context(), p); err != nil {
 		genteErr(w, err, "la cuenta")
@@ -328,6 +352,30 @@ func (s *Server) genteDeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.DeleteGentePost(r.Context(), p.ID); err != nil {
+		genteErr(w, err, "la publicación")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+var saleCurrencies = map[string]bool{"RD$": true, "US$": true, "€": true, "£": true}
+
+// PUT/DELETE /v1/gente/posts/{id}/sold: quien vende marca (o quita) «Vendido».
+func (s *Server) genteSold(w http.ResponseWriter, r *http.Request) {
+	p, err := s.store.GetGentePost(r.Context(), r.PathValue("id"), "")
+	if err != nil {
+		genteErr(w, err, "la publicación")
+		return
+	}
+	if p.Author.ID != deviceFrom(r).AccountID {
+		writeErr(w, http.StatusForbidden, "forbidden", "solo quien vende puede marcarlo")
+		return
+	}
+	if !p.Sale {
+		writeErr(w, http.StatusBadRequest, "not_sale", "esta publicación no es una venta")
+		return
+	}
+	if err := s.store.SetGenteSold(r.Context(), p.ID, r.Method == http.MethodPut); err != nil {
 		genteErr(w, err, "la publicación")
 		return
 	}

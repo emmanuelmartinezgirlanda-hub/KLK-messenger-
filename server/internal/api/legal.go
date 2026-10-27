@@ -181,6 +181,9 @@ var termsTmpl = template.Must(template.New("t").Parse(legalHead + `<title>Normas
 <section><h2>KLK Mi Gente</h2>
 <p>Mi Gente es el muro público de KLK: lo que publicas y comentas lo puede ver cualquiera que use KLK. Antes de publicar por primera vez tienes que aceptar estas normas. Publica solo fotos tuyas o con permiso, y nada de datos personales de otros. Borramos lo que incumpla las normas y podemos bloquear la cuenta.</p></section>
 
+<section><h2>Vender en Mi Gente</h2>
+<p>Puedes publicar cosas tuyas a la venta con su precio. Solo se permiten cosas legales y que sean tuyas: <b>nada de armas, drogas, medicinas, alcohol, tabaco, animales, cosas robadas o falsificadas, ni servicios ilegales</b>. El trato (precio, pago y entrega) es entre quien vende y quien compra: <b>KLK no cobra, no hace envíos y no es parte de la venta</b>. Consejo: queda en un sitio público, mira el producto antes de pagar y no pagues por adelantado.</p></section>
+
 <section><h2>Negocios</h2>
 <p>Si pones tu negocio en KLK, la información y los precios que publicas deben ser reales y eres responsable de lo que vendes. Los pedidos y citas son un acuerdo entre el negocio y el cliente: <b>KLK no cobra, no entrega y no es parte de ese acuerdo</b>.</p></section>
 

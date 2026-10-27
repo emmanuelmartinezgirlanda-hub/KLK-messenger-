@@ -266,3 +266,67 @@ func TestGenteBlocks(t *testing.T) {
 		t.Fatalf("comentarios tras desbloquear: %+v", cs)
 	}
 }
+
+func TestGenteSale(t *testing.T) {
+	e := newAdminEnv(t)
+	ana := e.register("+18095550401", 1)
+	luis := e.register("+18095550402", 2)
+	for _, u := range []user{ana, luis} {
+		e.do("PUT", "/v1/gente/me", u.token, map[string]any{"name": "X", "rules": true}, nil)
+	}
+	bad := []map[string]any{
+		{"text": "", "photos": []string{}, "sale": map[string]any{"price": 10, "currency": "RD$"}},
+		{"text": "Nevera", "sale": map[string]any{"price": 0, "currency": "RD$"}},
+		{"text": "Nevera", "sale": map[string]any{"price": 20000000, "currency": "RD$"}},
+		{"text": "Nevera", "sale": map[string]any{"price": 10, "currency": "BTC"}},
+	}
+	for i, b := range bad {
+		if s := e.do("POST", "/v1/gente/posts", ana.token, b, nil); s != 400 {
+			t.Fatalf("venta mala %d: %d", i, s)
+		}
+	}
+	var venta gentePostSale
+	if s := e.do("POST", "/v1/gente/posts", ana.token, map[string]any{"text": "Vendo nevera", "sale": map[string]any{"price": 150.555, "currency": "€"}}, &venta); s != 201 ||
+		!venta.Sale || venta.Price != 150.56 || venta.Currency != "€" || venta.Sold {
+		t.Fatalf("publicar venta: %d %+v", s, venta)
+	}
+	var normal gentePostSale
+	e.do("POST", "/v1/gente/posts", ana.token, map[string]any{"text": "¡Klk!"}, &normal)
+
+	var feed struct {
+		Posts []gentePostSale `json:"posts"`
+	}
+	e.do("GET", "/v1/gente/feed?sale=1", luis.token, nil, &feed)
+	if len(feed.Posts) != 1 || feed.Posts[0].ID != venta.ID {
+		t.Fatalf("filtro en venta: %+v", feed.Posts)
+	}
+	// Solo quien vende marca «Vendido», y solo en ventas
+	if s := e.do("PUT", "/v1/gente/posts/"+venta.ID+"/sold", luis.token, nil, nil); s != 403 {
+		t.Fatalf("otro marca vendido: %d", s)
+	}
+	if s := e.do("PUT", "/v1/gente/posts/"+normal.ID+"/sold", ana.token, nil, nil); s != 400 {
+		t.Fatalf("vendido en algo que no es venta: %d", s)
+	}
+	if s := e.do("PUT", "/v1/gente/posts/"+venta.ID+"/sold", ana.token, nil, nil); s != 204 {
+		t.Fatalf("marcar vendido: %d", s)
+	}
+	feed.Posts = nil
+	e.do("GET", "/v1/gente/feed?sale=1", luis.token, nil, &feed)
+	if len(feed.Posts) != 1 || !feed.Posts[0].Sold {
+		t.Fatalf("vendido: %+v", feed.Posts)
+	}
+	e.do("DELETE", "/v1/gente/posts/"+venta.ID+"/sold", ana.token, nil, nil)
+	feed.Posts = nil
+	e.do("GET", "/v1/gente/feed?sale=1", luis.token, nil, &feed)
+	if feed.Posts[0].Sold {
+		t.Fatal("no se quitó «vendido»")
+	}
+}
+
+type gentePostSale struct {
+	gentePost
+	Sale     bool    `json:"sale"`
+	Price    float64 `json:"price"`
+	Currency string  `json:"currency"`
+	Sold     bool    `json:"sold"`
+}
