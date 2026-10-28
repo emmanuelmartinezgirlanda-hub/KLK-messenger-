@@ -115,6 +115,9 @@ func (s *Server) putBusiness(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_data", "datos del negocio no válidos o demasiado grandes")
 		return
 	}
+	if rejectOffensive(w, req.Name, req.City, string(data)) {
+		return
+	}
 	b := store.Business{
 		AccountID: dev.AccountID,
 		Name:      req.Name,

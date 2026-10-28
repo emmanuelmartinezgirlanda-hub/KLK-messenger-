@@ -103,6 +103,9 @@ func (s *Server) genteSetProfile(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_name", "pon un nombre de hasta 40 letras")
 		return
 	}
+	if rejectOffensive(w, name) {
+		return
+	}
 	if req.Photo != "" {
 		img, err := s.store.GetGenteImage(r.Context(), req.Photo)
 		if err != nil || img.Owner != dev.AccountID {
@@ -189,6 +192,10 @@ func (s *Server) genteBlock(w http.ResponseWriter, r *http.Request) {
 		genteErr(w, err, "esa cuenta")
 		return
 	}
+	if r.Method == http.MethodPut {
+		// Apple (1.2): bloquear también avisa al equipo de KLK para revisarlo.
+		s.noteBlock(r, dev.AccountID, id, "Mi Gente")
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -258,6 +265,9 @@ func (s *Server) genteCreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	case req.Country != "" && !countryRe.MatchString(req.Country):
 		writeErr(w, http.StatusBadRequest, "bad_country", "país no válido")
+		return
+	}
+	if rejectOffensive(w, text) {
 		return
 	}
 	if req.Sale != nil {
@@ -440,6 +450,9 @@ func (s *Server) genteAddComment(w http.ResponseWriter, r *http.Request) {
 	text, ok := cleanText(req.Text, maxGenteComment)
 	if !ok || text == "" {
 		writeErr(w, http.StatusBadRequest, "bad_text", "escribe un comentario de hasta 1000 letras")
+		return
+	}
+	if rejectOffensive(w, text) {
 		return
 	}
 	id := r.PathValue("id")
