@@ -91,9 +91,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   Widget build(BuildContext context) {
     final demo = ref.read(appProvider).pendingServer.isEmpty;
     final cs = Theme.of(context).colorScheme;
+    final byEmail = widget.phone.startsWith('mail:');
 
     return Scaffold(
-      appBar: AppBar(title: Text(tr('Verifica tu número'))),
+      appBar: AppBar(title: Text(byEmail ? tr('Verifica tu correo') : tr('Verifica tu número'))),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
@@ -102,6 +103,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               TextSpan(text: tr('Escribe el código de 6 cifras que enviamos al ')),
               TextSpan(text: prettyPhone(widget.phone), style: const TextStyle(fontWeight: FontWeight.w700)),
               const TextSpan(text: '.'),
+              if (byEmail) TextSpan(text: ' ${tr('Si no lo ves, mira en «Spam» o «Promociones».')}'),
             ]), style: const TextStyle(fontSize: 16, height: 1.4)),
             const SizedBox(height: 24),
             TextField(

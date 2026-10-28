@@ -15,6 +15,7 @@
 //	  KLK_TOPUP_DEMO=1   modo prueba sin ninguna cuenta (proveedor y pago de mentira)
 //	  KLK_TOPUP_CURRENCY (EUR) · KLK_TOPUP_MARGIN (0.08) · KLK_TOPUP_FEE (0.35) · KLK_TOPUP_MAX (40) · KLK_TOPUP_DAILY_MAX (5)
 //	  KLK_PUBLIC_URL     dirección pública del servidor (https://…)
+//	KLK_RESEND_KEY / KLK_MAIL_FROM  entrar con correo (códigos por correo con resend.com)
 //	KLK_REVIEW_PHONES / KLK_REVIEW_CODE  números de prueba para la revisión de las tiendas (sin SMS)
 //	KLK_S3_ENDPOINT / KLK_S3_BUCKET / KLK_S3_ACCESS_KEY / KLK_S3_SECRET_KEY  adjuntos en Cloudflare R2
 //	KLK_OWNER_NAME / KLK_SUPPORT_EMAIL  responsable y correo de soporte (/privacidad y /soporte)
@@ -141,6 +142,14 @@ func main() {
 	}
 
 	apiServer := api.New(st, otp, hub)
+	// Entrar con correo (código por correo con Resend). Sin clave, la opción no sale en la app.
+	if key := os.Getenv("KLK_RESEND_KEY"); key != "" {
+		apiServer.Mail = auth.NewMailOTP(auth.Resend{Key: key, From: envOr("KLK_MAIL_FROM", "KLK messenger <onboarding@resend.dev>")})
+		slog.Info("entrar con correo: activado (Resend)")
+	} else if os.Getenv("KLK_MAIL_LOG") == "1" {
+		apiServer.Mail = auth.NewMailOTP(auth.LogMail{})
+		slog.Warn("entrar con correo: los códigos se escriben en el log (solo pruebas)")
+	}
 	apiServer.TrustProxy = os.Getenv("KLK_TRUST_PROXY") == "1"
 	// Puente para llamadas (TURN). Cloudflare si está configurado; si no, Twilio
 	// (la misma cuenta de los SMS). Ponlo a "off" con KLK_TURN=off.

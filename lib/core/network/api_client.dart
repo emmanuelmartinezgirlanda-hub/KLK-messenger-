@@ -63,6 +63,69 @@ class ApiClient {
 
   Future<void> requestCode(String phone) => _send('POST', '/v1/verification/request', {'phone': phone});
 
+  /// ¿Se puede entrar con correo en este servidor?
+  Future<bool> emailLoginAvailable() async {
+    try {
+      final j = await _send('GET', '/v1/verification/methods') as Map<String, dynamic>;
+      return j['email'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> requestEmailCode(String email) =>
+      _send('POST', '/v1/verification/email/request', {'email': email});
+
+  /// Igual que [verify], pero con correo.
+  Future<({String accountId, String token})> verifyEmail({
+    required String email,
+    String code = '',
+    String regToken = '',
+    String pin = '',
+    required String deviceName,
+    required int registrationId,
+    required List<int> identityKey,
+  }) async {
+    final j = await _send('POST', '/v1/verification/email/verify', {
+      'email': email,
+      if (code.isNotEmpty) 'code': code,
+      if (regToken.isNotEmpty) 'regToken': regToken,
+      if (pin.isNotEmpty) 'pin': pin,
+      'deviceName': deviceName,
+      'registrationId': registrationId,
+      'identityKey': base64Encode(identityKey),
+    }) as Map<String, dynamic>;
+    return (accountId: j['accountId'] as String, token: j['token'] as String);
+  }
+
+  /// Mi @usuario y mi correo.
+  Future<Map<String, dynamic>> accountMe() async => await _send('GET', '/v1/account/me') as Map<String, dynamic>;
+
+  Future<String> setUsername(String username) async {
+    final j = await _send('PUT', '/v1/account/username', {'username': username}) as Map<String, dynamic>;
+    return j['username'] as String? ?? '';
+  }
+
+  Future<void> requestLinkEmail(String email) => _send('POST', '/v1/account/email/request', {'email': email});
+
+  Future<String> verifyLinkEmail(String email, String code) async {
+    final j = await _send('POST', '/v1/account/email/verify', {'email': email, 'code': code}) as Map<String, dynamic>;
+    return j['email'] as String? ?? email;
+  }
+
+  Future<void> removeEmail() => _send('DELETE', '/v1/account/email');
+
+  /// Busca a alguien por su @usuario. Devuelve su id de cuenta (o null si no existe).
+  Future<String?> lookupUsername(String username) async {
+    try {
+      final j = await _send('GET', '/v1/accounts/by-username/${Uri.encodeComponent(username)}') as Map<String, dynamic>;
+      return j['accountId'] as String?;
+    } on ApiException catch (e) {
+      if (e.status == 404) return null;
+      rethrow;
+    }
+  }
+
   /// Registra este móvil. Si la cuenta tiene PIN, el servidor responde
   /// `pin_required` con un `regToken`: se repite con [regToken] y [pin].
   Future<({String accountId, String token})> verify({

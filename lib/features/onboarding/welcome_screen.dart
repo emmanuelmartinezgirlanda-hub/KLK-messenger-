@@ -22,11 +22,47 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   Country _country = countries.first;
   final _phone = TextEditingController();
   final _server = TextEditingController(text: KlkConfig.defaultServer);
+  final _email = TextEditingController();
   String? _error;
   bool _busy = false;
+  bool _byEmail = false; // entrar con correo en vez de número
+  bool _emailAvailable = false; // ¿el servidor lo permite?
+
+  @override
+  void initState() {
+    super.initState();
+    _checkEmail();
+  }
+
+  Future<void> _checkEmail() async {
+    final ok = await ref.read(appProvider).emailLoginAvailable(_server.text);
+    if (mounted) setState(() => _emailAvailable = ok);
+  }
+
+  Future<void> _submitEmail() async {
+    final email = _email.text.trim().toLowerCase();
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[a-z]{2,}$').hasMatch(email)) {
+      setState(() => _error = tr('Escribe un correo completo, por ejemplo nombre@gmail.com.'));
+      return;
+    }
+    setState(() {
+      _error = null;
+      _busy = true;
+    });
+    try {
+      await ref.read(appProvider).requestEmailCode(email, _server.text);
+      if (!mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => OtpScreen(phone: 'mail:$email')));
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   void dispose() {
+    _email.dispose();
     _phone.dispose();
     _server.dispose();
     super.dispose();
@@ -75,7 +111,44 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               'Cifrada de punta a punta: ni nosotros podemos leer tus mensajes.',
               style: text.bodyLarge?.copyWith(color: cs.onSurface.withValues(alpha: 0.7), height: 1.45),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
+            if (_emailAvailable) ...[
+              SegmentedButton<bool>(
+                segments: [
+                  ButtonSegment(value: false, icon: const Icon(Icons.phone_iphone_rounded), label: Text(tr('Con mi número'))),
+                  ButtonSegment(value: true, icon: const Icon(Icons.alternate_email_rounded), label: Text(tr('Con mi correo'))),
+                ],
+                selected: {_byEmail},
+                showSelectedIcon: false,
+                onSelectionChanged: (v) => setState(() {
+                  _byEmail = v.first;
+                  _error = null;
+                }),
+              ),
+              const SizedBox(height: 18),
+            ],
+            if (_byEmail) ...[
+              Text(tr('Tu correo electrónico'), style: text.labelLarge),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                autofillHints: const [AutofillHints.email],
+                textCapitalization: TextCapitalization.none,
+                decoration: InputDecoration(
+                  hintText: 'nombre@gmail.com',
+                  filled: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                ),
+                onSubmitted: (_) => _submitEmail(),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                tr('Te mandamos un código por correo. Tus contactos no te verán por tu número: compárteles tu @usuario o tu código QR.'),
+                style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.65), height: 1.35),
+              ),
+            ] else ...[
             Text(tr('Tu número de teléfono'), style: text.labelLarge),
             const SizedBox(height: 8),
             Row(children: [
@@ -114,13 +187,14 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                 ),
               ),
             ]),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 8),
               Text(_error!, style: const TextStyle(color: Color(0xFFFF6B7A))),
             ],
             const SizedBox(height: 20),
             FilledButton(
-              onPressed: _busy ? null : _submit,
+              onPressed: _busy ? null : (_byEmail ? _submitEmail : _submit),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -163,6 +237,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   controller: _server,
                   keyboardType: TextInputType.url,
                   autocorrect: false,
+                  onChanged: (_) => _checkEmail(),
                   decoration: InputDecoration(
                     labelText: tr('Servidor'),
                     hintText: 'https://api.tudominio.com',

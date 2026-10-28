@@ -24,6 +24,7 @@ import '../theming/presentation/theme_provider.dart';
 import '../theming/wallpapers.dart';
 import '../../core/security/secure_store.dart';
 import '../home/tabs_provider.dart';
+import 'account_id_screen.dart';
 import 'backup_screen.dart';
 import '../plus/plus_screen.dart';
 import '../plus/plus_state.dart';
@@ -87,6 +88,17 @@ class SettingsView extends ConsumerWidget {
     return ListView(
       children: [
         const _ProfileHeader(),
+        if (!app.isDemo)
+          ListTile(
+            leading: const Icon(Icons.alternate_email_rounded),
+            title: Text(app.myUsername.isEmpty ? tr('Elige tu @usuario') : '@${app.myUsername}',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(app.myEmail.isEmpty
+                ? tr('Que te encuentren sin tu número · añade tu correo')
+                : '${tr('Correo')}: ${app.myEmail}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AccountIdScreen())),
+          ),
         if (app.isDemo)
           Card(
             margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),

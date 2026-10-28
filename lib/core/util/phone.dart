@@ -74,6 +74,7 @@ String dialCodeOf(String e164) {
 
 /// Muestra un E.164 de forma legible: "+1 809 555 1234".
 String prettyPhone(String e164) {
+  if (e164.startsWith('mail:')) return e164.substring(5); // cuenta creada con correo
   for (final c in countries) {
     if (e164.startsWith(c.dialCode)) {
       final rest = e164.substring(c.dialCode.length);

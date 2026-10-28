@@ -4,6 +4,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -85,6 +86,7 @@ type Store interface {
 	BusinessStore
 	BusinessImageStore
 	GenteStore
+	IdentityStore
 
 	// Registra (o re-registra) el dispositivo principal de un número.
 	// Re-registrar sustituye el dispositivo anterior y borra sus claves y cola.
@@ -246,6 +248,9 @@ func MaskPhone(p string) string {
 
 // CountryOf devuelve el prefijo de país aproximado de un número E.164.
 func CountryOf(phone string) string {
+	if strings.HasPrefix(phone, "mail:") {
+		return "mail" // cuenta creada con correo
+	}
 	prefixes := []string{"+1809", "+1829", "+1849", "+353", "+34", "+1", "+44", "+39", "+33", "+49", "+41", "+31", "+32", "+351", "+52", "+57", "+58", "+51", "+56", "+54", "+507", "+506", "+509"}
 	for _, p := range prefixes {
 		if len(phone) >= len(p) && phone[:len(p)] == p {

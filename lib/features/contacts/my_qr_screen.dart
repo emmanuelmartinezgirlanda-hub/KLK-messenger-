@@ -16,8 +16,12 @@ import '../../core/util/share.dart';
 
 /// Enlace de mi contacto: https://servidor/c/18095551234?n=Emmanuel
 /// Si lo abre alguien sin KLK, la página le explica cómo descargarla.
-String contactLink(String server, String phone, String name) {
+String contactLink(String server, String phone, String name, {String username = ''}) {
   final base = server.isEmpty ? KlkConfig.officialServer : server;
+  // Quien entró con correo no tiene número: su enlace va por su @usuario.
+  if (phone.startsWith('mail:')) {
+    return username.isEmpty ? '' : Uri.parse(base).replace(path: '/u/$username').toString();
+  }
   final digits = phone.replaceAll(RegExp(r'\D'), '');
   final n = name.trim();
   return Uri.parse(base)
@@ -26,9 +30,12 @@ String contactLink(String server, String phone, String name) {
 }
 
 /// Lee un código QR de KLK. Devuelve (teléfono E.164, nombre) o null si no es de KLK.
+/// Si es el enlace de un @usuario, devuelve ('@usuario', '').
 (String, String)? parseContactLink(String raw) {
   final uri = Uri.tryParse(raw.trim());
   if (uri == null) return null;
+  final u = RegExp(r'^/u/([a-z0-9][a-z0-9_.]{2,19})/?$').firstMatch(uri.path);
+  if (u != null) return ('@${u.group(1)}', '');
   final m = RegExp(r'^/c/(\d{8,15})/?$').firstMatch(uri.path);
   if (m == null) return null;
   return ('+${m.group(1)}', (uri.queryParameters['n'] ?? '').trim());
@@ -44,7 +51,7 @@ class MyQrScreen extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final s = app.session;
     final name = app.profile.name.trim().isEmpty ? 'Yo' : app.profile.name.trim();
-    final link = s == null ? '' : contactLink(s.server, s.phone, app.profile.name);
+    final link = s == null ? '' : contactLink(s.server, s.phone, app.profile.name, username: app.myUsername);
 
     return Scaffold(
       appBar: AppBar(
@@ -96,7 +103,12 @@ class MyQrScreen extends ConsumerWidget {
                 ),
                 if (s != null) ...[
                   const SizedBox(height: 14),
-                  Text(prettyPhone(s.phone), style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
+                  Text(
+                      app.signedInWithEmail
+                          ? (app.myUsername.isEmpty ? tr('Elige tu @usuario en Ajustes para tener tu código') : '@${app.myUsername}')
+                          : '${prettyPhone(s.phone)}${app.myUsername.isEmpty ? '' : '  ·  @${app.myUsername}'}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7))),
                 ],
               ]),
             ),
@@ -169,7 +181,14 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     unawaited(_ctrl.stop());
     final (phone, name) = parsed;
     try {
-      final id = await ref.read(appProvider).startChatWithPhone(phone, name);
+      final String id;
+      if (phone.startsWith('@')) {
+        final found = await ref.read(appProvider).startChatWithUsername(phone);
+        if (found == null) throw ApiException(404, 'not_found', '${tr('No hay nadie con el usuario')} $phone');
+        id = found;
+      } else {
+        id = await ref.read(appProvider).startChatWithPhone(phone, name);
+      }
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ChatScreen(chatId: id)));
     } on ApiException catch (e) {

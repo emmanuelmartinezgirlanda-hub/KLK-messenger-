@@ -66,6 +66,27 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  bool _searchingUser = false;
+
+  /// Busca a alguien por su @usuario y abre el chat.
+  Future<void> _openUsername(String u) async {
+    setState(() => _searchingUser = true);
+    try {
+      final id = await ref.read(appProvider).startChatWithUsername(u);
+      if (!mounted) return;
+      if (id == null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('${tr('No hay nadie con el usuario')} @$u')));
+        return;
+      }
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ChatScreen(chatId: id)));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _searchingUser = false);
+    }
+  }
+
   Future<void> _open(PhoneContact c) async {
     final app = ref.read(appProvider);
     try {
@@ -82,6 +103,9 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final q = _search.text.trim().toLowerCase();
+    // «@ana» o «ana.perez»: también se puede buscar por @usuario.
+    final userQ = q.replaceFirst(RegExp(r'^@'), '');
+    final looksUser = RegExp(r'^[a-z0-9][a-z0-9_.]{2,19}$').hasMatch(userQ) && !RegExp(r'^\d+$').hasMatch(userQ);
     bool match(PhoneContact c) =>
         q.isEmpty || c.name.toLowerCase().contains(q) || c.phone.contains(q.replaceAll(RegExp(r'\D'), ''));
     final onKlk = _contacts.where((c) => c.onKlk && match(c)).toList();
@@ -105,7 +129,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
               controller: _search,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: tr('Buscar nombre o número'),
+                hintText: tr('Buscar nombre, número o @usuario'),
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: q.isEmpty
                     ? null
@@ -119,6 +143,18 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
               ),
             ),
           ),
+          if (looksUser && !ref.read(appProvider).isDemo)
+            ListTile(
+              leading: CircleAvatar(
+                backgroundColor: cs.primary.withValues(alpha: 0.12),
+                child: _searchingUser
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(Icons.alternate_email_rounded, color: cs.primary),
+              ),
+              title: Text('${tr('Buscar')} @$userQ ${tr('en KLK')}', style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(tr('Por su nombre de usuario, sin saber su número')),
+              onTap: _searchingUser ? null : () => _openUsername(userQ),
+            ),
           if (q.isEmpty) ...[
             _Action(
               icon: Icons.person_add_alt_1,

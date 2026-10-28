@@ -164,6 +164,78 @@ class AppController extends ChangeNotifier {
   bool get isDemo => session?.isDemo ?? true;
   String get myId => session?.accountId ?? 'me';
 
+  /// Mi @usuario y mi correo (de la cuenta en el servidor).
+  String myUsername = '';
+  String myEmail = '';
+  bool emailOnServer = false; // ¿el servidor manda códigos por correo?
+
+  Future<void> loadAccountInfo() async {
+    if (isDemo || _api == null) return;
+    try {
+      final j = await _api!.accountMe();
+      myUsername = j['username'] as String? ?? '';
+      myEmail = j['email'] as String? ?? '';
+      emailOnServer = j['emailLogin'] == true;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Pone (o quita, con '') mi @usuario.
+  Future<void> setUsername(String username) async {
+    final u = username.trim().replaceFirst(RegExp(r'^@'), '').toLowerCase();
+    if (isDemo) {
+      myUsername = u;
+    } else {
+      myUsername = await _api!.setUsername(u);
+    }
+    notifyListeners();
+  }
+
+  Future<void> requestLinkEmail(String email) async {
+    if (isDemo) return;
+    await _api!.requestLinkEmail(email.trim().toLowerCase());
+  }
+
+  Future<void> verifyLinkEmail(String email, String code) async {
+    final e = email.trim().toLowerCase();
+    if (isDemo) {
+      if (code.trim() != KlkConfig.demoCode) {
+        throw const ApiException(403, 'bad_code', 'Código incorrecto. En modo demo el código es 123456.');
+      }
+      myEmail = e;
+    } else {
+      myEmail = await _api!.verifyLinkEmail(e, code.trim());
+    }
+    notifyListeners();
+  }
+
+  Future<void> removeEmail() async {
+    if (!isDemo) await _api!.removeEmail();
+    myEmail = '';
+    notifyListeners();
+  }
+
+  /// Busca a alguien por su @usuario y abre (o crea) el chat. Devuelve el id
+  /// del chat, o null si no hay nadie con ese usuario.
+  Future<String?> startChatWithUsername(String username) async {
+    final u = username.trim().replaceFirst(RegExp(r'^@'), '').toLowerCase();
+    if (u.isEmpty) return null;
+    if (u == myUsername) throw const ApiException(400, 'self', 'Ese eres tú.');
+    if (isDemo) return null;
+    final id = await _api!.lookupUsername(u);
+    if (id == null) return null;
+    return startChatWithAccount(id, '@$u');
+  }
+
+  /// Mi número de teléfono (null si entré con correo: el correo no se manda a nadie).
+  String? get myPhone {
+    final p = session?.phone;
+    return p == null || p.startsWith('mail:') ? null : p;
+  }
+
+  /// ¿Entré con correo?
+  bool get signedInWithEmail => session?.phone.startsWith('mail:') ?? false;
+
   List<Message> messagesFor(String chatId) => _messages[chatId] ?? const [];
   bool isTyping(String chatId) => (_typingUntil[chatId]?.isAfter(DateTime.now())) ?? false;
   bool isRecording(String chatId) => (_recordingUntil[chatId]?.isAfter(DateTime.now())) ?? false;
@@ -355,6 +427,7 @@ class AppController extends ChangeNotifier {
     } else {
       _api = ApiClient(session!.server, token: session!.token);
       unawaited(_connect());
+      unawaited(loadAccountInfo());
     }
     await _db!.settleScheduled(DateTime.now());
     await _endStaleLiveLocations();
@@ -408,6 +481,22 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// Entrar con correo: pide el código. Luego se sigue con [verify] como con SMS.
+  Future<void> requestEmailCode(String email, String server) async {
+    final e = email.trim().toLowerCase();
+    pendingPhone = 'mail:$e';
+    pendingServer = server.trim();
+    if (pendingServer.isNotEmpty) {
+      await ApiClient(pendingServer).requestEmailCode(e);
+    }
+  }
+
+  /// ¿El servidor deja entrar con correo? (en el modo demo, sí)
+  Future<bool> emailLoginAvailable(String server) async {
+    if (server.trim().isEmpty) return true;
+    return ApiClient(server.trim()).emailLoginAvailable();
+  }
+
   /// Termina el registro con el PIN de seguridad (tras "pin_required").
   Future<void> verifyPin(String pin) => verify('', pin: pin);
 
@@ -423,15 +512,27 @@ class AppController extends ChangeNotifier {
       final api = ApiClient(pendingServer);
       final ({String accountId, String token}) res;
       try {
-        res = await api.verify(
-          phone: phone,
-          code: pin == null ? code : '',
-          regToken: pin == null ? '' : (pendingRegToken ?? ''),
-          pin: pin ?? '',
-          deviceName: Platform.isIOS ? 'iPhone' : (Platform.isAndroid ? 'Android' : 'PC'),
-          registrationId: Random.secure().nextInt(16380) + 1,
-          identityKey: crypto.identityPublic,
-        );
+        final deviceName = Platform.isIOS ? 'iPhone' : (Platform.isAndroid ? 'Android' : 'PC');
+        final regId = Random.secure().nextInt(16380) + 1;
+        res = phone.startsWith('mail:')
+            ? await api.verifyEmail(
+                email: phone.substring(5),
+                code: pin == null ? code : '',
+                regToken: pin == null ? '' : (pendingRegToken ?? ''),
+                pin: pin ?? '',
+                deviceName: deviceName,
+                registrationId: regId,
+                identityKey: crypto.identityPublic,
+              )
+            : await api.verify(
+                phone: phone,
+                code: pin == null ? code : '',
+                regToken: pin == null ? '' : (pendingRegToken ?? ''),
+                pin: pin ?? '',
+                deviceName: deviceName,
+                registrationId: regId,
+                identityKey: crypto.identityPublic,
+              );
       } on ApiException catch (e) {
         final tok = e.data['regToken'];
         if (tok is String && tok.isNotEmpty) pendingRegToken = tok;
@@ -1193,7 +1294,7 @@ class AppController extends ChangeNotifier {
       text: p.text,
       on: p.on,
       // En las comunidades no se envía el número de teléfono
-      senderPhone: community ? null : session?.phone,
+      senderPhone: community ? null : myPhone,
       media: p.media,
       reply: p.reply,
       exp: p.exp,
@@ -1232,7 +1333,7 @@ class AppController extends ChangeNotifier {
           kind: p.kind,
           target: p.target,
           san: p.san,
-          senderPhone: isCommunityChat(chat.id) ? null : session?.phone,
+          senderPhone: isCommunityChat(chat.id) ? null : myPhone,
           group: _groupMeta(chat, members),
         ),
         ref: '$ref|${target.id}');
@@ -1242,7 +1343,7 @@ class AppController extends ChangeNotifier {
         'id': chat.id,
         'n': chat.title,
         'm': [
-          GroupMember(id: myId, phone: isCommunityChat(chat.id) ? '' : (session?.phone ?? ''), name: profile.name)
+          GroupMember(id: myId, phone: isCommunityChat(chat.id) ? '' : (myPhone ?? ''), name: profile.name)
               .toJson(withKey: false),
           for (final m in members) m.toJson(withKey: false),
         ],
@@ -1323,7 +1424,7 @@ class AppController extends ChangeNotifier {
           kind: 'text',
           id: m.id,
           text: text,
-          senderPhone: session!.phone,
+          senderPhone: myPhone,
           reply: replyTo == null ? null : {'id': replyTo.id, 'p': m.replyPreview},
           exp: timer,
           mentions: mentions.isEmpty ? null : mentions,
@@ -1386,7 +1487,7 @@ class AppController extends ChangeNotifier {
           kind: 'text',
           id: m.id,
           text: caption,
-          senderPhone: session!.phone,
+          senderPhone: myPhone,
           media: wire.forWire().toJson(),
           reply: replyTo == null ? null : {'id': replyTo.id, 'p': m.replyPreview},
           exp: timer,
@@ -2661,7 +2762,7 @@ class AppController extends ChangeNotifier {
         id: post.id,
         text: text,
         media: media,
-        senderPhone: session!.phone,
+        senderPhone: myPhone,
         status: {'c': color, 'at': post.createdAt.toUtc().toIso8601String(), 'save': allowSave},
       );
       for (final c in chats.where((c) => !c.isGroup && !c.blocked && c.identityKey != null)) {
@@ -2686,7 +2787,7 @@ class AppController extends ChangeNotifier {
     await _reloadChats();
     if (isDemo) return;
     try {
-      final payload = Payload(kind: 'unstatus', target: post.id, senderPhone: session!.phone);
+      final payload = Payload(kind: 'unstatus', target: post.id, senderPhone: myPhone);
       for (final c in chats.where((c) => !c.isGroup && !c.blocked && c.identityKey != null)) {
         await _sendTo(c.id, c.identityKey!, payload, ref: 'x-${_uuid.v4()}');
         await Future.delayed(const Duration(milliseconds: 60));
@@ -3184,7 +3285,7 @@ class AppController extends ChangeNotifier {
   // ---------- Contactos ----------
 
   /// Prefijo de mi país, para entender los números de mi agenda.
-  String get myDialCode => dialCodeOf(session?.phone ?? '+1');
+  String get myDialCode => dialCodeOf(myPhone ?? '+1');
 
   /// Qué números usan KLK (número -> id de cuenta).
   /// En modo demo, se inventa que la mitad de tus contactos ya están en KLK.
