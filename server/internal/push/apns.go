@@ -76,11 +76,15 @@ func NewAPNs(cfg Config, tokens store.PushStore) (*APNs, error) {
 }
 
 func parseP8(s string) (*ecdsa.PrivateKey, error) {
-	s = strings.TrimSpace(strings.ReplaceAll(s, `\n`, "\n"))
-	if !strings.Contains(s, "BEGIN") {
-		// Pegado sin cabeceras: solo el base64.
-		s = "-----BEGIN PRIVATE KEY-----\n" + s + "\n-----END PRIVATE KEY-----"
+	// Render y otros paneles a veces convierten los saltos de línea en espacios
+	// o en «\n» literales. Quitamos cabeceras y espacios y lo rearmamos.
+	s = strings.ReplaceAll(s, `\n`, "\n")
+	s = strings.Trim(s, " \t\r\n\"'")
+	for _, h := range []string{"-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----"} {
+		s = strings.ReplaceAll(s, h, "")
 	}
+	s = strings.Join(strings.Fields(s), "")
+	s = "-----BEGIN PRIVATE KEY-----\n" + s + "\n-----END PRIVATE KEY-----\n"
 	block, _ := pem.Decode([]byte(s))
 	if block == nil {
 		return nil, errors.New("la clave .p8 no tiene formato PEM")
