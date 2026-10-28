@@ -10,6 +10,7 @@ on:
       - "render.yaml"
       - "ingles/**"
       - "marketing/**"
+      - "site/**"
       - ".github/workflows/voz.yml"
       - ".github/workflows/voz2.yml"
       - ".github/workflows/voz3.yml"
