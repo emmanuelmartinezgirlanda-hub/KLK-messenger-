@@ -97,6 +97,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/attachments/{id}", s.authed(s.downloadAttachment))
 
 	mux.HandleFunc("POST /v1/reports", s.authed(s.report))
+	mux.HandleFunc("POST /v1/blocks/{id}", s.authed(s.blockNotice))
 	mux.HandleFunc("GET /v1/announcements", s.authed(s.announcements))
 	mux.HandleFunc("GET /v1/account/pin", s.authed(s.pinStatus))
 	mux.HandleFunc("PUT /v1/account/pin", s.limited(s.authed(s.setPin)))
@@ -480,7 +481,44 @@ const (
 	maxReportMessageLen = 2000
 )
 
-var reportReasons = map[string]bool{"spam": true, "acoso": true, "estafa": true, "ofensivo": true, "otro": true}
+var reportReasons = map[string]bool{"spam": true, "acoso": true, "estafa": true, "ofensivo": true, "otro": true, "bloqueo": true}
+
+// noteBlock deja en el panel de denuncias que [by] bloqueó a [blocked] (sin
+// límite diario: bloquear siempre funciona). Si falla, solo se apunta en el log.
+func (s *Server) noteBlock(r *http.Request, by, blocked, where string) {
+	rep := store.Report{ID: uuid.NewString(), Reporter: by, Reported: blocked, Reason: "bloqueo",
+		Messages: []string{"(bloqueado en " + where + ")"}, CreatedAt: time.Now()}
+	if err := s.store.AddReport(r.Context(), rep); err != nil {
+		slog.Warn("aviso de bloqueo", "err", err)
+	}
+}
+
+// POST /v1/blocks/{id}: el móvil avisa de que bloqueó a alguien en los chats
+// (el bloqueo en sí es local). Queda en el panel para revisarlo en 24 horas.
+func (s *Server) blockNotice(w http.ResponseWriter, r *http.Request) {
+	dev := deviceFrom(r)
+	id := r.PathValue("id")
+	if id == dev.AccountID {
+		writeErr(w, http.StatusBadRequest, "self", "no puedes bloquearte a ti mismo")
+		return
+	}
+	ok, err := s.store.AccountExists(r.Context(), id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	if !ok {
+		writeErr(w, http.StatusNotFound, "not_found", "esa cuenta no existe")
+		return
+	}
+	n, err := s.store.ReportsBy(r.Context(), dev.AccountID, time.Now().Add(-24*time.Hour))
+	if err == nil && n >= 3*maxReportsPerDay {
+		w.WriteHeader(http.StatusNoContent) // ya avisó bastante hoy; el bloqueo sigue valiendo en su móvil
+		return
+	}
+	s.noteBlock(r, dev.AccountID, id, "los chats")
+	w.WriteHeader(http.StatusNoContent)
+}
 
 // report guarda una denuncia. Los mensajes están cifrados de punta a punta, así
 // que solo llegan aquí los que el usuario decide adjuntar.

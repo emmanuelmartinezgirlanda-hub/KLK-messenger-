@@ -193,6 +193,9 @@ func (s *Server) setUsername(w http.ResponseWriter, r *http.Request) {
 			"usa de 3 a 20 letras sin acentos, números, punto o guion bajo (y que no empiece por «klk»)")
 		return
 	}
+	if u != "" && rejectOffensive(w, strings.NewReplacer(".", " ", "_", " ").Replace(u)) {
+		return
+	}
 	err := s.store.SetUsername(r.Context(), deviceFrom(r).AccountID, u)
 	switch {
 	case errors.Is(err, store.ErrTaken):

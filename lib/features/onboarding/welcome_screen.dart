@@ -27,6 +27,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   bool _busy = false;
   bool _byEmail = false; // entrar con correo en vez de número
   bool _emailAvailable = false; // ¿el servidor lo permite?
+  bool _accepted = false; // aceptó las normas (Apple 1.2)
 
   @override
   void initState() {
@@ -141,7 +142,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   filled: true,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                 ),
-                onSubmitted: (_) => _submitEmail(),
+                onSubmitted: (_) => _accepted ? _submitEmail() : null,
               ),
               const SizedBox(height: 8),
               Text(
@@ -183,7 +184,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                     filled: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                   ),
-                  onSubmitted: (_) => _submit(),
+                  onSubmitted: (_) => _accepted ? _submit() : null,
                 ),
               ),
             ]),
@@ -192,9 +193,44 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               const SizedBox(height: 8),
               Text(_error!, style: const TextStyle(color: Color(0xFFFF6B7A))),
             ],
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            // Apple (norma 1.2): hay que aceptar las normas (tolerancia cero con el
+            // contenido ofensivo y los usuarios abusivos) antes de registrarse o entrar.
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(() => _accepted = !_accepted),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Checkbox(value: _accepted, onChanged: (v) => setState(() => _accepted = v ?? false)),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 11),
+                    child: Text.rich(
+                      TextSpan(
+                        style: TextStyle(fontSize: 13.5, color: cs.onSurface.withValues(alpha: 0.85), height: 1.4),
+                        children: [
+                          TextSpan(text: tr('He leído y acepto las ')),
+                          TextSpan(
+                            text: tr('Normas de uso de KLK'),
+                            style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                            recognizer: TapGestureRecognizer()..onTap = () => _open('/normas'),
+                          ),
+                          TextSpan(text: tr(': tolerancia cero con el contenido ofensivo y los usuarios abusivos. Acepto también la ')),
+                          TextSpan(
+                            text: tr('Política de privacidad'),
+                            style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
+                            recognizer: TapGestureRecognizer()..onTap = () => _open('/privacidad'),
+                          ),
+                          const TextSpan(text: '.'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 12),
             FilledButton(
-              onPressed: _busy ? null : (_byEmail ? _submitEmail : _submit),
+              onPressed: _busy || !_accepted ? null : (_byEmail ? _submitEmail : _submit),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -202,29 +238,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
               child: _busy
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                   : Text(tr('Enviarme el código'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(height: 12),
-            // Apple (norma 1.2): aceptar las normas, con tolerancia cero al contenido ofensivo.
-            Text.rich(
-              TextSpan(
-                style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: 0.65), height: 1.4),
-                children: [
-                  TextSpan(text: tr('Al continuar aceptas las ')),
-                  TextSpan(
-                    text: tr('Normas de KLK'),
-                    style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()..onTap = () => _open('/normas'),
-                  ),
-                  TextSpan(text: tr(' (tolerancia cero con el acoso, el odio y el contenido ofensivo) y la ')),
-                  TextSpan(
-                    text: tr('Política de privacidad'),
-                    style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
-                    recognizer: TapGestureRecognizer()..onTap = () => _open('/privacidad'),
-                  ),
-                  const TextSpan(text: '.'),
-                ],
-              ),
-              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             // Elegir otro servidor o el modo demo: solo en versiones de prueba.

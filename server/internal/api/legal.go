@@ -171,6 +171,7 @@ var termsTmpl = template.Must(template.New("t").Parse(legalHead + `<title>Normas
 <li>Vender o promover drogas, armas u otras cosas ilegales.</li>
 <li>Compartir datos o fotos privadas de otra persona sin su permiso.</li>
 </ul>
+<p>Lo público (KLK Mi Gente, negocios, nombres y @usuario) pasa por un <b>filtro automático</b>: si lleva insultos graves, odio o contenido sexual explícito, no se publica.</p>
 <p>Quien incumpla estas normas puede ser <b>expulsado de las comunidades y bloqueado en KLK</b>, sin aviso.</p></section>
 
 <section><h2>Cómo denunciar y bloquear</h2>
@@ -179,7 +180,8 @@ var termsTmpl = template.Must(template.New("t").Parse(legalHead + `<title>Normas
 <li><b>Una persona</b>: toca su nombre (en un chat, grupo o comunidad) y elige <b>Denunciar</b> o <b>Bloquear</b>. Al bloquearla dejas de recibir sus mensajes.</li>
 <li><b>En KLK Mi Gente</b>: toca <b>⋯</b> en una publicación (o mantén pulsado un comentario) y elige <b>Denunciar</b> o <b>Bloquear</b>. Si bloqueas a alguien, no verás lo suyo, no verá lo tuyo y no podrá comentar ni dar «me gusta» a tus publicaciones.</li>
 </ul>
-<p>Revisamos las denuncias en <b>24 horas</b> como máximo y actuamos contra las cuentas que incumplen las normas.{{if .SupportEmail}} También puedes escribirnos a <a href="mailto:{{.SupportEmail}}">{{.SupportEmail}}</a>.{{end}}</p></section>
+<p>Cuando bloqueas a alguien, lo suyo desaparece al momento de tu pantalla y el equipo de KLK recibe un aviso para revisarlo.</p>
+<p>Revisamos las denuncias y los bloqueos en <b>24 horas</b> como máximo: borramos el contenido que incumple las normas y expulsamos de KLK a quien lo publicó.{{if .SupportEmail}} También puedes escribirnos a <a href="mailto:{{.SupportEmail}}">{{.SupportEmail}}</a>.{{end}}</p></section>
 
 <section><h2>KLK Mi Gente</h2>
 <p>Mi Gente es el muro público de KLK: lo que publicas y comentas lo puede ver cualquiera que use KLK. Antes de publicar por primera vez tienes que aceptar estas normas. Publica solo fotos tuyas o con permiso, y nada de datos personales de otros. Borramos lo que incumpla las normas y podemos bloquear la cuenta.</p></section>

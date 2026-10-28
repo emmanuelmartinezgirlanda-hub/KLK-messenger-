@@ -3,6 +3,10 @@
 // ignore_for_file: lines_longer_than_80_chars
 const translations = <String, Map<String, String>>{
   'en': {
+    'He leído y acepto las ': 'I have read and accept the ',
+    'Normas de uso de KLK': 'KLK Terms of Use',
+    ': tolerancia cero con el contenido ofensivo y los usuarios abusivos. Acepto también la ': ': zero tolerance for objectionable content and abusive users. I also accept the ',
+    'Política de privacidad': 'Privacy Policy',
     'Cifrada de punta a punta': 'End-to-end encrypted',
     'Activar': 'Unmute',
     'Colgar': 'Hang up',
@@ -452,6 +456,10 @@ const translations = <String, Map<String, String>>{
     'Lo verán tus contactos durante 24 horas': 'Your contacts will see it for 24 hours',
   },
   'it': {
+    'He leído y acepto las ': 'Ho letto e accetto le ',
+    'Normas de uso de KLK': 'Condizioni d’uso di KLK',
+    ': tolerancia cero con el contenido ofensivo y los usuarios abusivos. Acepto también la ': ': tolleranza zero per contenuti offensivi e utenti molesti. Accetto anche la ',
+    'Política de privacidad': 'Informativa sulla privacy',
     'Cifrada de punta a punta': 'Crittografata end-to-end',
     'Activar': 'Attiva',
     'Colgar': 'Riaggancia',
@@ -901,6 +909,10 @@ const translations = <String, Map<String, String>>{
     'Lo verán tus contactos durante 24 horas': 'I tuoi contatti lo vedranno per 24 ore',
   },
   'fr': {
+    'He leído y acepto las ': 'J’ai lu et j’accepte les ',
+    'Normas de uso de KLK': 'Conditions d’utilisation de KLK',
+    ': tolerancia cero con el contenido ofensivo y los usuarios abusivos. Acepto también la ': ' : tolérance zéro pour les contenus choquants et les utilisateurs abusifs. J’accepte aussi la ',
+    'Política de privacidad': 'Politique de confidentialité',
     'Cifrada de punta a punta': 'Chiffré de bout en bout',
     'Activar': 'Activer',
     'Colgar': 'Raccrocher',
@@ -1350,6 +1362,10 @@ const translations = <String, Map<String, String>>{
     'Lo verán tus contactos durante 24 horas': 'Vos contacts le verront pendant 24 heures',
   },
   'pt': {
+    'He leído y acepto las ': 'Li e aceito as ',
+    'Normas de uso de KLK': 'Normas de uso da KLK',
+    ': tolerancia cero con el contenido ofensivo y los usuarios abusivos. Acepto también la ': ': tolerância zero com conteúdo ofensivo e usuários abusivos. Aceito também a ',
+    'Política de privacidad': 'Política de privacidade',
     'Cifrada de punta a punta': 'Criptografado de ponta a ponta',
     'Activar': 'Ativar',
     'Colgar': 'Desligar',

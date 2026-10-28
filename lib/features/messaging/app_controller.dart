@@ -2229,7 +2229,15 @@ class AppController extends ChangeNotifier {
   Future<void> setBlocked(String chatId, bool blocked) async {
     await _db!.setBlocked(chatId, blocked);
     await _system(chatId, blocked ? '🚫 Bloqueaste a este contacto' : '✅ Desbloqueaste a este contacto');
+    if (blocked) _notifyBlock(chatId);
     await _refresh();
+  }
+
+  /// Apple (1.2): al bloquear también avisamos al equipo de KLK, que lo revisa
+  /// en 24 horas. Si no hay red, el bloqueo vale igual en este móvil.
+  void _notifyBlock(String accountId) {
+    if (isDemo || _api == null) return;
+    _api!.blockNotice(accountId).catchError((_) {});
   }
 
   // ---------- Bloquear y denunciar en grupos y comunidades ----------
@@ -2254,6 +2262,7 @@ class AppController extends ChangeNotifier {
   Future<void> setMemberBlocked(String accountId, String name, bool blocked, {String? inChatId}) async {
     await _loadBlockedMembers();
     if (blocked) {
+      _notifyBlock(accountId);
       _blockedMembers.add(accountId);
     } else {
       _blockedMembers.remove(accountId);

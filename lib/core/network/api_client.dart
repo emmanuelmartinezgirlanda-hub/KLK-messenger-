@@ -219,6 +219,9 @@ class ApiClient {
   Future<void> report(String accountId, String reason, {List<String> messages = const []}) =>
       _send('POST', '/v1/reports', {'accountId': accountId, 'reason': reason, 'messages': messages});
 
+  /// Aviso de que bloqueé a alguien (el bloqueo es local; esto lo ve el equipo de KLK).
+  Future<void> blockNotice(String accountId) => _send('POST', '/v1/blocks/${Uri.encodeComponent(accountId)}');
+
   /// Comunidades por país, con el número real de miembros y si ya estoy dentro.
   Future<List<Map<String, dynamic>>> communities() async {
     final j = await _send('GET', '/v1/communities') as Map<String, dynamic>;
