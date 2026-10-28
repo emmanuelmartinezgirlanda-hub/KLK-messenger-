@@ -57,6 +57,7 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin", s.panel)
 	mux.HandleFunc("GET /admin/", s.panel)
 	mux.HandleFunc("GET /admin/api/stats", s.admin(s.adminStats))
+	mux.HandleFunc("GET /admin/api/services", s.admin(s.adminServices))
 	mux.HandleFunc("GET /admin/api/reports", s.admin(s.adminReports))
 	mux.HandleFunc("POST /admin/api/reports/{id}/resolve", s.admin(s.adminResolve))
 	mux.HandleFunc("GET /admin/api/banned", s.admin(s.adminBanned))
