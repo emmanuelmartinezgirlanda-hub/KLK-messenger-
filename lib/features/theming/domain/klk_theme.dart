@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/brand/klk_brand.dart';
 
+const bool _kPlus = bool.fromEnvironment('KLK_PLUS');
+
 /// Tema de KLK serializable a JSON.
 /// Permite temas globales, temas por chat y compartir temas entre usuarios.
 @immutable
@@ -179,7 +181,7 @@ class KlkTheme {
 
   static const oro = KlkTheme(
     id: 'plus_oro',
-    name: 'Oro Plus',
+    name: _kPlus ? 'Oro Plus' : 'Oro',
     brightness: Brightness.dark,
     primary: Color(0xFFE0B54A),
     accent: KlkBrand.rojoPatria,

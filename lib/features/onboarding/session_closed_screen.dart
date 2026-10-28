@@ -38,6 +38,7 @@ class SessionClosedScreen extends ConsumerWidget {
               child: const Text('Volver a entrar en este dispositivo'),
             ),
             const SizedBox(height: 10),
+            if (const bool.fromEnvironment('KLK_PLUS'))
             Text('Usar KLK en varios dispositivos a la vez llegará con KLK Plus.',
                 textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: cs.onSurface.withValues(alpha: 0.6))),
           ]),

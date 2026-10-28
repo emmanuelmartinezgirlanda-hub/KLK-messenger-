@@ -1,3 +1,6 @@
+// Sin KLK Plus (App Store) no se nombra Plus en ningún sitio.
+const bool _kPlus = bool.fromEnvironment('KLK_PLUS');
+
 /// Stickers criollos incluidos en KLK (assets/stickers/<id>.png).
 /// Viajan solo por su id: ambos móviles ya tienen las imágenes.
 /// Las imágenes se generan con tool/make_stickers.py (la lista tiene que coincidir).
@@ -154,7 +157,7 @@ const stickerPacks = [
     KlkSticker('bizcocho', '¡Bizcocho pa\' ti!'),
     KlkSticker('felicidades', '¡Felicidades!'),
   ]),
-  StickerPack('Plus', '💎', [
+  StickerPack(_kPlus ? 'Plus' : 'Extras', '💎', [
     KlkSticker('p_vuelvo', '¡Vuelvo pa\' RD!'),
     KlkSticker('p_extrano', 'Extraño mi tierra'),
     KlkSticker('p_jefa', '¡La jefa!'),
