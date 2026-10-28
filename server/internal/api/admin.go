@@ -228,6 +228,19 @@ func (s *Server) adminBanPhone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	phone := strings.ReplaceAll(strings.TrimSpace(req.Phone), " ", "")
+	if strings.Contains(phone, "@") { // también se puede bloquear por correo
+		id, _, err := s.store.AccountByEmail(r.Context(), auth.NormalizeEmail(phone))
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, "not_found", "ese correo no tiene cuenta en KLK")
+			return
+		}
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+			return
+		}
+		s.setBan(w, r, id, true, req.Reason)
+		return
+	}
 	if !auth.ValidPhone(phone) {
 		writeErr(w, http.StatusBadRequest, "invalid_phone", "escribe el número con + y el prefijo, p. ej. +18095551234")
 		return

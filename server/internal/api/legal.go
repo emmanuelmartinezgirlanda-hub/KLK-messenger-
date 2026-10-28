@@ -92,6 +92,8 @@ var privacyTmpl = template.Must(template.New("p").Parse(legalHead + `<title>Pol�
 <section><h2>Qué datos usamos y para qué</h2>
 <ul>
 <li><b>Tu número de teléfono</b>: para crear tu cuenta, enviarte el código por SMS y que tus contactos te encuentren.</li>
+<li><b>Tu correo</b> (solo si entras con correo o lo añades a tu cuenta): para enviarte el código para entrar y para que puedas recuperar tu cuenta. No se le enseña a nadie.</li>
+<li><b>Tu @usuario</b> (solo si eliges uno): para que te puedan escribir sin saber tu número. Lo puede buscar cualquiera que use KLK.</li>
 <li><b>Claves públicas de cifrado</b>: para que otros puedan enviarte mensajes cifrados. Tus claves privadas nunca salen de tu móvil.</li>
 <li><b>Mensajes y archivos cifrados en tránsito</b>: el servidor los guarda cifrados hasta que se entregan. Los archivos (fotos, vídeos, audios) se borran del servidor a los 30 días como máximo.</li>
 <li><b>Tu agenda</b> (solo si das permiso): la app consulta qué números de tu agenda usan KLK. No guardamos tu agenda.</li>
@@ -111,6 +113,7 @@ var privacyTmpl = template.Must(template.New("p").Parse(legalHead + `<title>Pol�
 <li>Alojamiento del servidor y la base de datos (Render).</li>
 <li>Almacenamiento de archivos (Cloudflare R2): los archivos de los chats (cifrados) y las fotos públicas de Mi Gente y de los negocios.</li>
 <li>Envío de los códigos por SMS (Twilio): tu número de teléfono.</li>
+<li>Envío de los códigos por correo (Resend): tu correo, si entras con él o lo añades.</li>
 <li>Recargas (cuando estén activas): el procesador de pagos (Stripe) y el proveedor de recargas (Reloadly).</li>
 <li>Avisos (notificaciones) de Apple y Google: un aviso sin el contenido del mensaje.</li>
 <li>Llamadas: si los dos móviles no pueden conectarse directamente, la llamada pasa por un servidor «puente» (Twilio o Cloudflare). La voz y el vídeo siguen cifrados de punta a punta; el puente no puede oírlos ni verlos.</li>

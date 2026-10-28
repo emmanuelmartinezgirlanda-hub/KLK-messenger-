@@ -64,6 +64,10 @@ type Server struct {
 	// Mi Gente
 	gentePosts, genteComms, genteLikes, genteImages dailyQuota
 
+	// Mail manda los códigos por correo (nil = entrar con correo apagado).
+	Mail      *auth.MailOTP
+	mailQuota dailyQuota
+
 	// TURN da credenciales temporales del «puente» de las llamadas (nil = solo STUN).
 	TURN *turn.Cache
 
@@ -120,6 +124,7 @@ func (s *Server) Routes() http.Handler {
 
 	s.businessRoutes(mux)
 	s.genteRoutes(mux)
+	s.identityRoutes(mux)
 	s.adminRoutes(mux)
 	s.topupRoutes(mux)
 
@@ -263,18 +268,34 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "bad_code", err.Error())
 		return
 	}
-	if banned, err := s.store.PhoneBanned(r.Context(), req.Phone); err == nil && banned {
-		writeErr(w, http.StatusForbidden, "banned", "este número está bloqueado por incumplir las normas de KLK")
+	s.register(w, r, req.Phone, regRequest{Pin: req.Pin, RegToken: req.RegToken, DeviceName: req.DeviceName,
+		RegistrationID: req.RegistrationID, IdentityKey: req.IdentityKey}, nil)
+}
+
+// regRequest: lo que manda el móvil para registrarse (tras pasar el código).
+type regRequest struct {
+	Pin, RegToken, DeviceName string
+	RegistrationID            int
+	IdentityKey               []byte
+}
+
+// register termina de entrar con [identity] (el número, o "mail:…"): comprueba
+// el bloqueo y el PIN, registra el móvil y responde. [after] se llama con la
+// cuenta ya creada (por ejemplo, para guardar el correo).
+func (s *Server) register(w http.ResponseWriter, r *http.Request, identity string, req regRequest,
+	after func(accountID string) error) {
+	if banned, err := s.store.PhoneBanned(r.Context(), identity); err == nil && banned {
+		writeErr(w, http.StatusForbidden, "banned", "esta cuenta está bloqueada por incumplir las normas de KLK")
 		return
 	}
 	// PIN de registro: si la cuenta lo tiene y se usó hace poco, hay que darlo.
-	if st, err := s.store.PinState(r.Context(), req.Phone); err != nil {
+	if st, err := s.store.PinState(r.Context(), identity); err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return
 	} else if pinNeeded(st, time.Now()) {
 		tok := req.RegToken
 		if tok == "" {
-			tok = s.regs.issue(req.Phone)
+			tok = s.regs.issue(identity)
 		}
 		if st.Failures >= pinMaxFailures {
 			writeJSON(w, http.StatusLocked, map[string]any{"code": "pin_locked",
@@ -286,7 +307,7 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 				"message": "esta cuenta tiene PIN de seguridad", "regToken": tok, "attemptsLeft": pinMaxFailures - st.Failures})
 			return
 		}
-		if left, err := s.checkPin(r.Context(), req.Phone, req.Pin, st); err != nil {
+		if left, err := s.checkPin(r.Context(), identity, req.Pin, st); err != nil {
 			writeJSON(w, http.StatusLocked, map[string]any{"code": "bad_pin",
 				"message": "PIN incorrecto", "regToken": tok, "attemptsLeft": left})
 			return
@@ -299,13 +320,18 @@ func (s *Server) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dev, err := s.store.RegisterPrimary(r.Context(), store.RegisterParams{
-		Phone: req.Phone, DeviceName: truncate(req.DeviceName, 64),
+		Phone: identity, DeviceName: truncate(req.DeviceName, 64),
 		RegistrationID: req.RegistrationID, IdentityKey: req.IdentityKey, TokenHash: hash,
 	})
 	if err != nil {
 		slog.Error("registro", "err", err)
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return
+	}
+	if after != nil {
+		if err := after(dev.AccountID); err != nil {
+			slog.Error("registro (después)", "err", err)
+		}
 	}
 	s.touch(r.Context(), dev.AccountID)
 	writeJSON(w, http.StatusOK, map[string]any{

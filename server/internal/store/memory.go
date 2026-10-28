@@ -32,6 +32,7 @@ type Memory struct {
 	business    map[string]Business
 	bizImages   map[string]BusinessImage
 	gent        *memGente
+	idents      *memIdentity
 }
 
 type memAttachment struct {
