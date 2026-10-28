@@ -10,6 +10,7 @@ on:
       - "render.yaml"
       - "ingles/**"
       - "marketing/**"
+      - "site/**"
       - ".github/workflows/voz.yml"
       - ".github/workflows/voz2.yml"
       - ".github/workflows/voz3.yml"
@@ -61,7 +62,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          flutter build windows --release 2>&1 | tee build.log
+          flutter build windows --release --dart-define=KLK_BUSINESS=true --dart-define=KLK_GENTE=true 2>&1 | tee build.log
 
       - name: Resumen del error (si falla)
         if: failure()
