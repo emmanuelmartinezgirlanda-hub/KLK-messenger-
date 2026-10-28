@@ -52,6 +52,10 @@ func main() {
 	defer stop()
 
 	var st store.Store
+	var health []api.ServiceCheck
+	check := func(name string, ok bool, detail string) {
+		health = append(health, api.ServiceCheck{Name: name, OK: ok, Detail: detail})
+	}
 	if url := os.Getenv("DATABASE_URL"); url != "" {
 		// La base de datos puede tardar en estar lista al arrancar por primera vez:
 		// se reintenta durante unos 2 minutos antes de rendirse.
@@ -90,6 +94,9 @@ func main() {
 			Region:    os.Getenv("KLK_S3_REGION"),
 		}}
 		slog.Info("adjuntos en almacenamiento S3/R2")
+		check("Fotos y adjuntos (Cloudflare R2)", true, "activado")
+	} else {
+		check("Fotos y adjuntos (Cloudflare R2)", false, "sin KLK_S3_ENDPOINT: se guardan en la base de datos")
 	}
 
 	var pusher relay.Pusher = relay.NoopPusher{}
@@ -103,10 +110,14 @@ func main() {
 		}, st)
 		if err != nil {
 			slog.Error("avisos push de iPhone desactivados", "err", err)
+			check("Notificaciones iPhone (Apple)", false, "la clave KLK_APNS_KEY no vale: "+err.Error())
 		} else {
 			pusher = a
 			slog.Info("avisos push de iPhone (APNs) activados")
+			check("Notificaciones iPhone (Apple)", true, "activadas")
 		}
+	} else {
+		check("Notificaciones iPhone (Apple)", false, "falta KLK_APNS_KEY")
 	}
 	hub := relay.NewHub(st, pusher)
 	go hub.RunScheduler(ctx, 2*time.Second)
@@ -123,12 +134,15 @@ func main() {
 			Locale:     os.Getenv("TWILIO_VERIFY_LOCALE"),
 		})
 		slog.Info("códigos por Twilio Verify")
+		check("SMS (Twilio)", true, "códigos por Twilio Verify")
 	case sid != "":
 		otp = auth.NewOTP(auth.TwilioSender{AccountSID: sid, AuthToken: os.Getenv("TWILIO_AUTH_TOKEN"), From: os.Getenv("TWILIO_FROM")})
 		slog.Info("SMS por Twilio")
+		check("SMS (Twilio)", true, "SMS por Twilio")
 	default:
 		otp = auth.NewOTP(auth.LogSender{})
 		slog.Warn("sin TWILIO_ACCOUNT_SID: los códigos SMS se escriben en el log (solo pruebas)")
+		check("SMS (Twilio)", false, "sin TWILIO_ACCOUNT_SID: no se mandan SMS")
 	}
 
 	// Números de prueba para la revisión de Apple/Google (sin SMS, código fijo).
@@ -146,9 +160,13 @@ func main() {
 	if key := os.Getenv("KLK_RESEND_KEY"); key != "" {
 		apiServer.Mail = auth.NewMailOTP(auth.Resend{Key: key, From: envOr("KLK_MAIL_FROM", "KLK messenger <onboarding@resend.dev>")})
 		slog.Info("entrar con correo: activado (Resend)")
+		check("Correo (Resend)", true, "activado")
 	} else if os.Getenv("KLK_MAIL_LOG") == "1" {
 		apiServer.Mail = auth.NewMailOTP(auth.LogMail{})
 		slog.Warn("entrar con correo: los códigos se escriben en el log (solo pruebas)")
+		check("Correo (Resend)", false, "modo prueba: los códigos van al log")
+	} else {
+		check("Correo (Resend)", false, "falta KLK_RESEND_KEY")
 	}
 	apiServer.TrustProxy = os.Getenv("KLK_TRUST_PROXY") == "1"
 	// Puente para llamadas (TURN). Cloudflare si está configurado; si no, Twilio
@@ -161,11 +179,16 @@ func main() {
 			Token: strings.TrimSpace(os.Getenv("KLK_CF_TURN_TOKEN")),
 		}}
 		slog.Info("llamadas: TURN de Cloudflare")
+		check("Llamadas (TURN)", true, "Cloudflare")
 	case sid != "" && os.Getenv("TWILIO_AUTH_TOKEN") != "":
 		apiServer.TURN = &turn.Cache{P: turn.Twilio{AccountSID: sid, AuthToken: os.Getenv("TWILIO_AUTH_TOKEN")}}
 		slog.Info("llamadas: TURN de Twilio")
+		check("Llamadas (TURN)", true, "Twilio")
+	default:
+		check("Llamadas (TURN)", false, "sin puente: algunas llamadas pueden fallar")
 	}
 	apiServer.AdminToken = os.Getenv("KLK_ADMIN_TOKEN")
+	apiServer.Health = health
 	apiServer.SMS = &api.SMSGuard{
 		Countries:  smsCountries(os.Getenv("KLK_SMS_COUNTRIES")),
 		DailyMax:   envInt("KLK_SMS_DAILY_MAX", 500),

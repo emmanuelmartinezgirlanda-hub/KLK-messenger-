@@ -41,3 +41,19 @@ func TestModeracion(t *testing.T) {
 		t.Fatalf("avisos de bloqueo: %+v", reps.Reports)
 	}
 }
+
+func TestAdminServices(t *testing.T) {
+	e := newAdminEnv(t)
+	var out struct {
+		Checks []struct {
+			Name string `json:"name"`
+			OK   bool   `json:"ok"`
+		} `json:"checks"`
+	}
+	if s := e.do("GET", "/admin/api/services", adminTok, nil, &out); s != 200 || len(out.Checks) == 0 || !out.Checks[0].OK {
+		t.Fatalf("servicios: %d %+v", s, out)
+	}
+	if s := e.do("GET", "/admin/api/services", "mala", nil, nil); s != 401 {
+		t.Fatalf("sin clave: %d", s)
+	}
+}

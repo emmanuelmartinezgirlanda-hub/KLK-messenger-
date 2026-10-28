@@ -31,6 +31,11 @@ nav button{flex:none;border:0;background:transparent;color:var(--muted);font:700
 nav button[aria-selected=true]{background:var(--navy);color:#fff}
 nav .badge{background:var(--red);color:#fff;border-radius:999px;font-size:11px;padding:1px 6px;margin-left:4px}
 main{max-width:860px;margin:0 auto;padding:16px 12px 40px}
+.svc{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)} .svc:last-child{border-bottom:0}
+.svc .dot{width:12px;height:12px;border-radius:50%;margin-top:5px;flex:none;background:var(--ok)} .svc .dot.bad{background:var(--red)}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.links a{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--ink);text-decoration:none}
+.links a:hover{border-color:var(--navy)} .links a b{display:block;font-size:15px} .links a span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
 .stat b{display:block;font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15}
@@ -109,6 +114,7 @@ table{width:100%;border-collapse:collapse}
     <button data-tab="news">Avisos</button>
     <button data-tab="banned">Bloqueados</button>
     <button data-tab="money">Dinero</button>
+    <button data-tab="services">Servicios<span class="badge" id="svcBadge" hidden></span></button>
   </nav>
   <main id="main"></main>
 </div>
@@ -125,7 +131,25 @@ const ago=v=>{if(!v)return"nunca";const m=(Date.now()-new Date(v))/60000;if(m<2)
 const reasons={spam:"Spam",acoso:"Acoso",estafa:"Estafa",ofensivo:"Ofensivo",otro:"Otro",bloqueo:"Lo bloquearon"};
 const countries={"mail":"✉️ Con correo","+1809":"🇩🇴 RD","+1829":"🇩🇴 RD","+1849":"🇩🇴 RD","+1":"🇺🇸 EE. UU.","+34":"🇪🇸 España","+353":"🇮🇪 Irlanda","+44":"🇬🇧 R. Unido","+39":"🇮🇹 Italia","+33":"🇫🇷 Francia","+49":"🇩🇪 Alemania","+41":"🇨🇭 Suiza","+31":"🇳🇱 P. Bajos","+32":"🇧🇪 Bélgica","+351":"🇵🇹 Portugal","+52":"🇲🇽 México","+57":"🇨🇴 Colombia","+58":"🇻🇪 Venezuela","+507":"🇵🇦 Panamá","+506":"🇨🇷 Costa Rica","+509":"🇭🇹 Haití"};
 
-let token="", tab="home", data={stats:null,reports:null,news:null,banned:null,gente:null}, showAll=false;
+let token="", tab="home", data={stats:null,reports:null,news:null,banned:null,gente:null,services:null}, showAll=false;
+const LINKS=[
+  ["Servidor",[
+    ["Render","El servidor: logs, claves (Environment) y despliegues","https://dashboard.render.com"],
+    ["Cloudflare","Dominio klkmessenger.com, la web y R2 (fotos)","https://dash.cloudflare.com"],
+    ["Resend","Correos con códigos: enviados y errores","https://resend.com/emails"],
+    ["Twilio","SMS de verificación, llamadas y saldo","https://console.twilio.com"]]],
+  ["App",[
+    ["App Store Connect","Revisión de Apple y la ficha de la tienda","https://appstoreconnect.apple.com/apps/6823299468/distribution"],
+    ["TestFlight","Versiones de prueba y testers","https://appstoreconnect.apple.com/apps/6823299468/testflight/ios"],
+    ["Codemagic","Compila las versiones de iPhone (TestFlight y App Store)","https://codemagic.io/apps"],
+    ["Apple Developer","Certificados, claves y cuenta de desarrollador","https://developer.apple.com/account"]]],
+  ["Código y web",[
+    ["GitHub","El código de KLK","https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-"],
+    ["GitHub Actions","Pruebas automáticas y versión de Windows","https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/actions"],
+    ["Versión de Windows","Descargas del instalador para PC","https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/latest"],
+    ["Página web","klkmessenger.com","https://klkmessenger.com"],
+    ["Normas y privacidad","Lo que ven Apple y los usuarios",location.origin+"/normas"]]]
+];
 try{token=localStorage.getItem("klk_admin")||sessionStorage.getItem("klk_admin")||""}catch(e){}
 
 function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("show"),2600)}
@@ -159,7 +183,8 @@ async function login(){
 
 async function loadAll(){
   try{
-    const [s,r,n,b,tp,g]=await Promise.all([api("stats"),api("reports"+(showAll?"?all=1":"")),api("announcements"),api("banned"),api("topups").catch(()=>({topups:[]})),api("gente").catch(()=>({posts:[]}))]);
+    const [s,r,n,b,tp,g,sv]=await Promise.all([api("stats"),api("reports"+(showAll?"?all=1":"")),api("announcements"),api("banned"),api("topups").catch(()=>({topups:[]})),api("gente").catch(()=>({posts:[]})),api("services").catch(()=>null)]);
+    data.services=sv;const bad=sv?sv.checks.filter(c=>!c.ok).length:0;$("#svcBadge").hidden=!bad;$("#svcBadge").textContent=bad;
     data.stats=s;data.reports=r.reports;data.news=n.announcements;data.banned=b.accounts;data.topups=tp.topups||[];data.gente=g.posts||[];
     $("#updated").textContent="Actualizado "+new Date().toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"});
     const open=s.stats.openReports;$("#repBadge").hidden=!open;$("#repBadge").textContent=open;
@@ -336,10 +361,21 @@ function topupsHtml(t,list){
   <div class="card list">${rows||`<div class="empty">Todavía no hay recargas.</div>`}</div>`;
 }
 
+function renderServices(){
+  const sv=data.services;
+  const checks=sv?sv.checks.map(c=>`<div class="svc"><i class="dot ${c.ok?"":"bad"}"></i><div><b>${esc(c.name)}</b><div class="muted small">${esc(c.detail)}</div></div></div>`).join(""):`<div class="empty">No se pudo leer el estado.</div>`;
+  const bad=sv?sv.checks.filter(c=>!c.ok).length:0;
+  const links=LINKS.map(([t,ls])=>`<h2>${esc(t)}</h2><div class="links">${ls.map(([n,d,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener"><b>${esc(n)} ↗</b><span>${esc(d)}</span></a>`).join("")}</div>`).join("");
+  return `<h2>Estado</h2>
+  <div class="card">${bad?`<p class="small" style="margin:0 0 6px;color:var(--red);font-weight:700">${bad} servicio${bad>1?"s":""} con problemas. Revisa las claves en Render → Environment.</p>`:`<p class="small" style="margin:0 0 6px;color:var(--ok);font-weight:700">Todo funciona ✅</p>`}${checks}
+  ${sv?`<p class="muted small" style="margin:10px 0 0">Servidor encendido ${ago(sv.startedAt)}${sv.commit?` · versión ${esc(sv.commit)}`:""}</p>`:""}</div>
+  ${links}`;
+}
+
 function render(){
   document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
   if(!data.stats){$("#main").innerHTML=`<div class="empty">Cargando…</div>`;return}
-  $("#main").innerHTML=({home:renderHome,reports:renderReports,gente:renderGente,news:renderNews,banned:renderBanned,money:renderMoney})[tab]();
+  $("#main").innerHTML=({home:renderHome,reports:renderReports,gente:renderGente,news:renderNews,banned:renderBanned,money:renderMoney,services:renderServices})[tab]();
 }
 
 async function act(fn,ok){try{await fn();toast(ok);await loadAll()}catch(e){if(e.message!=="401")toast(e.message)}}

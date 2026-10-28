@@ -43,6 +43,8 @@ type Server struct {
 
 	// AdminToken abre el panel del dueño (/admin). Vacío = panel desactivado.
 	AdminToken string
+	// Health: cómo arrancó cada servicio (lo enseña el panel en «Servicios»).
+	Health []ServiceCheck
 	// Precios para calcular gastos en el panel (en euros).
 	SMSPrice   float64
 	ServerCost float64
