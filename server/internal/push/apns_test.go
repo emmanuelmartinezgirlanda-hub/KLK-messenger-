@@ -30,7 +30,15 @@ func testKey(t *testing.T) (*ecdsa.PrivateKey, string) {
 func TestJWTValido(t *testing.T) {
 	k, p8 := testKey(t)
 	// Render a veces guarda los saltos de línea como "\n" literales.
-	for _, in := range []string{p8, strings.ReplaceAll(p8, "\n", `\n`)} {
+	body := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(p8), "-----BEGIN PRIVATE KEY-----"), "-----END PRIVATE KEY-----"))
+	for _, in := range []string{
+		p8,
+		strings.ReplaceAll(p8, "\n", `\n`),
+		strings.ReplaceAll(p8, "\n", " "), // pegado en una sola línea
+		`"` + p8 + `"`,
+		body,
+		strings.ReplaceAll(body, "\n", ""),
+	} {
 		key, err := parseP8(in)
 		if err != nil {
 			t.Fatal(err)
