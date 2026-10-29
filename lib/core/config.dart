@@ -21,6 +21,18 @@ abstract final class KlkConfig {
   static const String turnUser = String.fromEnvironment('KLK_TURN_USER');
   static const String turnPass = String.fromEnvironment('KLK_TURN_PASS');
 
+  /// Firebase (solo Android, para los avisos push). Son las claves públicas
+  /// del proyecto que salen en google-services.json; no son secretas.
+  static const String _fcmApiKey = String.fromEnvironment('KLK_FCM_API_KEY');
+  static const String _fcmAppId = String.fromEnvironment('KLK_FCM_APP_ID');
+  static const String _fcmProject = String.fromEnvironment('KLK_FCM_PROJECT');
+  static const String _fcmSender = String.fromEnvironment('KLK_FCM_SENDER');
+
+  /// Datos de Firebase para KlkNative.registerPush, o null si no hay.
+  static Map<String, String>? get firebase => _fcmAppId.isEmpty || _fcmApiKey.isEmpty
+      ? null
+      : {'apiKey': _fcmApiKey, 'appId': _fcmAppId, 'projectId': _fcmProject, 'senderId': _fcmSender};
+
   /// Código de verificación aceptado en modo demo.
   static const String demoCode = '123456';
 }

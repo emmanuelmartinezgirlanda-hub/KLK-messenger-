@@ -1,0 +1,42 @@
+// Parte Android de klk_native: de momento, los avisos push con Firebase (FCM).
+group = "com.klkapp.klk_native"
+version = "1.0"
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.7.0")
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.android.library"
+
+android {
+    namespace = "com.klkapp.klk_native"
+    compileSdk = 36
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    defaultConfig {
+        minSdk = 23
+    }
+}
+
+dependencies {
+    // Sin el plugin de google-services: Firebase se inicia desde Dart con las
+    // claves públicas del proyecto (ver KlkNative.registerPush).
+    implementation("com.google.firebase:firebase-messaging:24.1.0")
+}

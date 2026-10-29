@@ -47,6 +47,7 @@ func (s *Server) legalData() Legal {
 func (s *Server) privacyPage(w http.ResponseWriter, _ *http.Request) { s.renderLegal(w, privacyTmpl) }
 func (s *Server) supportPage(w http.ResponseWriter, _ *http.Request) { s.renderLegal(w, supportTmpl) }
 func (s *Server) termsPage(w http.ResponseWriter, _ *http.Request)   { s.renderLegal(w, termsTmpl) }
+func (s *Server) deletePage(w http.ResponseWriter, _ *http.Request)  { s.renderLegal(w, deleteTmpl) }
 
 func (s *Server) renderLegal(w http.ResponseWriter, t *template.Template) {
 	h := w.Header()
@@ -115,7 +116,7 @@ var privacyTmpl = template.Must(template.New("p").Parse(legalHead + `<title>Pol�
 <li>Envío de los códigos por SMS (Twilio): tu número de teléfono.</li>
 <li>Envío de los códigos por correo (Resend): tu correo, si entras con él o lo añades.</li>
 <li>Recargas (cuando estén activas): el procesador de pagos (Stripe) y el proveedor de recargas (Reloadly).</li>
-<li>Avisos (notificaciones) de Apple y Google: un aviso sin el contenido del mensaje.</li>
+<li>Avisos (notificaciones) de Apple (iPhone) y Google Firebase Cloud Messaging (Android): el identificador de avisos de tu móvil y un aviso sin el contenido del mensaje.</li>
 <li>Llamadas: si los dos móviles no pueden conectarse directamente, la llamada pasa por un servidor «puente» (Twilio o Cloudflare). La voz y el vídeo siguen cifrados de punta a punta; el puente no puede oírlos ni verlos.</li>
 </ul>
 <p>No damos datos a nadie más, salvo que una ley nos obligue.</p></section>
@@ -153,6 +154,30 @@ var supportTmpl = template.Must(template.New("s").Parse(legalHead + `<title>Ayud
 <p><b>¿Cómo borro mi cuenta?</b> En la app: <b>Ajustes → Cuenta → Eliminar mi cuenta</b>. Se borra todo del servidor y de tu móvil.</p>
 </section>
 <p class="muted"><a href="/privacidad">Política de privacidad</a></p>
+</main></body></html>`))
+
+// Google Play pide una página web para pedir el borrado de la cuenta sin la app.
+var deleteTmpl = template.Must(template.New("d").Parse(legalHead + `<title>Eliminar tu cuenta · KLK messenger</title></head><body><main>
+<header><b>¡KLK!</b> <span>messenger</span></header>
+<h1>Eliminar tu cuenta de KLK messenger</h1>
+<section><h2>Desde la app (al momento)</h2>
+<ol>
+<li>Abre KLK messenger.</li>
+<li>Ve a <b>Ajustes</b> (pestaña <b>Tú</b>) → <b>Eliminar mi cuenta</b>, al final.</li>
+<li>Confirma. La cuenta se borra en ese mismo momento.</li>
+</ol></section>
+<section><h2>Sin la app</h2>
+{{if .SupportEmail}}<p>Escríbenos a <a href="mailto:{{.SupportEmail}}?subject=Eliminar%20mi%20cuenta">{{.SupportEmail}}</a> con el asunto «Eliminar mi cuenta» desde el correo de tu cuenta, o indicando tu número de teléfono. Te pediremos confirmarlo y la borraremos en un máximo de 30 días (normalmente en 1 o 2 días).</p>
+{{else}}<p>Instala KLK de nuevo, entra con tu número y sigue los pasos de arriba.</p>{{end}}</section>
+<section><h2>Qué se borra</h2>
+<ul>
+<li>Tu cuenta, tu perfil, tu @usuario y tu correo.</li>
+<li>Tus publicaciones, comentarios y fotos de KLK Mi Gente, y tu perfil de negocio con sus fotos.</li>
+<li>Los mensajes que aún no se hubieran entregado y tus claves de cifrado del servidor.</li>
+<li>Tus chats ya estaban solo en tu móvil: se borran al borrar la app.</li>
+</ul>
+<p>Solo guardamos, si la hubo, la denuncia o el bloqueo de un número por incumplir las <a href="/normas">normas</a>, para que no se pueda volver a usar KLK para lo mismo.</p></section>
+<p class="muted"><a href="/privacidad">Política de privacidad</a> · <a href="/soporte">Ayuda</a></p>
 </main></body></html>`))
 
 var termsTmpl = template.Must(template.New("t").Parse(legalHead + `<title>Normas de uso · KLK messenger</title></head><body><main>

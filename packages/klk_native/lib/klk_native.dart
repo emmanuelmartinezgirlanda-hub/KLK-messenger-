@@ -78,9 +78,23 @@ class KlkNative {
     }
   }
 
-  /// Activa los avisos push del iPhone: pide permiso y devuelve el token de
-  /// Apple (hexadecimal), o null si no hay permiso o no está disponible.
-  static Future<String?> registerPush() async {
+  /// Activa los avisos push: pide permiso y devuelve el token, o null si no
+  /// hay permiso o no está disponible. En iPhone es el token de Apple
+  /// (hexadecimal); en Android, el de Firebase, y hace falta [android] con las
+  /// claves públicas del proyecto (apiKey, appId, projectId, senderId).
+  static Future<String?> registerPush({Map<String, String>? android}) async {
+    if (Platform.isAndroid) {
+      if (android == null || (android['appId'] ?? '').isEmpty) return null;
+      try {
+        return await _channel
+            .invokeMethod<String>('registerPush', android)
+            .timeout(const Duration(seconds: 60), onTimeout: () => null);
+      } on MissingPluginException {
+        return null;
+      } on PlatformException catch (e) {
+        throw KlkNativeException(e.code, e.message ?? 'No se pudieron activar los avisos');
+      }
+    }
     if (!supported) return null;
     try {
       return await _channel

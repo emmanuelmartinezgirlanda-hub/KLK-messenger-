@@ -162,6 +162,12 @@ workflows:
       - name: Tests
         script: flutter test
       - name: Compilar .aab firmado
-        script: flutter build appbundle --release --build-number=$((BUILD_NUMBER + 10))
+        script: |
+          # Google Play: igual que la App Store (Negocios y Mi Gente; sin Plus,
+          # sin dinero y sin opciones de prueba).
+          flutter build appbundle --release \
+            --build-number=$((BUILD_NUMBER + 10)) \
+            --dart-define=KLK_BUSINESS=true \
+            --dart-define=KLK_GENTE=true
     artifacts:
       - build/app/outputs/bundle/release/*.aab

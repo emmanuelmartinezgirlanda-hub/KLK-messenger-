@@ -2915,15 +2915,17 @@ class AppController extends ChangeNotifier {
 
   bool _pushRegistered = false;
 
-  /// Avisos push (iPhone): le da al servidor el token de Apple para que avise
-  /// cuando llegue un mensaje con KLK cerrada. El aviso no lleva el mensaje.
+  /// Avisos push: le da al servidor el token de Apple (iPhone) o de Firebase
+  /// (Android) para que avise cuando llegue un mensaje con KLK cerrada. El
+  /// aviso no lleva el mensaje.
   Future<void> _registerPush() async {
-    if (_pushRegistered || isDemo || _api == null || !Platform.isIOS) return;
+    final android = Platform.isAndroid && KlkConfig.firebase != null;
+    if (_pushRegistered || isDemo || _api == null || !(Platform.isIOS || android)) return;
     _pushRegistered = true;
     try {
-      final token = await KlkNative.registerPush();
+      final token = await KlkNative.registerPush(android: android ? KlkConfig.firebase : null);
       if (token == null || token.isEmpty) return;
-      await _api!.setPushToken('apns', token, currentLanguageCode());
+      await _api!.setPushToken(android ? 'fcm' : 'apns', token, currentLanguageCode());
     } catch (e) {
       _pushRegistered = false; // se reintenta en la próxima conexión
       debugPrint('Avisos push: $e');

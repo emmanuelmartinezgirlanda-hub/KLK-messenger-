@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/security/secure_store.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_screen.dart';
@@ -51,7 +52,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
       if (app.isDemo) {
         list = DeviceContacts.demo;
       } else {
-        _permission = await DeviceContacts.requestPermission();
+        _permission = await _askContacts() && await DeviceContacts.requestPermission();
         if (!_permission) {
           setState(() => _loading = false);
           return;
@@ -64,6 +65,38 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
       _error = 'No se pudo comprobar quién usa KLK. Revisa tu conexión.';
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  static const _contactsOkKey = 'klk.contactsDisclosure';
+
+  /// Antes del permiso del sistema explicamos qué hace KLK con la agenda
+  /// (lo pide Google Play). Solo la primera vez.
+  Future<bool> _askContacts() async {
+    final store = ref.read(secureStoreProvider);
+    try {
+      if (await store.read(_contactsOkKey) == '1') return true;
+    } catch (_) {}
+    if (!mounted) return false;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.contacts_rounded),
+        title: Text(tr('¿Buscar a tu gente en KLK?')),
+        content: Text(tr(
+            'Para enseñarte qué contactos ya usan KLK, la app envía los números de teléfono de tu agenda a nuestro servidor solo para compararlos. No guardamos tu agenda ni los nombres, y no los usamos para nada más.')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Ahora no'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Aceptar'))),
+        ],
+      ),
+    );
+    if (ok == true) {
+      try {
+        await store.write(_contactsOkKey, '1');
+      } catch (_) {}
+    }
+    return ok == true;
   }
 
   bool _searchingUser = false;

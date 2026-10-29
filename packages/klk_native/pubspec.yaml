@@ -16,3 +16,6 @@ flutter:
     platforms:
       ios:
         pluginClass: KlkNativePlugin
+      android:
+        package: com.klkapp.klk_native
+        pluginClass: KlkNativePlugin

@@ -116,6 +116,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /soporte", s.supportPage)
 	mux.HandleFunc("GET /support", s.supportPage)
 	mux.HandleFunc("GET /normas", s.termsPage)
+	mux.HandleFunc("GET /eliminar-cuenta", s.deletePage)
+	mux.HandleFunc("GET /delete-account", s.deletePage)
 	mux.HandleFunc("GET /terms", s.termsPage)
 
 	mux.HandleFunc("GET /v1/communities", s.authed(s.listCommunities))

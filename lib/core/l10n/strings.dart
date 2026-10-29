@@ -3,6 +3,10 @@
 // ignore_for_file: lines_longer_than_80_chars
 const translations = <String, Map<String, String>>{
   'en': {
+    '¿Buscar a tu gente en KLK?': 'Find your people on KLK?',
+    'Para enseñarte qué contactos ya usan KLK, la app envía los números de teléfono de tu agenda a nuestro servidor solo para compararlos. No guardamos tu agenda ni los nombres, y no los usamos para nada más.': "To show you which contacts already use KLK, the app sends the phone numbers in your address book to our server only to compare them. We don't store your address book or names, and we don't use them for anything else.",
+    'Ahora no': 'Not now',
+    'Aceptar': 'Accept',
     'He leído y acepto las ': 'I have read and accept the ',
     'Normas de uso de KLK': 'KLK Terms of Use',
     ': tolerancia cero con el contenido ofensivo y los usuarios abusivos. Acepto también la ': ': zero tolerance for objectionable content and abusive users. I also accept the ',
@@ -456,6 +460,10 @@ const translations = <String, Map<String, String>>{
     'Lo verán tus contactos durante 24 horas': 'Your contacts will see it for 24 hours',
   },
   'it': {
+    '¿Buscar a tu gente en KLK?': 'Trovare i tuoi contatti su KLK?',
+    'Para enseñarte qué contactos ya usan KLK, la app envía los números de teléfono de tu agenda a nuestro servidor solo para compararlos. No guardamos tu agenda ni los nombres, y no los usamos para nada más.': "Per mostrarti quali contatti usano già KLK, l'app invia i numeri di telefono della tua rubrica al nostro server solo per confrontarli. Non salviamo la rubrica né i nomi e non li usiamo per nient'altro.",
+    'Ahora no': 'Non ora',
+    'Aceptar': 'Accetta',
     'He leído y acepto las ': 'Ho letto e accetto le ',
     'Normas de uso de KLK': 'Condizioni d’uso di KLK',
     ': tolerancia cero con el contenido ofensivo y los usuarios abusivos. Acepto también la ': ': tolleranza zero per contenuti offensivi e utenti molesti. Accetto anche la ',
@@ -909,6 +917,10 @@ const translations = <String, Map<String, String>>{
     'Lo verán tus contactos durante 24 horas': 'I tuoi contatti lo vedranno per 24 ore',
   },
   'fr': {
+    '¿Buscar a tu gente en KLK?': 'Trouver tes proches sur KLK ?',
+    'Para enseñarte qué contactos ya usan KLK, la app envía los números de teléfono de tu agenda a nuestro servidor solo para compararlos. No guardamos tu agenda ni los nombres, y no los usamos para nada más.': "Pour te montrer quels contacts utilisent déjà KLK, l'app envoie les numéros de ton répertoire à notre serveur uniquement pour les comparer. Nous ne gardons ni ton répertoire ni les noms, et ne les utilisons pour rien d'autre.",
+    'Ahora no': 'Pas maintenant',
+    'Aceptar': 'Accepter',
     'He leído y acepto las ': 'J’ai lu et j’accepte les ',
     'Normas de uso de KLK': 'Conditions d’utilisation de KLK',
     ': tolerancia cero con el contenido ofensivo y los usuarios abusivos. Acepto también la ': ' : tolérance zéro pour les contenus choquants et les utilisateurs abusifs. J’accepte aussi la ',
@@ -1362,6 +1374,10 @@ const translations = <String, Map<String, String>>{
     'Lo verán tus contactos durante 24 horas': 'Vos contacts le verront pendant 24 heures',
   },
   'pt': {
+    '¿Buscar a tu gente en KLK?': 'Encontrar sua gente no KLK?',
+    'Para enseñarte qué contactos ya usan KLK, la app envía los números de teléfono de tu agenda a nuestro servidor solo para compararlos. No guardamos tu agenda ni los nombres, y no los usamos para nada más.': 'Para mostrar quais contatos já usam o KLK, o app envia os números da sua agenda ao nosso servidor só para compará-los. Não guardamos sua agenda nem os nomes e não os usamos para mais nada.',
+    'Ahora no': 'Agora não',
+    'Aceptar': 'Aceitar',
     'He leído y acepto las ': 'Li e aceito as ',
     'Normas de uso de KLK': 'Normas de uso da KLK',
     ': tolerancia cero con el contenido ofensivo y los usuarios abusivos. Acepto también la ': ': tolerância zero com conteúdo ofensivo e usuários abusivos. Aceito também a ',

@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <application>
+        <!-- Los avisos que llegan con la app cerrada van al canal «Mensajes». -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="klk_messages"/>
+        <!-- Firebase lo arrancamos nosotros desde Dart (no hay google-services.json). -->
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false"/>
+        <meta-data android:name="firebase_analytics_collection_enabled" android:value="false"/>
+    </application>
+</manifest>
