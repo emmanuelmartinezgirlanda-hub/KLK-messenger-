@@ -217,7 +217,7 @@ func TestDeleteAccountAndLegalPages(t *testing.T) {
 	if a2.accountID == a.accountID {
 		t.Fatal("reutilizó la cuenta borrada")
 	}
-	for _, p := range []string{"/privacidad", "/soporte"} {
+	for _, p := range []string{"/privacidad", "/soporte", "/eliminar-cuenta"} {
 		resp, err := http.Get(e.srv.URL + p)
 		if err != nil || resp.StatusCode != 200 {
 			t.Fatalf("%s: %v", p, err)

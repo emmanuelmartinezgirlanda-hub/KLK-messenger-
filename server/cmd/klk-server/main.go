@@ -15,6 +15,8 @@
 //	  KLK_TOPUP_DEMO=1   modo prueba sin ninguna cuenta (proveedor y pago de mentira)
 //	  KLK_TOPUP_CURRENCY (EUR) · KLK_TOPUP_MARGIN (0.08) · KLK_TOPUP_FEE (0.35) · KLK_TOPUP_MAX (40) · KLK_TOPUP_DAILY_MAX (5)
 //	  KLK_PUBLIC_URL     dirección pública del servidor (https://…)
+//	KLK_APNS_KEY / KLK_APNS_KEY_ID / KLK_APNS_TEAM_ID  avisos a iPhone (clave .p8 de Apple)
+//	KLK_FCM_CREDENTIALS  avisos a Android (el .json de «Cuentas de servicio» de Firebase)
 //	KLK_RESEND_KEY / KLK_MAIL_FROM  entrar con correo (códigos por correo con resend.com)
 //	KLK_REVIEW_PHONES / KLK_REVIEW_CODE  números de prueba para la revisión de las tiendas (sin SMS)
 //	KLK_S3_ENDPOINT / KLK_S3_BUCKET / KLK_S3_ACCESS_KEY / KLK_S3_SECRET_KEY  adjuntos en Cloudflare R2
@@ -118,6 +120,24 @@ func main() {
 		}
 	} else {
 		check("Notificaciones iPhone (Apple)", false, "falta KLK_APNS_KEY")
+	}
+	// Android: Firebase Cloud Messaging con la cuenta de servicio (.json de Firebase).
+	if cred := os.Getenv("KLK_FCM_CREDENTIALS"); cred != "" {
+		f, err := push.NewFCM(cred, st)
+		if err != nil {
+			slog.Error("avisos push de Android desactivados", "err", err)
+			check("Notificaciones Android (Firebase)", false, "la clave KLK_FCM_CREDENTIALS no vale: "+err.Error())
+		} else {
+			if _, noop := pusher.(relay.NoopPusher); noop {
+				pusher = f
+			} else {
+				pusher = push.Multi{pusher, f}
+			}
+			slog.Info("avisos push de Android (FCM) activados", "proyecto", f.ProjectID())
+			check("Notificaciones Android (Firebase)", true, "activadas · proyecto "+f.ProjectID())
+		}
+	} else {
+		check("Notificaciones Android (Firebase)", false, "falta KLK_FCM_CREDENTIALS")
 	}
 	hub := relay.NewHub(st, pusher)
 	go hub.RunScheduler(ctx, 2*time.Second)
