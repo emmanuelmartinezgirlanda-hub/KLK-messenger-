@@ -1,7 +1,12 @@
 package api_test
 
 import (
+	"net/http/httptest"
 	"testing"
+
+	"github.com/klk-app/klk-server/internal/api"
+	"github.com/klk-app/klk-server/internal/auth"
+	"github.com/klk-app/klk-server/internal/relay"
 
 	"github.com/klk-app/klk-server/internal/store"
 )
@@ -55,5 +60,30 @@ func TestAdminServices(t *testing.T) {
 	}
 	if s := e.do("GET", "/admin/api/services", "mala", nil, nil); s != 401 {
 		t.Fatalf("sin clave: %d", s)
+	}
+}
+
+func TestFundadores(t *testing.T) {
+	e := newEnv(t)
+	e.srv.Close()
+	s := api.New(e.st, auth.NewOTP(e.sms), relay.NewHub(e.st, relay.NoopPusher{}))
+	s.FoundersMax = 2
+	e.srv = httptest.NewServer(s.Routes())
+	t.Cleanup(e.srv.Close)
+	a := e.register("+18095550401", 1)
+	b := e.register("+18095550402", 2)
+	c := e.register("+18095550403", 3)
+	var v struct {
+		Active bool `json:"active"`
+	}
+	for _, x := range []struct {
+		tok  string
+		want bool
+	}{{a.token, true}, {b.token, true}, {c.token, false}} {
+		v.Active = false
+		e.do("GET", "/v1/plus", x.tok, nil, &v)
+		if v.Active != x.want {
+			t.Fatalf("plus %v, quería %v", v.Active, x.want)
+		}
 	}
 }

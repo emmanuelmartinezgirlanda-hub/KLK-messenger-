@@ -54,6 +54,9 @@ type Server struct {
 
 	// PlusCodes activan KLK Plus (dueño y pruebas). Vacío = sin códigos.
 	PlusCodes []PlusCode
+	// Oferta «Fundadores» (KLK_FOUNDERS_MAX / KLK_FOUNDERS_DAYS).
+	FoundersMax  int
+	FoundersDays int
 	// Apple comprueba las compras de Plus hechas en el iPhone (nil = apagado).
 	Apple         *appstore.Verifier
 	AppleBundleID string
@@ -339,6 +342,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request, identity strin
 		}
 	}
 	s.touch(r.Context(), dev.AccountID)
+	s.grantFounder(r.Context(), dev.AccountID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"accountId": dev.AccountID, "deviceId": dev.DeviceID, "token": token,
 	})

@@ -17,6 +17,7 @@
 //	  KLK_PUBLIC_URL     dirección pública del servidor (https://…)
 //	KLK_APNS_KEY / KLK_APNS_KEY_ID / KLK_APNS_TEAM_ID  avisos a iPhone (clave .p8 de Apple)
 //	KLK_FCM_CREDENTIALS  avisos a Android (el .json de «Cuentas de servicio» de Firebase)
+//	KLK_FOUNDERS_MAX / KLK_FOUNDERS_DAYS  oferta «Fundadores»: Plus gratis (365 días) a las primeras N cuentas
 //	KLK_RESEND_KEY / KLK_MAIL_FROM  entrar con correo (códigos por correo con resend.com)
 //	KLK_REVIEW_PHONES / KLK_REVIEW_CODE  números de prueba para la revisión de las tiendas (sin SMS)
 //	KLK_S3_ENDPOINT / KLK_S3_BUCKET / KLK_S3_ACCESS_KEY / KLK_S3_SECRET_KEY  adjuntos en Cloudflare R2
@@ -216,6 +217,8 @@ func main() {
 		PerIPMax:   envInt("KLK_SMS_IP_MAX", 10),
 	}
 	apiServer.PlusCodes = api.ParsePlusCodes(os.Getenv("KLK_PLUS_CODES"))
+	apiServer.FoundersMax = envInt("KLK_FOUNDERS_MAX", 0)
+	apiServer.FoundersDays = envInt("KLK_FOUNDERS_DAYS", 365)
 	apiServer.Apple = appstore.NewApple()
 	apiServer.AppleBundleID = "com.klkapp.klk"
 	if v := os.Getenv("KLK_APPLE_BUNDLE_ID"); v != "" {
