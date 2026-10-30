@@ -48,6 +48,11 @@ services:
       # KLK Plus: códigos para activarlo (dueño y pruebas). "CODIGO" = 10 años, "CODIGO:30" = 30 días
       - key: KLK_PLUS_CODES
         sync: false
+      # Oferta «Fundadores»: KLK Plus gratis un año para las primeras 10.000 cuentas.
+      - key: KLK_FOUNDERS_MAX
+        value: "10000"
+      - key: KLK_FOUNDERS_DAYS
+        value: "365"
       - key: KLK_APNS_KEY
         sync: false
       - key: KLK_APNS_KEY_ID

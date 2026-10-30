@@ -54,6 +54,8 @@ func (s *Server) plusOf(r *http.Request, acc string) (plusView, error) {
 
 // GET /v1/plus: ¿tengo KLK Plus?
 func (s *Server) plusStatus(w http.ResponseWriter, r *http.Request) {
+	// Quien ya tenía cuenta antes de la oferta también es fundador.
+	s.grantFounder(r.Context(), deviceFrom(r).AccountID)
 	v, err := s.plusOf(r, deviceFrom(r).AccountID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
