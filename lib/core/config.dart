@@ -23,10 +23,12 @@ abstract final class KlkConfig {
 
   /// Firebase (solo Android, para los avisos push). Son las claves públicas
   /// del proyecto que salen en google-services.json; no son secretas.
-  static const String _fcmApiKey = String.fromEnvironment('KLK_FCM_API_KEY');
-  static const String _fcmAppId = String.fromEnvironment('KLK_FCM_APP_ID');
-  static const String _fcmProject = String.fromEnvironment('KLK_FCM_PROJECT');
-  static const String _fcmSender = String.fromEnvironment('KLK_FCM_SENDER');
+  static const String _fcmApiKey =
+      String.fromEnvironment('KLK_FCM_API_KEY', defaultValue: 'AIzaSyBXbgMXdNEJ3nq1JfBxIKs8nO2n3IeUMT0');
+  static const String _fcmAppId =
+      String.fromEnvironment('KLK_FCM_APP_ID', defaultValue: '1:297744925319:android:74bfd3ecff921793c6ae22');
+  static const String _fcmProject = String.fromEnvironment('KLK_FCM_PROJECT', defaultValue: 'klk-messenger-2fd3a');
+  static const String _fcmSender = String.fromEnvironment('KLK_FCM_SENDER', defaultValue: '297744925319');
 
   /// Datos de Firebase para KlkNative.registerPush, o null si no hay.
   static Map<String, String>? get firebase => _fcmAppId.isEmpty || _fcmApiKey.isEmpty
