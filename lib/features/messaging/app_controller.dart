@@ -2867,33 +2867,37 @@ class AppController extends ChangeNotifier {
     } catch (e) {
       debugPrint('Plus: $e');
     }
-    // Renovaciones de Apple: si la suscripción sigue activa, se la paso al servidor.
+    // Renovaciones (Apple o Google Play): si la suscripción sigue activa, se la paso al servidor.
     if (!plusActive.value && KlkNative.supportsStore) {
       try {
         final jws = await KlkNative.storeEntitlements();
-        if (jws.isNotEmpty) await _savePlus(await _api!.plusApple(jws));
+        if (jws.isNotEmpty) await _savePlus(await _verifyStore(jws));
       } catch (e) {
-        debugPrint('Plus Apple: $e');
+        debugPrint('Plus tienda: $e');
       }
     }
   }
 
-  /// Productos de KLK Plus en el App Store (se crean en App Store Connect).
+  /// Productos de KLK Plus (mismos ids en App Store Connect y en Play Console).
   static const plusProducts = ['klk.plus.mensual', 'klk.plus.anual'];
 
-  /// Compra KLK Plus con Apple. Apple cobra; el servidor comprueba la compra.
+  /// Manda las compras de la tienda al servidor (Apple: JWS; Google Play: tokens).
+  Future<Map<String, dynamic>> _verifyStore(List<String> proofs) =>
+      KlkNative.isGooglePlay ? _api!.plusGoogle(proofs) : _api!.plusApple(proofs);
+
+  /// Compra KLK Plus con la tienda del móvil. La tienda cobra; el servidor comprueba la compra.
   Future<void> buyPlus(String productId) async {
     if (_api == null) throw const ApiException(0, 'demo', 'Entra con tu número para comprar KLK Plus.');
-    final jws = await KlkNative.storeBuy(productId, accountId: session?.accountId);
-    await _savePlus(await _api!.plusApple([jws]));
+    final proof = await KlkNative.storeBuy(productId, accountId: session?.accountId);
+    await _savePlus(await _verifyStore([proof]));
   }
 
-  /// «Restaurar compras»: recupera una suscripción ya pagada con este Apple ID.
+  /// «Restaurar compras»: recupera una suscripción ya pagada con este Apple ID o cuenta de Google.
   Future<bool> restorePlus() async {
     if (_api == null) return false;
-    final jws = await KlkNative.storeEntitlements(sync: true);
-    if (jws.isEmpty) return false;
-    await _savePlus(await _api!.plusApple(jws));
+    final proofs = await KlkNative.storeEntitlements(sync: true);
+    if (proofs.isEmpty) return false;
+    await _savePlus(await _verifyStore(proofs));
     return plusActive.value;
   }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/klk-app/klk-server/internal/api"
 	"github.com/klk-app/klk-server/internal/appstore"
 	"github.com/klk-app/klk-server/internal/auth"
+	"github.com/klk-app/klk-server/internal/playstore"
 	"github.com/klk-app/klk-server/internal/relay"
 )
 
@@ -76,6 +77,55 @@ func TestKLKPlusApple(t *testing.T) {
 	// La misma suscripción no se puede usar en otra cuenta.
 	if st := e.do("POST", "/v1/plus/apple", luis.token, body(buy("1", "com.klkapp.klk", exp, "")), nil); st != 409 {
 		t.Fatalf("compartir suscripción: %d", st)
+	}
+	v.Active = false
+	if st := e.do("GET", "/v1/plus", ana.token, nil, &v); st != 200 || !v.Active {
+		t.Fatalf("Plus activo: %d", st)
+	}
+}
+
+func TestKLKPlusGoogle(t *testing.T) {
+	e := newEnv(t)
+	s := api.New(e.st, auth.NewOTP(e.sms), relay.NewHub(e.st, relay.NoopPusher{}))
+	gp := playstore.NewFakeServer()
+	t.Cleanup(gp.Close)
+	s.Play = gp.Verifier()
+	e.srv = httptest.NewServer(s.Routes())
+	t.Cleanup(e.srv.Close)
+	ana := e.register("+18095550311", 1)
+	luis := e.register("+18095550312", 1)
+
+	exp := time.Now().Add(30 * 24 * time.Hour)
+	gp.Add("tok-otra-app", playstore.FakeSub{Product: "otra.cosa", State: "SUBSCRIPTION_STATE_ACTIVE", Expires: exp})
+	gp.Add("tok-caducada", playstore.FakeSub{Product: "klk.plus.mensual", State: "SUBSCRIPTION_STATE_EXPIRED", Expires: time.Now().Add(-time.Hour)})
+	gp.Add("tok-pendiente", playstore.FakeSub{Product: "klk.plus.mensual", State: "SUBSCRIPTION_STATE_PENDING", Expires: exp})
+	gp.Add("tok-de-luis", playstore.FakeSub{Product: "klk.plus.mensual", Account: luis.accountID, State: "SUBSCRIPTION_STATE_ACTIVE", Expires: exp})
+	gp.Add("tok-ana", playstore.FakeSub{Product: "klk.plus.anual", Account: ana.accountID, State: "SUBSCRIPTION_STATE_ACTIVE", Expires: exp})
+
+	var v struct {
+		Active bool `json:"active"`
+	}
+	body := func(t ...string) map[string]any { return map[string]any{"tokens": t} }
+	if st := e.do("POST", "/v1/plus/google", ana.token, body("inventado", "tok-otra-app", "tok-caducada", "tok-pendiente"), nil); st != 400 {
+		t.Fatalf("compras que no valen: %d", st)
+	}
+	if st := e.do("POST", "/v1/plus/google", ana.token, body("tok-de-luis"), nil); st != 409 {
+		t.Fatalf("comprada por otra cuenta: %d", st)
+	}
+	if st := e.do("POST", "/v1/plus/google", ana.token, body("inventado", "tok-ana"), &v); st != 200 || !v.Active {
+		t.Fatalf("compra buena: %d %+v", st, v)
+	}
+	if !gp.Acked("tok-ana") {
+		t.Fatal("la compra no se confirmó en Google")
+	}
+	// La misma suscripción no se puede usar en otra cuenta.
+	if st := e.do("POST", "/v1/plus/google", luis.token, body("tok-ana"), nil); st != 409 {
+		t.Fatalf("compartir suscripción: %d", st)
+	}
+	// Cancelada pero aún pagada: sigue valiendo.
+	gp.Add("tok-ana", playstore.FakeSub{Product: "klk.plus.anual", Account: ana.accountID, State: "SUBSCRIPTION_STATE_CANCELED", Expires: exp, Acked: true})
+	if st := e.do("POST", "/v1/plus/google", ana.token, body("tok-ana"), &v); st != 200 || !v.Active {
+		t.Fatalf("cancelada pero pagada: %d", st)
 	}
 	v.Active = false
 	if st := e.do("GET", "/v1/plus", ana.token, nil, &v); st != 200 || !v.Active {

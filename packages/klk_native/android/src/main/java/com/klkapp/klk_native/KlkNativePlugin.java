@@ -23,7 +23,7 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.PluginRegistry;
 
-/** Funciones nativas de KLK en Android: avisos push con Firebase Cloud Messaging. */
+/** Funciones nativas de KLK en Android: avisos push (Firebase) y KLK Plus (Google Play Billing). */
 public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware,
         PluginRegistry.RequestPermissionsResultListener {
     private static final int PERMISSION_CODE = 7301;
@@ -34,10 +34,12 @@ public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallH
     private ActivityPluginBinding activityBinding;
     private MethodChannel.Result pendingPush;
     private Map<String, Object> pendingArgs;
+    private PlusStore plusStore;
 
     @Override
     public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
         context = binding.getApplicationContext();
+        plusStore = new PlusStore(context);
         channel = new MethodChannel(binding.getBinaryMessenger(), "klk/native");
         channel.setMethodCallHandler(this);
     }
@@ -57,6 +59,27 @@ public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallH
                 break;
             case "isTestFlight":
                 result.success(false);
+                break;
+            case "storeProducts": {
+                Map<String, Object> a = (Map<String, Object>) call.arguments;
+                plusStore.products(a == null ? null : (java.util.List<String>) a.get("ids"), result);
+                break;
+            }
+            case "storeBuy": {
+                Map<String, Object> a = (Map<String, Object>) call.arguments;
+                String id = a == null ? "" : str(a, "id");
+                if (id.isEmpty()) {
+                    result.error("bad_args", "Falta el producto", null);
+                    break;
+                }
+                plusStore.buy(activityBinding == null ? null : activityBinding.getActivity(), id, str(a, "account"), result);
+                break;
+            }
+            case "storeEntitlements":
+                plusStore.entitlements(result);
+                break;
+            case "storeManage":
+                plusStore.manage(activityBinding == null ? null : activityBinding.getActivity(), result);
                 break;
             default:
                 result.notImplemented();

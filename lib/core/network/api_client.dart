@@ -468,6 +468,10 @@ class ApiClient {
   Future<Map<String, dynamic>> plusApple(List<String> jws) async =>
       await _send('POST', '/v1/plus/apple', {'jws': jws}) as Map<String, dynamic>;
 
+  /// Compras de Plus con Google Play (purchase tokens de Android).
+  Future<Map<String, dynamic>> plusGoogle(List<String> tokens) async =>
+      await _send('POST', '/v1/plus/google', {'tokens': tokens}) as Map<String, dynamic>;
+
   /// Servidores para conectar llamadas (STUN y el «puente» TURN con clave temporal).
   Future<List<Map<String, dynamic>>> turnServers() async {
     final j = await _send('GET', '/v1/turn') as Map<String, dynamic>;

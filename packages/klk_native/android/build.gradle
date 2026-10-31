@@ -1,4 +1,4 @@
-// Parte Android de klk_native: de momento, los avisos push con Firebase (FCM).
+// Parte Android de klk_native: avisos push con Firebase (FCM) y KLK Plus con Google Play.
 group = "com.klkapp.klk_native"
 version = "1.0"
 
@@ -39,4 +39,6 @@ dependencies {
     // Sin el plugin de google-services: Firebase se inicia desde Dart con las
     // claves públicas del proyecto (ver KlkNative.registerPush).
     implementation("com.google.firebase:firebase-messaging:24.1.0")
+    // KLK Plus: suscripciones con Google Play Billing.
+    implementation("com.android.billingclient:billing:7.1.1")
 }

@@ -171,14 +171,17 @@ class KlkNative {
   static Stream<void> get screenshots =>
       supported ? _shots.receiveBroadcastStream().map((_) {}) : const Stream.empty();
 
-  // ---------- KLK Plus con Apple (StoreKit 2) ----------
+  // ---------- KLK Plus con Apple (StoreKit 2) o Google Play (Android) ----------
 
-  /// ¿Se puede comprar Plus con Apple en este móvil?
-  static bool get supportsStore => supported;
+  /// ¿Se puede comprar Plus en este móvil (App Store en iPhone, Google Play en Android)?
+  static bool get supportsStore => Platform.isIOS || Platform.isAndroid;
 
-  /// Productos de Apple: [{id, price, title, unit, count, trialUnit, trialCount}].
+  /// ¿La tienda es Google Play? (si no, la App Store de Apple)
+  static bool get isGooglePlay => Platform.isAndroid;
+
+  /// Productos de la tienda: [{id, price, title, unit, count, trialUnit, trialCount}].
   static Future<List<Map<String, dynamic>>> storeProducts(List<String> ids) async {
-    if (!supported) return const [];
+    if (!supportsStore) return const [];
     try {
       final list = await _channel.invokeListMethod<Map<Object?, Object?>>('storeProducts', {'ids': ids});
       return [for (final m in list ?? const <Map<Object?, Object?>>[]) m.map((k, v) => MapEntry('$k', v))];
@@ -189,7 +192,8 @@ class KlkNative {
     }
   }
 
-  /// Compra: abre la hoja de pago de Apple. Devuelve la compra firmada (JWS).
+  /// Compra: abre la hoja de pago de la tienda. Devuelve la compra firmada
+  /// (JWS en iPhone) o el «purchase token» de Google Play (Android).
   static Future<String> storeBuy(String productId, {String? accountId}) async {
     try {
       final jws = await _channel.invokeMethod<String>('storeBuy', {'id': productId, 'account': accountId});
@@ -202,9 +206,9 @@ class KlkNative {
     }
   }
 
-  /// Suscripciones activas (JWS). [sync] = «Restaurar compras» (pide Apple ID).
+  /// Suscripciones activas (JWS o tokens de Google). [sync] = «Restaurar compras».
   static Future<List<String>> storeEntitlements({bool sync = false}) async {
-    if (!supported) return const [];
+    if (!supportsStore) return const [];
     try {
       return await _channel.invokeListMethod<String>('storeEntitlements', {'sync': sync}) ?? const [];
     } catch (_) {
@@ -212,9 +216,9 @@ class KlkNative {
     }
   }
 
-  /// Abre «Gestionar suscripción» de Apple (cancelar, cambiar plan).
+  /// Abre «Gestionar suscripción» de la tienda (cancelar, cambiar plan).
   static Future<void> storeManage() async {
-    if (!supported) return;
+    if (!supportsStore) return;
     try {
       await _channel.invokeMethod('storeManage');
     } catch (_) {}

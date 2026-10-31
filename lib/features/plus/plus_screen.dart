@@ -204,7 +204,11 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
 
   Future<void> _restore() => _run(() async {
         final ok = await ref.read(appProvider).restorePlus();
-        _snack(ok ? 'Listo: tu KLK Plus está activo' : 'No encontramos una suscripción con este Apple ID');
+        _snack(ok
+            ? 'Listo: tu KLK Plus está activo'
+            : KlkNative.isGooglePlay
+                ? 'No encontramos una suscripción con esta cuenta de Google'
+                : 'No encontramos una suscripción con este Apple ID');
       });
 
   Future<void> _redeem() async {
@@ -458,16 +462,21 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                     if (chosen != null) ...[
                       const SizedBox(height: 8),
                       Text(
-                        '${trial != null ? 'Después, ' : ''}${chosen['price']} / ${_per(chosen)}. Se renueva solo y lo cobra Apple. '
-                        'Cancela cuando quieras en Ajustes del iPhone → tu nombre → Suscripciones.',
+                        KlkNative.isGooglePlay
+                            ? '${trial != null ? 'Después, ' : ''}${chosen['price']} / ${_per(chosen)}. Se renueva solo y lo cobra Google Play. '
+                                'Cancela cuando quieras en Play Store → tu foto → Pagos y suscripciones → Suscripciones.'
+                            : '${trial != null ? 'Después, ' : ''}${chosen['price']} / ${_per(chosen)}. Se renueva solo y lo cobra Apple. '
+                                'Cancela cuando quieras en Ajustes del iPhone → tu nombre → Suscripciones.',
                         textAlign: TextAlign.center,
                         style: const TextStyle(fontSize: 12, color: muted, height: 1.35),
                       ),
                     ] else if (!_loadingStore)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text('No se pudo conectar con la App Store. Revisa tu conexión e inténtalo otra vez.',
-                            textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: muted)),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                            'No se pudo conectar con ${KlkNative.isGooglePlay ? 'Google Play' : 'la App Store'}. '
+                            'Revisa tu conexión e inténtalo otra vez.',
+                            textAlign: TextAlign.center, style: const TextStyle(fontSize: 12.5, color: muted)),
                       ),
                   ],
 
@@ -504,7 +513,9 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                         if (plus) TextButton(onPressed: KlkNative.storeManage, child: const Text('Gestionar suscripción')),
                         if (plus) TextButton(onPressed: _busy ? null : _restore, child: const Text('Restaurar compras')),
                         TextButton(
-                            onPressed: () => _open('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
+                            onPressed: () => _open(KlkNative.isGooglePlay
+                                ? 'https://klk-server.onrender.com/normas'
+                                : 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
                             child: const Text('Términos')),
                         TextButton(
                             onPressed: () => _open('https://klk-server.onrender.com/privacidad'),

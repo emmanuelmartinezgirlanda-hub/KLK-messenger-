@@ -1,4 +1,5 @@
-# Google Play: compila el .aab de la tienda (sin Plus ni opciones de prueba).
+# Google Play: compila el .aab de la tienda (sin opciones de prueba; Plus solo
+# si se marca «plus», cuando las suscripciones ya existen en Play Console).
 # Sale firmado con la clave de pruebas; se vuelve a firmar con la clave de
 # subida (klk_upload) fuera de GitHub antes de subirlo a Play Console.
 name: KLK messenger para Google Play (.aab)
@@ -10,6 +11,10 @@ on:
         description: "Número de versión para Google Play (tiene que subir cada vez)"
         required: true
         default: "1"
+      plus:
+        description: "Incluir KLK Plus (cobro con Google Play)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -38,7 +43,8 @@ jobs:
           flutter build appbundle --release \
             --build-number=${{ inputs.version_code }} \
             --dart-define=KLK_BUSINESS=true \
-            --dart-define=KLK_GENTE=true 2>&1 | tee build.log
+            --dart-define=KLK_GENTE=true \
+            --dart-define=KLK_PLUS=${{ inputs.plus }} 2>&1 | tee build.log
           cp build/app/outputs/bundle/release/app-release.aab KLK-messenger-play-sin-firmar.aab
       - name: Resumen del error (si falla)
         if: failure()
