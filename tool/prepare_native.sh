@@ -89,6 +89,18 @@ if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
   perl -0pi -e 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$MANIFEST"
 fi
 
+# Google Play: KLK no necesita leer toda la galería (elige fotos con el selector
+# del sistema), así que quitamos los permisos amplios que añade algún plugin.
+# Sin esto Google pide la «declaración de permisos de fotos y vídeos».
+if ! grep -q 'xmlns:tools' "$MANIFEST"; then
+  perl -0pi -e 's#<manifest #<manifest xmlns:tools="http://schemas.android.com/tools" #' "$MANIFEST"
+fi
+for perm in READ_MEDIA_IMAGES READ_MEDIA_VIDEO READ_MEDIA_AUDIO READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE; do
+  if ! grep -q "android.permission.$perm\" tools:node=\"remove\"" "$MANIFEST"; then
+    perl -0pi -e "s#<application#<uses-permission android:name=\"android.permission.$perm\" tools:node=\"remove\"/>\n    <application#" "$MANIFEST"
+  fi
+done
+
 # Seguridad: que Android no copie los chats a la nube de Google por su cuenta
 # (KLK tiene su propia copia cifrada con contraseña).
 if ! grep -q "android:allowBackup" "$MANIFEST"; then
