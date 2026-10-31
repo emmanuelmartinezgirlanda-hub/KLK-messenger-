@@ -17,6 +17,8 @@
 //	  KLK_PUBLIC_URL     dirección pública del servidor (https://…)
 //	KLK_APNS_KEY / KLK_APNS_KEY_ID / KLK_APNS_TEAM_ID  avisos a iPhone (clave .p8 de Apple)
 //	KLK_FCM_CREDENTIALS  avisos a Android (el .json de «Cuentas de servicio» de Firebase)
+//	KLK_PLAY_CREDENTIALS cobros de Plus en Android (cuenta de servicio invitada en Play Console;
+//	                     si falta se usa KLK_FCM_CREDENTIALS). KLK_PLAY_PACKAGE = com.klkapp.klk
 //	KLK_FOUNDERS_MAX / KLK_FOUNDERS_DAYS  oferta «Fundadores»: Plus gratis (365 días) a las primeras N cuentas
 //	KLK_RESEND_KEY / KLK_MAIL_FROM  entrar con correo (códigos por correo con resend.com)
 //	KLK_REVIEW_PHONES / KLK_REVIEW_CODE  números de prueba para la revisión de las tiendas (sin SMS)
@@ -41,6 +43,7 @@ import (
 	"github.com/klk-app/klk-server/internal/appstore"
 	"github.com/klk-app/klk-server/internal/auth"
 	"github.com/klk-app/klk-server/internal/blob"
+	"github.com/klk-app/klk-server/internal/playstore"
 	"github.com/klk-app/klk-server/internal/push"
 	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
@@ -209,7 +212,6 @@ func main() {
 		check("Llamadas (TURN)", false, "sin puente: algunas llamadas pueden fallar")
 	}
 	apiServer.AdminToken = os.Getenv("KLK_ADMIN_TOKEN")
-	apiServer.Health = health
 	apiServer.SMS = &api.SMSGuard{
 		Countries:  smsCountries(os.Getenv("KLK_SMS_COUNTRIES")),
 		DailyMax:   envInt("KLK_SMS_DAILY_MAX", 500),
@@ -224,6 +226,23 @@ func main() {
 	if v := os.Getenv("KLK_APPLE_BUNDLE_ID"); v != "" {
 		apiServer.AppleBundleID = v
 	}
+	// Android: las compras de Plus con Google Play se comprueban con la API de Google.
+	playCred := os.Getenv("KLK_PLAY_CREDENTIALS")
+	if playCred == "" {
+		playCred = os.Getenv("KLK_FCM_CREDENTIALS")
+	}
+	if playCred != "" {
+		v, err := playstore.New(playCred, envOr("KLK_PLAY_PACKAGE", "com.klkapp.klk"))
+		if err != nil {
+			check("Cobros Plus Android (Google Play)", false, "la clave no vale: "+err.Error())
+		} else {
+			apiServer.Play = v
+			check("Cobros Plus Android (Google Play)", true, "listo · invita a "+v.Email()+" en Play Console")
+		}
+	} else {
+		check("Cobros Plus Android (Google Play)", false, "falta KLK_PLAY_CREDENTIALS")
+	}
+	apiServer.Health = health
 	apiServer.Legal = api.Legal{Owner: os.Getenv("KLK_OWNER_NAME"), SupportEmail: os.Getenv("KLK_SUPPORT_EMAIL")}
 	apiServer.Topups = topupConfig()
 	if apiServer.Topups != nil {

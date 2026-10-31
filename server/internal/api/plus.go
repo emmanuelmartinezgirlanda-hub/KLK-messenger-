@@ -2,10 +2,14 @@ package api
 
 import (
 	"crypto/subtle"
+	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/klk-app/klk-server/internal/playstore"
 )
 
 // PlusCode es un código que activa KLK Plus (para el dueño y pruebas).
@@ -142,6 +146,11 @@ func (s *Server) plusApple(w http.ResponseWriter, r *http.Request) {
 			best = exp
 		}
 	}
+	s.grantStorePlus(w, r, dev.AccountID, best, taken)
+}
+
+// grantStorePlus da Plus hasta [best] (lo que diga la tienda) y responde.
+func (s *Server) grantStorePlus(w http.ResponseWriter, r *http.Request, acc string, best time.Time, taken bool) {
 	if best.IsZero() {
 		if taken {
 			writeErr(w, http.StatusConflict, "other_account", "esa suscripción es de otra cuenta de KLK")
@@ -150,7 +159,7 @@ func (s *Server) plusApple(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_purchase", "no hay una suscripción activa")
 		return
 	}
-	cur, err := s.store.PlusUntil(r.Context(), dev.AccountID)
+	cur, err := s.store.PlusUntil(r.Context(), acc)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return
@@ -158,9 +167,66 @@ func (s *Server) plusApple(w http.ResponseWriter, r *http.Request) {
 	until := best
 	if cur.After(until) {
 		until = cur // p. ej. un código de 10 años
-	} else if err := s.store.SetPlusUntil(r.Context(), dev.AccountID, until); err != nil {
+	} else if err := s.store.SetPlusUntil(r.Context(), acc, until); err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return
 	}
 	writeJSON(w, http.StatusOK, plusView{Active: true, Until: &until})
+}
+
+// POST /v1/plus/google {"tokens":["…"]}: compras (o renovaciones) de KLK Plus
+// hechas con Google Play en Android. Google cobra y nos paga; aquí se lo
+// preguntamos a Google y confirmamos la compra.
+func (s *Server) plusGoogle(w http.ResponseWriter, r *http.Request) {
+	dev := deviceFrom(r)
+	var req struct {
+		Tokens []string `json:"tokens"`
+	}
+	if !readJSON(w, r, &req) {
+		return
+	}
+	if s.Play == nil || len(req.Tokens) == 0 || len(req.Tokens) > 10 {
+		writeErr(w, http.StatusBadRequest, "bad_purchase", "compra no válida")
+		return
+	}
+	now := time.Now()
+	best := time.Time{}
+	taken := false
+	for _, tok := range req.Tokens {
+		if tok == "" || len(tok) > 4096 {
+			continue
+		}
+		sub, err := s.Play.Subscription(r.Context(), tok)
+		if err != nil {
+			if !errors.Is(err, playstore.ErrNotFound) {
+				slog.Warn("Google Play", "err", err)
+			}
+			continue
+		}
+		if !strings.HasPrefix(sub.ProductID, "klk.plus") || !sub.Entitled(now) {
+			continue
+		}
+		if sub.AccountID != "" && !strings.EqualFold(sub.AccountID, dev.AccountID) {
+			taken = true
+			continue
+		}
+		owner, err := s.store.ClaimAppleSub(r.Context(), "gp:"+tok, dev.AccountID, sub.Expires)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+			return
+		}
+		if owner != dev.AccountID {
+			taken = true
+			continue
+		}
+		if !sub.Acknowledged {
+			if err := s.Play.Acknowledge(r.Context(), sub.ProductID, tok); err != nil {
+				slog.Warn("Google Play: no se pudo confirmar la compra", "err", err)
+			}
+		}
+		if sub.Expires.After(best) {
+			best = sub.Expires
+		}
+	}
+	s.grantStorePlus(w, r, dev.AccountID, best, taken)
 }

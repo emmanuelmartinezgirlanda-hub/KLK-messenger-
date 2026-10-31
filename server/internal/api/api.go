@@ -20,6 +20,7 @@ import (
 
 	"github.com/klk-app/klk-server/internal/appstore"
 	"github.com/klk-app/klk-server/internal/auth"
+	"github.com/klk-app/klk-server/internal/playstore"
 	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
 	"github.com/klk-app/klk-server/internal/turn"
@@ -60,6 +61,8 @@ type Server struct {
 	// Apple comprueba las compras de Plus hechas en el iPhone (nil = apagado).
 	Apple         *appstore.Verifier
 	AppleBundleID string
+	// Play comprueba las compras de Plus hechas en Android (nil = apagado).
+	Play *playstore.Verifier
 
 	// Topups: recargas de móvil a RD (nil = apagadas).
 	Topups *Topups
@@ -111,6 +114,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/plus", s.authed(s.plusStatus))
 	mux.HandleFunc("POST /v1/plus/redeem", s.limited(s.authed(s.plusRedeem)))
 	mux.HandleFunc("POST /v1/plus/apple", s.limited(s.authed(s.plusApple)))
+	mux.HandleFunc("POST /v1/plus/google", s.limited(s.authed(s.plusGoogle)))
 	mux.HandleFunc("PUT /v1/push-token", s.limited(s.authed(s.setPushToken)))
 	mux.HandleFunc("DELETE /v1/push-token", s.authed(s.deletePushToken))
 	mux.HandleFunc("GET /v1/turn", s.limited(s.authed(s.turnServers)))
