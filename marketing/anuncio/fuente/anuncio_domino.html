@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<style>
+:root{--navy:#002D62;--navy2:#001A3D;--red:#E8283E;--ink:#E9EDEF;--muted:#8FA0AB;--gold:#FFC531;
+  --display:'Inter Display','Inter',system-ui,sans-serif;--body:'Inter',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:540px;height:960px;overflow:hidden;background:#000}
+body{font-family:var(--body);color:#fff;-webkit-font-smoothing:antialiased}
+#stage{position:absolute;inset:0;overflow:hidden;background:#000}
+.scene{position:absolute;inset:0;opacity:0;overflow:hidden}
+.abs{position:absolute;left:0;top:0;transform-origin:50% 50%}
+svg{display:block;overflow:visible}
+/* Píldora de arriba */
+.cap{position:absolute;left:0;right:0;top:54px;text-align:center;opacity:0;z-index:20}
+.cap span{display:inline-block;font:800 19px var(--body);letter-spacing:.2px;background:#000000a0;border:1px solid #ffffff30;border-radius:999px;padding:9px 18px;backdrop-filter:blur(6px)}
+/* Bocadillos */
+.say{position:absolute;z-index:15;opacity:0;background:#fff;color:#111;border-radius:26px;padding:14px 18px;font:900 25px/1.1 var(--display);letter-spacing:-.4px;
+  box-shadow:0 12px 30px #00000060;max-width:330px;text-wrap:balance}
+.say:after{content:"";position:absolute;bottom:-14px;width:28px;height:28px;background:#fff;transform:rotate(45deg);border-radius:4px}
+.say.l:after{left:34px}.say.r:after{right:34px}
+.say b{color:var(--red)}
+/* Sello «¡CAPICÚA!» */
+.stamp{position:absolute;z-index:18;left:0;right:0;text-align:center;opacity:0;font:900 74px/1 var(--display);letter-spacing:-2px;color:#fff;
+  -webkit-text-stroke:12px var(--red);paint-order:stroke fill;text-shadow:0 10px 0 #00000055}
+/* Móvil */
+.phone{position:absolute;width:340px;height:700px;border-radius:52px;background:#05070A;padding:11px;box-shadow:0 40px 90px #000000b0,0 0 0 2px #2A3240 inset}
+.screen{position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#0B141B;color:var(--ink)}
+.notch{position:absolute;top:9px;left:50%;width:96px;height:28px;margin-left:-48px;border-radius:20px;background:#05070A;z-index:9}
+.chead{position:absolute;left:0;right:0;top:0;height:104px;background:#121B22;display:flex;align-items:flex-end;gap:11px;padding:0 16px 12px;border-bottom:1px solid #26333C}
+.ava{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font:800 18px var(--display);color:#fff}
+.chead b{display:block;font:800 18px var(--display)}.chead small{color:#5FD39A;font:600 13px var(--body)}
+.msgs{position:absolute;left:0;right:0;top:104px;bottom:82px;padding:14px;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;
+  background:radial-gradient(circle at 20% 30%,#3D8BFF14,transparent 40%),#0B141B}
+.m{max-width:82%;padding:10px 13px;border-radius:18px;font:500 16px/1.3 var(--body)}
+.m.in{align-self:flex-start;background:#1F2C34;border-bottom-left-radius:6px}
+.m.out{align-self:flex-end;background:#1F7A4D;border-bottom-right-radius:6px}
+.m small{display:block;text-align:right;font-size:11px;opacity:.7;margin-top:3px}
+.m .fx{color:#FFE07A;font-weight:800}
+.comp{position:absolute;left:0;right:0;bottom:0;height:82px;background:#121B22;display:flex;align-items:center;gap:8px;padding:0 12px 14px}
+.field{flex:1;min-height:44px;border-radius:22px;background:#1F2C34;padding:10px 14px;font:500 14px/1.25 var(--body);color:var(--ink)}
+.field .ph{color:var(--muted)}
+.caret{display:inline-block;width:2px;height:18px;background:#3D8BFF;vertical-align:-3px;margin-left:1px}
+.spark{width:34px;height:34px;display:grid;place-items:center}
+.send{width:46px;height:46px;border-radius:50%;background:#3D8BFF;display:grid;place-items:center;flex:none}
+.sheet{position:absolute;left:10px;right:10px;bottom:90px;border-radius:24px;background:#1C262E;padding:14px;opacity:0;z-index:5;box-shadow:0 -10px 40px #00000080}
+.sheet h4{font:800 17px var(--display);margin-bottom:10px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{border-radius:14px;background:#0F2550;height:74px;display:grid;place-items:center;font:700 11.5px var(--body);color:#cfd8ea;padding-top:4px}
+.tile.on{outline:3px solid var(--gold)}
+/* Notificación */
+.notif{position:absolute;left:22px;right:22px;top:40px;z-index:30;opacity:0;border-radius:26px;background:#f4f6faee;color:#111;padding:14px 16px;display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:center;box-shadow:0 20px 50px #00000070}
+.notif img{width:52px;height:52px;border-radius:13px}
+.notif b{font:800 15px var(--body)}.notif em{font-style:normal;color:#666;font-size:13px;float:right}
+.notif p{font:500 15px/1.3 var(--body);margin-top:3px}
+/* Final */
+#end{background:radial-gradient(120% 70% at 50% 0%,#0A4A93 0%,var(--navy) 45%,var(--navy2) 100%)}
+#end h1{position:absolute;left:0;right:0;top:470px;text-align:center;font:900 54px/1 var(--display);letter-spacing:-1.5px}
+#end p{position:absolute;left:30px;right:30px;top:536px;text-align:center;font:700 23px var(--body);color:#C9D7EA}
+.chips{position:absolute;left:0;right:0;top:600px;display:flex;justify-content:center;gap:10px}
+.chips span{font:800 16px var(--body);background:#ffffff18;border:1px solid #ffffff2c;border-radius:999px;padding:9px 15px}
+.cta{position:absolute;left:70px;right:70px;top:700px;height:72px;border-radius:36px;background:var(--red);display:grid;place-items:center;font:900 28px var(--display);box-shadow:0 16px 40px #E8283E66}
+.url{position:absolute;left:0;right:0;top:800px;text-align:center;font:800 22px var(--body);color:#fff;opacity:.9}
+</style></head><body>
+<div id="stage">
+
+<!-- ============ 1 y 5: Colmado ============ -->
+<div class="scene" id="colmado">
+  <div class="abs" id="colBg"></div>
+  <div class="abs" id="players"></div>
+  <div class="abs" id="tableFront"></div>
+  <div class="abs" id="tilesTop"></div>
+  <div class="cap" id="cap1"><span>Viernes en el colmado</span></div>
+  <div class="say l" id="say1" style="left:26px;top:250px">¡Diablo, nos falta uno pa' la partida!</div>
+  <div class="say r" id="say2" style="right:24px;top:250px">¡Mándale un <b>KLK</b> a Juan!</div>
+  <div class="say r" id="say5" style="right:24px;top:240px">¡Llegó el que faltaba!</div>
+  <div class="stamp" id="stamp5" style="top:300px">¡CAPICÚA!</div>
+</div>
+
+<!-- ============ 2: El móvil ============ -->
+<div class="scene" id="movil">
+  <div class="abs" id="movilBg" style="width:540px;height:960px;background:radial-gradient(90% 60% at 50% 40%,#1b3a6e,#06122b)"></div>
+  <div class="phone abs" id="ph">
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="chead"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke="#E9EDEF" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>
+        <div class="ava" style="background:linear-gradient(135deg,#ff9f43,#E8283E)">J</div><div><b>Juan</b><small>en línea</small></div></div>
+      <div class="msgs" id="msgs">
+        <div class="m in">¿Queloque, manito?<small>8:41 p.m.</small></div>
+        <div class="m out" id="sent" style="opacity:0">Juan, ven al colmado que falta uno pa'l dominó<small><span class="fx">✦ Dominó</span> · 8:42 p.m.</small></div>
+      </div>
+      <div class="sheet" id="sheet"><h4>Enviar con efecto</h4><div class="tiles" id="tiles"></div></div>
+      <div class="comp"><div class="field" id="field"><span class="ph">Mensaje</span></div>
+        <div class="spark"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="#E0A030"/></svg></div>
+        <div class="send" id="send"><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M3 11 21 3l-7 18-3-7z"/></svg></div></div>
+      <div class="abs" id="phFx" style="width:318px;height:678px;pointer-events:none"></div>
+    </div>
+  </div>
+  <div class="abs" id="finger"></div>
+  <div class="cap" id="cap2"><span>Le escribe a Juan… con efecto</span></div>
+</div>
+
+<!-- ============ 3: Play de pelota ============ -->
+<div class="scene" id="play">
+  <div class="abs" id="playBg"></div>
+  <div class="abs" id="ball"></div>
+  <div class="abs" id="juanP"></div>
+  <div class="cap" id="cap3"><span>Mientras, en el play…</span></div>
+  <div class="notif" id="notif"><img src="klk_icon_new.png" alt=""><div><b>KLK messenger</b><em>ahora</em><p><b>Pedro:</b> Juan, ven al colmado que falta uno pa'l dominó</p></div></div>
+  <div class="say r" id="say3" style="right:30px;top:300px">¡Voy volao'!</div>
+</div>
+
+<!-- ============ 4: Motoconcho ============ -->
+<div class="scene" id="calle">
+  <div class="abs" id="calleBg"></div>
+  <div class="abs" id="moto"></div>
+  <div class="abs" id="puffs" style="width:540px;height:960px"></div>
+  <div class="cap" id="cap4"><span>Rumbo al colmado</span></div>
+  <div class="stamp" id="piip" style="top:330px;font-size:56px;-webkit-text-stroke-color:#0D2A66">¡PIIIP PIIIP!</div>
+</div>
+
+<!-- ============ 6: Final ============ -->
+<div class="scene" id="end">
+  <img id="logo" src="klk_logo_new.png" alt="" style="position:absolute;left:150px;top:150px;width:240px">
+  <h1 id="endT">KLK messenger</h1>
+  <p id="endP">La app de los dominicanos</p>
+  <div class="chips" id="chips"><span>Chats</span><span>Llamadas</span><span>Efectos</span><span>Mi Gente</span></div>
+  <div class="cta" id="cta">Descárgala gratis</div>
+  <div class="url" id="url">klkmessenger.com</div>
+</div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const seg=(t,a,b)=>clamp((t-a)/(b-a));
+const eo=x=>1-Math.pow(1-x,3), ei=x=>x*x*x, eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const back=x=>{const c=1.7;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
+const lerp=(a,b,u)=>a+(b-a)*u;
+function T(el,x,y,s=1,r=0,o=1){el.style.transform=`translate(${x}px,${y}px) rotate(${r}deg) scale(${s})`;el.style.opacity=o}
+
+/* ---------- Dibujos ---------- */
+const SKIN={a:'#8D5524',b:'#C68642',c:'#5C3A21',d:'#E0AC69'};
+function domino(a,b,w=34){const h=w*2,p=(n,cy)=>{const s=w/4,pos={0:[],1:[[2,2]],2:[[1,1],[3,3]],3:[[1,1],[2,2],[3,3]],4:[[1,1],[3,1],[1,3],[3,3]],5:[[1,1],[3,1],[2,2],[1,3],[3,3]],6:[[1,1],[3,1],[1,2],[3,2],[1,3],[3,3]]}[n];return pos.map(([x,y])=>`<circle cx="${x*s}" cy="${cy+y*s}" r="${w*.075}" fill="#1a1a1a"/>`).join('')};
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect x="1" y="1" width="${w-2}" height="${h-2}" rx="${w*.18}" fill="#F7F3E8" stroke="#CFC6B0" stroke-width="2"/><path d="M${w*.15} ${w} h${w*.7}" stroke="#333" stroke-width="2"/>${p(a,0)}${p(b,w)}</svg>`}
+function person({skin,shirt,cap,capC='#E8283E',hair='#1a1a1a',must=false,glasses=false,name}){
+  // medio cuerpo sentado (detrás de la mesa). Brazos con clase para animar.
+  return `<svg width="150" height="190" viewBox="0 0 150 190">
+   <g class="armL" style="transform-origin:42px 112px;transform-box:view-box"><path d="M42 112 L24 160" stroke="${shirt}" stroke-width="20" stroke-linecap="round"/><circle cx="24" cy="164" r="10" fill="${skin}"/></g>
+   <path d="M30 190 V122 Q30 98 75 98 Q120 98 120 122 V190z" fill="${shirt}"/>
+   <path d="M62 98 l13 16 13-16" fill="#00000022"/>
+   <rect x="66" y="78" width="18" height="24" rx="6" fill="${skin}" style="filter:brightness(.85)"/>
+   <g class="head" style="transform-origin:75px 80px;transform-box:view-box">
+    <ellipse cx="48" cy="58" rx="6" ry="9" fill="${skin}"/><ellipse cx="102" cy="58" rx="6" ry="9" fill="${skin}"/>
+    <ellipse cx="75" cy="55" rx="27" ry="31" fill="${skin}"/>
+    ${cap?`<path d="M47 46 Q48 20 75 20 Q102 20 103 46z" fill="${capC}"/><path d="M95 44 q22 0 30 7 q-14 3 -32 0z" fill="${capC}" style="filter:brightness(.8)"/><text x="75" y="40" text-anchor="middle" font-family="Inter" font-weight="900" font-size="11" fill="#fff">${cap}</text>`:`<path d="M48 48 Q48 20 75 22 Q102 20 102 48 Q98 32 75 32 Q52 32 48 48z" fill="${hair}"/>`}
+    <circle cx="65" cy="58" r="3.6" fill="#1a1a1a"/><circle cx="85" cy="58" r="3.6" fill="#1a1a1a"/>
+    <path d="M58 49 q7 -4 13 0M79 49 q7 -4 13 0" stroke="#1a1a1a" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    ${glasses?`<circle cx="65" cy="58" r="9" fill="none" stroke="#222" stroke-width="2.4"/><circle cx="85" cy="58" r="9" fill="none" stroke="#222" stroke-width="2.4"/><path d="M74 58h2" stroke="#222" stroke-width="2.4"/>`:''}
+    <path d="M73 60 q2 8 -1 11" stroke="#00000040" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    ${must?`<path d="M63 73 q12 -6 24 0 q-12 4 -24 0z" fill="#2a2a2a"/>`:''}
+    <g class="mouth"><path d="M66 76 q9 7 18 0" stroke="#5a1f12" stroke-width="3" fill="none" stroke-linecap="round"/></g>
+    <g class="mouthO" style="opacity:0"><ellipse cx="75" cy="78" rx="8" ry="7" fill="#5a1f12"/><path d="M69 76 h12" stroke="#fff" stroke-width="3"/></g>
+   </g>
+   <g class="armR" style="transform-origin:108px 112px;transform-box:view-box"><path d="M108 112 L126 160" stroke="${shirt}" stroke-width="20" stroke-linecap="round"/><circle cx="126" cy="164" r="10" fill="${skin}"/><g class="tileInHand" style="opacity:0"><g transform="translate(116 150) rotate(-15)">${domino(6,6,22)}</g></g></g>
+  </svg>`}
+
+const COLMADO_BG=`<svg width="540" height="960" viewBox="0 0 540 960">
+ <defs><linearGradient id="nsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B1C45"/><stop offset="1" stop-color="#26306a"/></linearGradient>
+ <radialGradient id="bulb"><stop offset="0" stop-color="#FFE9A8"/><stop offset=".35" stop-color="#FFC53188"/><stop offset="1" stop-color="#FFC53100"/></radialGradient>
+ <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b5a4a"/><stop offset="1" stop-color="#3b2f25"/></linearGradient></defs>
+ <rect width="540" height="960" fill="url(#nsky)"/>
+ ${[[40,40],[120,90],[300,30],[420,80],[500,140],[200,120]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="1.8" fill="#fff" opacity=".7"/>`).join('')}
+ <rect x="0" y="170" width="540" height="520" fill="#1FA39A"/>
+ <rect x="0" y="170" width="540" height="18" fill="#178077"/>
+ <rect x="40" y="196" width="460" height="86" rx="10" fill="#FFD23F" stroke="#C99A00" stroke-width="4"/>
+ <text x="270" y="236" text-anchor="middle" font-family="Inter Display" font-weight="900" font-size="38" fill="#E8283E" letter-spacing="1">COLMADO</text>
+ <text x="270" y="268" text-anchor="middle" font-family="Inter Display" font-weight="900" font-size="25" fill="#0D2A66" letter-spacing="3">LA ESQUINA</text>
+ <rect x="60" y="300" width="420" height="300" fill="#2b2118"/>
+ ${[0,1,2,3].map(r=>`<rect x="72" y="${318+r*66}" width="396" height="8" fill="#8a6a45"/>`+Array.from({length:14},(_,i)=>{const c=['#E8283E','#FFD23F','#3D8BFF','#2EAD6B','#F28C28','#fff'][(i*7+r*3)%6];const h=30+((i*5+r*2)%3)*8;return `<rect x="${78+i*28}" y="${318+r*66-h}" width="18" height="${h}" rx="4" fill="${c}" opacity=".9"/>`}).join('')).join('')}
+ <rect x="400" y="320" width="70" height="270" rx="6" fill="#d9e6f2" opacity=".9"/><rect x="408" y="330" width="54" height="250" rx="4" fill="#9fd3ff" opacity=".5"/>
+ <path d="M0 160 Q135 200 270 170 T540 165" stroke="#333" stroke-width="2" fill="none"/>
+ ${Array.from({length:9},(_,i)=>{const x=20+i*63,y=168+Math.sin(i*1.1)*10+ (i%2?14:4);return `<circle cx="${x}" cy="${y+8}" r="34" fill="url(#bulb)"/><circle cx="${x}" cy="${y+8}" r="7" fill="#FFE9A8"/>`}).join('')}
+ <rect x="0" y="600" width="540" height="360" fill="url(#floor)"/>
+ <rect x="0" y="596" width="540" height="10" fill="#00000040"/>
+ <g opacity=".85"><rect x="10" y="560" width="60" height="44" rx="6" fill="#E8283E"/><rect x="18" y="604" width="8" height="60" fill="#c0212f"/><rect x="54" y="604" width="8" height="60" fill="#c0212f"/></g>
+ <g><rect x="470" y="520" width="56" height="80" rx="10" fill="#222"/><circle cx="498" cy="545" r="14" fill="#444"/><circle cx="498" cy="580" r="10" fill="#444"/></g>
+</svg>`;
+const TABLE=`<svg width="540" height="400" viewBox="0 0 540 400"><ellipse cx="270" cy="60" rx="250" ry="62" fill="#5a3a22"/><ellipse cx="270" cy="52" rx="246" ry="58" fill="#7a5332"/><ellipse cx="270" cy="52" rx="230" ry="50" fill="#8b6240"/>
+ <path d="M80 100 L60 400 M460 100 L480 400" stroke="#4a2e18" stroke-width="18" stroke-linecap="round"/></svg>`;
+
+function juanStanding(phone=false){return `<svg width="220" height="440" viewBox="0 0 220 440">
+ <path d="M80 300 L70 420 M140 300 L150 420" stroke="#e9e9ef" stroke-width="30" stroke-linecap="round"/>
+ <path d="M62 424 h30 M138 424 h34" stroke="#111" stroke-width="16" stroke-linecap="round"/>
+ <path d="M58 300 V190 Q58 160 110 160 Q162 160 162 190 V300z" fill="#fff"/>
+ <path d="M58 300 V190 Q58 160 110 160 Q162 160 162 190 V300z" fill="none" stroke="#0D2A66" stroke-width="4"/>
+ <text x="110" y="232" text-anchor="middle" font-family="Inter Display" font-weight="900" font-size="30" fill="#0D2A66">23</text>
+ <rect x="56" y="292" width="108" height="16" fill="#0D2A66"/>
+ <g class="armL" style="transform-origin:66px 182px;transform-box:view-box"><path d="M66 182 L30 262" stroke="#fff" stroke-width="24" stroke-linecap="round"/><path d="M14 248 q-6 30 16 40 q30 4 30 -24 q-2 -26 -24 -28 q-20 0 -22 12z" fill="#8B4A1F"/></g>
+ <rect x="99" y="132" width="22" height="32" rx="8" fill="${SKIN.a}" style="filter:brightness(.85)"/>
+ <g class="head" style="transform-origin:110px 140px;transform-box:view-box">
+  <ellipse cx="80" cy="104" rx="7" ry="10" fill="${SKIN.a}"/><ellipse cx="140" cy="104" rx="7" ry="10" fill="${SKIN.a}"/>
+  <ellipse cx="110" cy="100" rx="31" ry="35" fill="${SKIN.a}"/>
+  <path d="M78 90 Q78 58 110 58 Q142 58 142 90z" fill="#E8283E"/><path d="M78 88 q-28 -2 -34 8 q16 4 36 0z" fill="#b81d2f"/><text x="112" y="84" text-anchor="middle" font-family="Inter" font-weight="900" font-size="13" fill="#fff">J</text>
+  <g class="eyes"><circle cx="98" cy="102" r="4" fill="#1a1a1a"/><circle cx="122" cy="102" r="4" fill="#1a1a1a"/></g>
+  <g class="eyesO" style="opacity:0"><circle cx="98" cy="102" r="7" fill="#fff" stroke="#1a1a1a" stroke-width="2"/><circle cx="98" cy="102" r="3.5" fill="#1a1a1a"/><circle cx="122" cy="102" r="7" fill="#fff" stroke="#1a1a1a" stroke-width="2"/><circle cx="122" cy="102" r="3.5" fill="#1a1a1a"/></g>
+  <path d="M90 92 q8 -5 15 0M115 92 q8 -5 15 0" stroke="#1a1a1a" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <g class="mouth"><path d="M99 120 q11 8 22 0" stroke="#5a1f12" stroke-width="3.4" fill="none" stroke-linecap="round"/></g>
+  <g class="mouthO" style="opacity:0"><path d="M97 116 q13 22 26 0z" fill="#5a1f12"/><path d="M99 117 h22" stroke="#fff" stroke-width="3"/></g>
+ </g>
+ <g class="armR" style="transform-origin:154px 182px;transform-box:view-box"><path d="M154 182 L186 258" stroke="#fff" stroke-width="24" stroke-linecap="round"/><circle cx="188" cy="262" r="12" fill="${SKIN.a}"/>
+  <g class="ph" style="opacity:${phone?1:0}"><rect x="176" y="222" width="28" height="50" rx="6" fill="#111"/><rect x="179" y="226" width="22" height="40" rx="3" fill="#3D8BFF"/></g></g>
+</svg>`}
+
+const PLAY_BG=`<svg width="540" height="960" viewBox="0 0 540 960"><defs><linearGradient id="dsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2F86E8"/><stop offset="1" stop-color="#A8DDFF"/></linearGradient></defs>
+ <rect width="540" height="960" fill="url(#dsky)"/><circle cx="440" cy="140" r="54" fill="#FFE27A"/><circle cx="440" cy="140" r="80" fill="#FFE27A" opacity=".25"/>
+ ${[[60,250],[160,270],[380,260],[500,250]].map(([x,y])=>`<path d="M${x} ${y+170} C${x+4} ${y+110} ${x-2} ${y+60} ${x-8} ${y}" stroke="#6B4423" stroke-width="7" fill="none"/><g fill="#2E8B47"><path d="M${x-8} ${y} q-34 -6 -54 14 q26 -10 54 -14z"/><path d="M${x-8} ${y} q30 -18 58 -6 q-30 -2 -58 6z"/><path d="M${x-8} ${y} q-16 -28 -44 -30 q24 12 44 30z"/><path d="M${x-8} ${y} q8 -30 36 -38 q-22 16 -36 38z"/></g>`).join('')}
+ <rect y="420" width="540" height="540" fill="#4CAF50"/><rect y="420" width="540" height="14" fill="#3e9443"/>
+ <path d="M-40 960 Q270 560 580 960z" fill="#C9884A"/><path d="M90 960 Q270 690 450 960z" fill="#4CAF50"/>
+ <rect x="250" y="760" width="40" height="40" fill="#fff" transform="rotate(45 270 780)"/>
+ <g stroke="#9aa6b2" stroke-width="2" opacity=".7">${Array.from({length:14},(_,i)=>`<path d="M${i*40} 340 l40 80 M${i*40+40} 340 l-40 80"/>`).join('')}</g><rect y="336" width="540" height="6" fill="#7d8894"/>
+</svg>`;
+
+const CALLE_BG=`<svg width="540" height="960" viewBox="0 0 540 960"><defs><linearGradient id="ssky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF7A59"/><stop offset=".6" stop-color="#FFC371"/><stop offset="1" stop-color="#FFE3A3"/></linearGradient></defs>
+ <rect width="540" height="960" fill="url(#ssky)"/><circle cx="270" cy="330" r="70" fill="#FFF1C1" opacity=".9"/>
+ ${[['#FF6FA8',0,120],['#FFD23F',120,150],['#3DB2FF',270,130],['#7BE495',400,140]].map(([c,x,w],i)=>`<rect x="${x}" y="${380+i%2*20}" width="${w}" height="${300-i%2*20}" fill="${c}"/><rect x="${x}" y="${370+i%2*20}" width="${w}" height="16" fill="#00000025"/>${[0,1].map(k=>`<rect x="${x+18+k*(w/2)}" y="${430+i%2*20}" width="${w/2-36}" height="60" rx="4" fill="#ffffffaa" stroke="#00000030"/>`).join('')}<rect x="${x+w/2-18}" y="${560}" width="36" height="120" fill="#8a5a3b"/>`).join('')}
+ <path d="M0 360 Q140 400 280 372 T540 380" stroke="#333" stroke-width="2.5" fill="none"/><path d="M0 330 Q160 370 300 344 T540 350" stroke="#333" stroke-width="2" fill="none"/>
+ <rect y="680" width="540" height="280" fill="#555"/><rect y="680" width="540" height="12" fill="#999"/>
+ ${[0,1,2,3,4].map(i=>`<rect x="${i*120+20}" y="810" width="70" height="10" rx="5" fill="#FFD23F"/>`).join('')}
+</svg>`;
+
+const MOTO=`<svg width="300" height="210" viewBox="0 0 130 90"><circle cx="26" cy="68" r="15" fill="#151a2b"/><circle cx="26" cy="68" r="6" fill="#b9c2d6"/><circle cx="102" cy="68" r="15" fill="#151a2b"/><circle cx="102" cy="68" r="6" fill="#b9c2d6"/><path d="M26 68 52 50h32l18 18" stroke="#3a4152" stroke-width="5" fill="none" stroke-linejoin="round"/><path d="M44 44h44l9 13H40z" fill="#E8283E"/><path d="M84 46 90 22" stroke="#2a2f3d" stroke-width="5" stroke-linecap="round"/><path d="M84 22h14" stroke="#2a2f3d" stroke-width="5" stroke-linecap="round"/>
+ <path d="M30 44q2-20 14-24h8q6 8-1 24z" fill="#fff" stroke="#0D2A66" stroke-width="1.5"/><circle cx="46" cy="10" r="9" fill="${SKIN.a}"/><path d="M37 8q0-10 9-10t9 10z" fill="#E8283E"/><path d="M54 6q8 0 10 3h-10z" fill="#b81d2f"/>
+ <path d="M50 44q2-22 16-26h8q6 8-1 26z" fill="#2E6BFF"/><path d="M70 28l16-4" stroke="#7a4a2c" stroke-width="5" stroke-linecap="round"/><circle cx="70" cy="13" r="10" fill="#7a4a2c"/><path d="M60 12a10 10 0 0 1 20 0z" fill="#FFC531"/></svg>`;
+
+/* ---------- Montaje ---------- */
+const P=[ // jugadores del colmado
+ {name:'Pedro',o:{skin:SKIN.b,shirt:'#2E6BFF',cap:'P',capC:'#0D2A66'},x:10,y:470},
+ {name:'Chago',o:{skin:SKIN.c,shirt:'#2EAD6B',must:true},x:195,y:420},
+ {name:'Don Luis',o:{skin:SKIN.d,shirt:'#F28C28',glasses:true,must:true,hair:'#bbb'},x:380,y:470},
+ {name:'Juan',o:{skin:SKIN.a,shirt:'#fff',cap:'J',capC:'#E8283E'},x:195,y:420},
+];
+$('colBg').innerHTML=COLMADO_BG;
+$('players').innerHTML=P.map((p,i)=>`<div class="abs pl" id="pl${i}" style="width:150px;height:190px">${person(p.o)}</div>`).join('');
+$('tableFront').innerHTML=TABLE;
+$('playBg').innerHTML=PLAY_BG;$('calleBg').innerHTML=CALLE_BG;$('moto').innerHTML=MOTO;
+$('juanP').innerHTML=juanStanding(false);
+$('ball').innerHTML=`<svg width="30" height="30" viewBox="0 0 60 60"><circle cx="30" cy="30" r="28" fill="#fff" stroke="#d9dbe3" stroke-width="2"/><path d="M14 10q10 20 0 40M46 10q-10 20 0 40" stroke="#E8283E" stroke-width="3" fill="none"/></svg>`;
+$('tiles').innerHTML=['Motoconcho','Guagua','Dominó','Gallo','Apagón','Santa'].map((n,i)=>`<div class="tile${n==='Dominó'?' on':''}">${n==='Dominó'?domino(3,5,20):'<svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="12" fill="'+['#E8283E','#FFD23F','','#2EAD6B','#333','#C8102E'][i]+'"/></svg>'}<span>${n}</span></div>`).join('');
+// fichas en la mesa
+const TABLE_TILES=[[3,5],[5,5],[5,1],[1,6],[6,6],[6,2],[2,4],[4,4]];
+$('tilesTop').innerHTML=TABLE_TILES.map((d,i)=>`<div class="abs tt" id="tt${i}" style="width:26px;height:52px">${domino(d[0],d[1],26)}</div>`).join('')+`<div class="abs tt" id="ttJ" style="width:26px;height:52px">${domino(4,3,26)}</div>`;
+$('phFx').innerHTML=Array.from({length:7},(_,i)=>`<div class="abs pd" id="pd${i}" style="width:30px;height:60px">${domino([3,5,1,6,2,4,3][i],[5,1,6,2,4,3,3][i],30)}</div>`).join('')+`<div class="stamp" id="phStamp" style="top:250px;font-size:46px;-webkit-text-stroke-width:8px">¡CAPICÚA!</div>`;
+const MSG="Juan, ven al colmado que falta uno pa'l dominó";
+
+// Escenas: [id, inicio, fin]
+const SC={colmado:[0,7.2],movil:[7.0,13.6],play:[13.4,21.2],calle:[21.0,25.6],colmado2:[25.4,31.8],end:[31.6,37.5]};
+window.TOTAL=37.5;
+function vis(id,t,a,b,f=.35){const o=Math.min(seg(t,a,a+f),1-seg(t,b-f,b));$(id).style.opacity=o;return o>0}
+function pill(id,t,a,b){const u=Math.min(seg(t,a,a+.3),1-seg(t,b-.3,b));T($(id),0,(1-eo(seg(t,a,a+.3)))*-20,1,0,u)}
+function bubble(id,t,a,b){const u=seg(t,a,a+.28),v=seg(t,b-.2,b);const el=$(id);const s=u<1?.4+.6*back(u):1-.1*v;el.style.transform=`scale(${s})`;el.style.transformOrigin=el.classList.contains('l')?'15% 100%':'85% 100%';el.style.opacity=u>0&&v<1?(1-v):0}
+function stamp(id,t,a,d=1.4){const u=seg(t,a,a+.25),v=seg(t,a+d-.3,a+d);const s=u<1?2.4-1.4*eo(u):1+.05*Math.sin((t-a)*10)*(1-v);$(id).style.transform=`scale(${s}) rotate(-6deg)`;$(id).style.opacity=u>0?1-v:0}
+function talk(pi,t,a,b){const on=t>a&&t<b&&Math.floor(t*9)%2===0;const el=$('pl'+pi);el.querySelector('.mouth').style.opacity=on?0:1;el.querySelector('.mouthO').style.opacity=on?1:0}
+function arm(pi,side,deg){$('pl'+pi).querySelector('.arm'+side).style.transform=`rotate(${deg}deg)`}
+
+function seek(t){
+  // ---- Colmado (dos momentos) ----
+  const inA=t<SC.colmado[1], inB=t>=SC.colmado2[0];
+  const cOn=vis('colmado',t,inA?0:SC.colmado2[0],inA?SC.colmado[1]:SC.colmado2[1],inA?.5:.4);
+  if(cOn){
+    const zoom=inA?1.06-.06*eio(seg(t,0,7)):1.0+.05*eio(seg(t,25.4,31.8));
+    T($('colBg'),0,0,zoom);
+    const four=inB;
+    const seats=four?[[0,480],[130,430],[260,430],[390,480]]:[[10,470],[195,420],[380,470]];
+    [0,1,2,3].forEach(i=>{const el=$('pl'+i);if(i===3&&!four){el.style.opacity=0;return}const idx=four?(i===3?2:(i===2?3:i)):i;const [x,y]=seats[four?[0,1,3,2][i]:i];
+      const bob=Math.sin(t*2.2+i)*2;T(el,x,y+bob,1,0,1)});
+    T($('tableFront'),0,600,1);
+    // fichas en la mesa: van apareciendo
+    const slams=inA?[0.6,1.6,2.6,4.2,5.4]:[25.6,26.4,27.2];
+    TABLE_TILES.forEach((d,i)=>{const at=inA?(i<3?-1:slams[Math.min(i-3,slams.length-1)]+(i-3)*.0):-1;const shown=inA?(i<3||t>at):true;
+      const x=150+i*30,y=618+(i%2)*4;const pop=inA&&i>=3?seg(t,at,at+.15):1;T($('tt'+i),x,y-(1-pop)*40,1,90+(d[0]===d[1]?0:0),shown?1:0)});
+    // ficha de Juan (capicúa)
+    const J=inB?seg(t,27.4,27.7):0;T($('ttJ'),150+8*30,618-(1-eo(J))*120,1+(1-J)*.6,90-(1-J)*40,inB&&t>27.4?1:0);
+    // brazos: golpes de ficha
+    if(inA){arm(0,'R',t>.5&&t<.8?-40:0);arm(1,'R',t>1.5&&t<1.8?-40:0);arm(2,'L',t>2.5&&t<2.8?40:0);arm(2,'R',(t>3.6&&t<6)?-70+8*Math.sin(t*12):0);arm(1,'L',0);arm(0,'L',0)}
+    else{const up=t>27.8?-120+10*Math.sin(t*14):0;arm(0,'L',t>27.8?110:0);arm(0,'R',up);arm(1,'R',up);arm(1,'L',t>27.8?110:0);arm(2,'L',t>27.8?110:0);arm(2,'R',up);arm(3,'R',t>27.0&&t<27.5?-60:(t>27.8?up:0));arm(3,'L',0)}
+    const sh=(inB&&t>27.4&&t<27.9)?Math.sin(t*90)*6:0;$('players').style.transform=`translate(${sh}px,0)`;$('tilesTop').style.transform=`translate(${sh}px,0)`;
+    talk(1,t,1.2,3.4);talk(2,t,3.6,6.0);talk(0,t,26.0,27.0);talk(3,t,28.0,30.5);talk(2,t,26.0,27.2);
+    pill('cap1',t,inA?.4:99,inA?6.8:99);
+    bubble('say1',t,1.1,3.5);bubble('say2',t,3.6,6.4);bubble('say5',t,25.9,27.3);
+    stamp('stamp5',t,27.7,2.6);
+  }
+  // ---- Móvil ----
+  if(vis('movil',t,...SC.movil,.4)){
+    const u=eo(seg(t,7.0,7.7));T($("ph"),100,120+(1-u)*400,1+.04*eio(seg(t,7.7,13)),0,1);
+    const typed=Math.floor(MSG.length*seg(t,7.9,9.7));const sentNow=t>=10.9;
+    $('field').innerHTML=sentNow?'<span class="ph">Mensaje</span>':(typed?MSG.slice(0,typed)+(Math.floor(t*4)%2?'<span class="caret"></span>':''):'<span class="ph">Mensaje</span>');
+    // dedo que mantiene pulsado «enviar»
+    $('finger').innerHTML=$('finger').innerHTML||`<svg width="70" height="90" viewBox="0 0 70 90"><path d="M20 90 V30 q0-12 12-12 t12 12 V50 l12 4 q10 4 8 16 L58 90z" fill="${SKIN.b}" stroke="#00000030" stroke-width="2"/><circle cx="32" cy="22" r="18" fill="#ffffff40"/></svg>`;
+    const fin=t>9.8&&t<11.0;const press=t>10.0&&t<10.9;T($('finger'),360,780+(press?0:20),1,0,fin?1:0);
+    const sh=seg(t,10.2,10.4)*(1-seg(t,10.75,10.9));$('sheet').style.opacity=sh;$('sheet').style.transform=`translateY(${(1-sh)*30}px)`;
+    $('sent').style.opacity=seg(t,10.9,11.1);$('sent').style.transform=`scale(${.8+.2*eo(seg(t,10.9,11.2))})`;
+    // efecto dominó dentro del móvil
+    for(let i=0;i<7;i++){const x=20+i*40,y=330,drop=seg(t,11.1+i*.05,11.4+i*.05),fall=seg(t,11.9+i*.13,12.15+i*.13);
+      const el=$('pd'+i);el.style.transformOrigin='100% 100%';T(el,x,y-(1-eo(drop))*220,1,78*ei(fall),t>11.1&&t<13.4?1:0)}
+    stamp('phStamp',t,12.5,1.0);
+    pill('cap2',t,7.5,10.6);
+  }
+  // ---- Play de pelota ----
+  if(vis('play',t,...SC.play,.4)){
+    T($('playBg'),0,0,1.04-.04*eio(seg(t,13.4,21)));
+    const jx=170,jy=430;const run=0;T($('juanP'),jx,jy,1.15,0,1);
+    const J=$('juanP');
+    // la bola llega y la coge (13.8 → 15.0)
+    const bu=seg(t,13.7,15.0);T($('ball'),lerp(520,190,bu),lerp(160,640,bu)-Math.sin(bu*Math.PI)*260,1,bu*720,t>13.7&&t<15.0?1:0);
+    J.querySelector('.armL').style.transform=`rotate(${t>14.6&&t<16?-50:0}deg)`;
+    // saca el móvil (15.8) y lo mira
+    const look=t>15.9;J.querySelector('.ph').style.opacity=look?1:0;J.querySelector('.armR').style.transform=`rotate(${look?-95:0}deg)`;
+    const surprise=t>17.0&&t<18.6;J.querySelector('.eyes').style.opacity=surprise?0:1;J.querySelector('.eyesO').style.opacity=surprise?1:0;
+    const talking=t>18.6&&t<20.3&&Math.floor(t*9)%2===0;J.querySelector('.mouth').style.opacity=talking||surprise?0:1;J.querySelector('.mouthO').style.opacity=talking||surprise?1:0;
+    J.querySelector('.head').style.transform=`rotate(${look?8:0}deg)`;
+    const n=seg(t,16.0,16.35),nv=seg(t,18.3,18.6);T($('notif'),0,(1-eo(n))*-140,1,0,n>0?1-nv:0);
+    pill('cap3',t,13.7,15.8);bubble('say3',t,18.6,20.8);
+    // vibración
+    const vib=t>15.9&&t<16.6?Math.sin(t*120)*3:0;J.style.marginLeft=vib+'px';
+  }
+  // ---- Calle: motoconcho ----
+  if(vis('calle',t,...SC.calle,.35)){
+    const u=seg(t,21.1,25.4);const x=lerp(-320,560,eio(u)),y=640+Math.sin(t*14)*3;T($('moto'),x,y,1,-2+Math.sin(t*7)*2,1);
+    // humo: bolitas deterministas detrás de la moto
+    let h='';for(let k=0;k<26;k++){const t0=21.1+k*.16;if(t<t0||t>t0+1)continue;const uu=seg(t0,21.1,25.4),px=lerp(-320,560,eio(uu))+10,a=(t-t0);h+=`<div style="position:absolute;left:${px-a*60}px;top:${y+150-a*30}px;width:${20+a*30}px;height:${20+a*30}px;border-radius:50%;background:#e6ebf5;opacity:${(1-a)*.8}"></div>`}
+    $('puffs').innerHTML=h;
+    pill('cap4',t,21.3,25.2);stamp('piip',t,22.3,1.6);
+  }
+  // ---- Final ----
+  if(vis('end',t,...SC.end,.5)){
+    const a=seg(t,31.8,32.4);$('logo').style.transform=`scale(${.5+.5*back(a)}) rotate(${(1-a)*-12}deg)`;$('logo').style.opacity=a;
+    [['endT',32.2],['endP',32.5],['chips',32.8],['cta',33.2],['url',33.5]].forEach(([id,s])=>{const v=seg(t,s,s+.35);$(id).style.opacity=v;$(id).style.transform=`translateY(${(1-eo(v))*24}px)`});
+    const pulse=t>33.6?1+.03*Math.sin((t-33.6)*5):1;$('cta').style.transform+=` scale(${pulse})`;
+  }
+}
+window.seek=seek;seek(0);
+</script></body></html>
