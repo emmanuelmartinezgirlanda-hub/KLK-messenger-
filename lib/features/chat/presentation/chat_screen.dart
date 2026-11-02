@@ -219,17 +219,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// Enviar con efecto de pantalla (KLK Plus): ✨ o mantener pulsado «Enviar».
   Future<void> _sendWithEffect() async {
-    if (_input.text.trim().isEmpty) {
-      _snack(tr('Escribe primero el mensaje'));
-      return;
-    }
     if (!plusActive.value) {
       await showPlusRequired(context, 'Enviar con efectos');
       return;
     }
     HapticFeedback.mediumImpact();
+    // Se cierra el teclado para que el dibujo se vea en toda la pantalla.
+    FocusScope.of(context).unfocus();
+    if (_emoji) setState(() => _emoji = false);
     final id = await pickScreenEffect(context);
     if (id == null || !mounted) return;
+    // Sin texto escrito, se envía la frase del efecto («¡Voy pa' allá!»…).
+    if (_input.text.trim().isEmpty) _input.text = effectById(id)?.msg ?? '✨';
     await _send(fx: id);
   }
 
@@ -1256,7 +1257,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 : (seen ?? '');
     final live = typing || recording || seen == tr('en línea');
 
-    return Scaffold(
+    // Los efectos de pantalla se dibujan sobre todo el chat, justo encima del
+    // teclado (si está abierto), para que se vean enteros.
+    return Stack(children: [
+      Scaffold(
       appBar: _searching
           ? AppBar(
               leading: IconButton(
@@ -1417,8 +1421,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 },
               );
             }),
-            // Efectos de pantalla de KLK Plus (por encima de los mensajes).
-            Positioned.fill(child: ScreenEffectLayer(chatId: widget.chatId)),
           ]),
         ),
         ColoredBox(
@@ -1442,7 +1444,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         ),
       ]),
-    );
+    ),
+      Positioned(
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+        child: ScreenEffectLayer(chatId: widget.chatId),
+      ),
+    ]);
   }
 
   Widget _pinnedBar(Message m, ColorScheme cs) => Material(
@@ -1612,12 +1622,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onPressed: _toggleEmoji,
               icon: Icon(_emoji ? Icons.keyboard_outlined : Icons.emoji_emotions_outlined, color: muted),
             ),
+            IconButton(
+              tooltip: tr('Enviar con efecto'),
+              onPressed: _sendWithEffect,
+              icon: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFE0A030)),
+            ),
             if (hasText) ...[
-              IconButton(
-                tooltip: tr('Enviar con efecto'),
-                onPressed: _sendWithEffect,
-                icon: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFE0A030)),
-              ),
               IconButton(
                 tooltip: tr('Programar mensaje'),
                 onPressed: _schedule,
