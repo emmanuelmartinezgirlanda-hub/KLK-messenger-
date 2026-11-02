@@ -101,6 +101,7 @@ flutter:
     - assets/stickers/
     - assets/icon/alt/
     - assets/sounds/
+    - assets/sounds/llamada/
     - assets/sounds/stickers/
 
 flutter_launcher_icons:

@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/config.dart';
 import '../../core/notify/alerts.dart';
+import '../plus/plus_state.dart';
 import '../../core/l10n/l10n.dart';
 import '../../core/translate/translator.dart';
 import '../messaging/app_controller.dart';
@@ -562,10 +563,13 @@ class CallController extends ChangeNotifier {
 
   void _startRinging() {
     if (Alerts.instance.settings.value.sound) {
-      // Tono de llamada: perico ripiao (original de KLK), en bucle.
+      // Tono de llamada elegido en Ajustes → Notificaciones (en bucle). Los de
+      // Plus solo suenan con Plus; si no, el merengue típico.
+      final id = Alerts.instance.settings.value.ring;
+      final plusOnly = klkRings.any((t) => t.id == id && t.plus);
       _ring ??= AudioPlayer();
       _ring!
-          .setAsset('assets/sounds/llamada.wav')
+          .setAsset(ringAsset(plusOnly && !plusActive.value ? defaultRing : id))
           .then((_) => _ring?.setLoopMode(LoopMode.one))
           .then((_) => _ring?.play())
           .catchError((Object e) => debugPrint('Tono de llamada: $e'));

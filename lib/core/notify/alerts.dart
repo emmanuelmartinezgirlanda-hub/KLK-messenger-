@@ -31,6 +31,7 @@ class Alerts with WidgetsBindingObserver {
   static const _previewKey = 'klk.notif.preview';
   static const _vibrateKey = 'klk.notif.vibrate';
   static const _toneKey = 'klk.notif.tone';
+  static const _ringKey = 'klk.call.ring';
   static const _badgeId = 0x7ffffff0;
 
   final _plugin = FlutterLocalNotificationsPlugin();
@@ -106,10 +107,12 @@ class Alerts with WidgetsBindingObserver {
       }
     }
 
-    String tone = 'default';
+    String tone = 'default', ring = defaultRing;
     try {
       final t = await _store.read(_toneKey);
       if (klkTones.any((x) => x.id == t)) tone = t!;
+      final r = await _store.read(_ringKey);
+      if (klkRings.any((x) => x.id == r)) ring = r!;
     } catch (_) {}
     settings.value = AlertSettings(
       sound: await flag(_soundKey),
@@ -117,6 +120,7 @@ class Alerts with WidgetsBindingObserver {
       preview: await flag(_previewKey),
       vibrate: await flag(_vibrateKey),
       tone: tone,
+      ring: ring,
     );
     unawaited(_installTone(tone));
   }
@@ -129,6 +133,7 @@ class Alerts with WidgetsBindingObserver {
       await _store.write(_previewKey, s.preview ? '1' : '0');
       await _store.write(_vibrateKey, s.vibrate ? '1' : '0');
       await _store.write(_toneKey, s.tone);
+      await _store.write(_ringKey, s.ring);
     } catch (_) {}
     unawaited(_installTone(s.tone));
   }
@@ -136,6 +141,23 @@ class Alerts with WidgetsBindingObserver {
   // ---------- Tonos dominicanos ----------
 
   AudioPlayer? _player;
+
+  /// Prueba un tono de llamada (se para con [stopPreview] o al terminar).
+  Future<void> playRing(String id) async {
+    try {
+      final pl = _player ??= AudioPlayer();
+      await pl.setAsset(ringAsset(id));
+      unawaited(pl.play());
+    } catch (e) {
+      debugPrint('Tono de llamada: $e');
+    }
+  }
+
+  Future<void> stopPreview() async {
+    try {
+      await _player?.stop();
+    } catch (_) {}
+  }
 
   /// Suena un tono de KLK (para probarlo o con la app abierta).
   Future<void> playTone(String id) async {
@@ -343,18 +365,23 @@ class AlertSettings {
   final bool sound, show, preview, vibrate;
   /// Tono de los mensajes: 'default' (el del móvil) o uno de [klkTones].
   final String tone;
-  const AlertSettings({this.sound = true, this.show = true, this.preview = true, this.vibrate = true, this.tone = 'default'});
+  /// Tono de llamada: uno de [klkRings].
+  final String ring;
+  const AlertSettings(
+      {this.sound = true, this.show = true, this.preview = true, this.vibrate = true, this.tone = 'default', this.ring = defaultRing});
 
-  AlertSettings copyWith({bool? sound, bool? show, bool? preview, bool? vibrate, String? tone}) => AlertSettings(
+  AlertSettings copyWith({bool? sound, bool? show, bool? preview, bool? vibrate, String? tone, String? ring}) => AlertSettings(
         sound: sound ?? this.sound,
         show: show ?? this.show,
         preview: preview ?? this.preview,
         vibrate: vibrate ?? this.vibrate,
         tone: tone ?? this.tone,
+        ring: ring ?? this.ring,
       );
 }
 
-/// Tonos de KLK (originales, hechos con tool/make_sounds.py). plus = solo con KLK Plus.
+/// Tonos de KLK: grabados con instrumentos reales (hechos en Suno con la cuenta Pro
+/// de KLK, con permiso de uso comercial). plus = solo con KLK Plus.
 class KlkTone {
   final String id, name, emoji;
   final bool plus;
@@ -364,10 +391,38 @@ class KlkTone {
 const klkTones = [
   KlkTone('default', 'Sonido del móvil', '📱'),
   KlkTone('klk', '¡Klk! (marimba)', '🎵'),
-  KlkTone('guira', 'Güira', '🪇'),
-  KlkTone('tambora', 'Tambora', '🥁', plus: true),
-  KlkTone('merengue', 'Merengue', '🎶', plus: true),
-  KlkTone('acordeon', 'Acordeón', '🪗', plus: true),
+  KlkTone('gota', 'Gota de agua', '💧'),
+  KlkTone('cristal', 'Campanitas de cristal', '🔔'),
+  KlkTone('guira', 'Güira y tambora', '🪇'),
+  KlkTone('requinto', 'Requinto de bachata', '🎸', plus: true),
+  KlkTone('acordeon', 'Acordeón típico', '🪗', plus: true),
+  KlkTone('steelpan', 'Steel pan caribeño', '🏝️', plus: true),
+  KlkTone('kalimba', 'Kalimba', '🎶', plus: true),
+  KlkTone('piano', 'Piano', '🎹', plus: true),
+  KlkTone('pajarito', 'Pajarito', '🐦', plus: true),
+  KlkTone('silbido', 'Silbidito', '😗', plus: true),
+  KlkTone('arpa', 'Arpa', '✨', plus: true),
 ];
 
 String toneName(String id) => klkTones.firstWhere((t) => t.id == id, orElse: () => klkTones.first).name;
+
+/// Tonos de llamada (assets/sounds/llamada/<id>.m4a), suenan en bucle.
+const defaultRing = 'merengue';
+const klkRings = [
+  KlkTone('merengue', 'Merengue típico', '🪗'),
+  KlkTone('telefono', 'Teléfono clásico', '☎️'),
+  KlkTone('marimba', 'Marimba alegre', '🎵'),
+  KlkTone('bachata', 'Bachata romántica', '🎸', plus: true),
+  KlkTone('orquesta', 'Merengue de orquesta', '🎷', plus: true),
+  KlkTone('dembow', 'Dembow', '🔥', plus: true),
+  KlkTone('salsa', 'Salsa', '💃', plus: true),
+  KlkTone('palos', 'Palos (tambores)', '🥁', plus: true),
+  KlkTone('steelpan', 'Steel pan caribeño', '🏝️', plus: true),
+  KlkTone('poplatino', 'Pop latino', '🎤', plus: true),
+  KlkTone('lofi', 'Piano tranquilo', '🌙', plus: true),
+  KlkTone('navidad', 'Navidad', '🎄', plus: true),
+];
+
+String ringName(String id) => klkRings.firstWhere((t) => t.id == id, orElse: () => klkRings.first).name;
+String ringAsset(String id) =>
+    'assets/sounds/llamada/${klkRings.any((t) => t.id == id) ? id : defaultRing}.m4a';
