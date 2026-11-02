@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../effects/screen_effects.dart';
 import '../../messaging/models.dart';
 import '../../theming/domain/klk_theme.dart';
 import 'media_bubbles.dart';
@@ -94,6 +95,17 @@ class MessageBubble extends StatelessWidget {
         ],
         if (scheduled) ...[
           Icon(Icons.schedule, size: 13, color: fg.withValues(alpha: 0.7)),
+          const SizedBox(width: 3),
+        ],
+        if (message.fx != null && !message.deleted && effectById(message.fx) != null) ...[
+          // ✨ Tocar para volver a ver el efecto de pantalla.
+          GestureDetector(
+            onTap: () => playScreenEffect(message.chatId, message.fx!),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 2),
+              child: Icon(Icons.auto_awesome_rounded, size: 14, color: Color(0xFFE0A030)),
+            ),
+          ),
           const SizedBox(width: 3),
         ],
         if (message.starred && !message.deleted) ...[

@@ -190,6 +190,7 @@ class Message {
   final DateTime? editedAt; // si se editó después de enviarlo
   final bool starred; // destacado ⭐ (solo en mi móvil)
   final LinkPreview? link; // vista previa del enlace del texto
+  final String? fx; // efecto de pantalla de KLK Plus (id), si se envió con uno
 
   const Message({
     required this.id,
@@ -210,6 +211,7 @@ class Message {
     this.editedAt,
     this.starred = false,
     this.link,
+    this.fx,
   });
 
   bool get isMine => kind == MessageKind.outgoing;
@@ -259,6 +261,7 @@ class Message {
         editedAt: editedAt ?? this.editedAt,
         starred: starred ?? this.starred,
         link: clearLink ? null : (link ?? this.link),
+        fx: fx,
       );
 
   Message withStatus(MessageStatus s) => copyWith(status: s);
@@ -282,6 +285,7 @@ class Message {
         'edited_at': editedAt?.millisecondsSinceEpoch,
         'starred': starred ? 1 : 0,
         'link_json': link == null ? null : jsonEncode(link!.toJson()),
+        'fx': fx,
       };
 
   factory Message.fromRow(Map<String, Object?> r) => Message(
@@ -311,6 +315,7 @@ class Message {
         link: r['link_json'] == null
             ? null
             : LinkPreview.fromJson((jsonDecode(r['link_json'] as String) as Map).cast<String, dynamic>()),
+        fx: r['fx'] as String?,
       );
 }
 
@@ -436,6 +441,7 @@ class MessageMedia {
     this.transcript,
     this.san,
     this.biz,
+    this.fx,
   });
 
   bool get hasFile =>
@@ -729,6 +735,7 @@ class Payload {
   final Map<String, dynamic>? about; // profile: mi «Info» ({t, u})
   final Map<String, dynamic>? san; // san: un cambio (pago, terminar…)
   final Map<String, dynamic>? biz; // biz: cambio de estado de un pedido o cita
+  final String? fx; // text: efecto de pantalla de KLK Plus
 
   const Payload({
     required this.kind,
@@ -778,6 +785,7 @@ class Payload {
         if (about != null) 'ab': about,
         if (san != null) 'sn': san,
         if (biz != null) 'bz': biz,
+        if (fx != null) 'fx': fx,
       }));
 
   factory Payload.decode(List<int> bytes) {
@@ -806,6 +814,7 @@ class Payload {
       about: map('ab'),
       san: map('sn'),
       biz: map('bz'),
+      fx: j['fx'] is String && (j['fx'] as String).length <= 32 ? j['fx'] as String : null,
     );
   }
 }

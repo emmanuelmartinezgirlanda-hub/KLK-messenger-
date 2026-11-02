@@ -63,6 +63,10 @@ class LocalDb {
   static const _v8 = [
     'ALTER TABLE messages ADD COLUMN sender_id TEXT',
   ];
+  // Efectos de pantalla de KLK Plus.
+  static const _v9 = [
+    'ALTER TABLE messages ADD COLUMN fx TEXT',
+  ];
 
   /// Ruta del archivo (para la copia de seguridad).
   static Future<String> filePath() async => p.join(await klkDatabasesPath(), _file);
@@ -72,7 +76,7 @@ class LocalDb {
     final db = await openKlkDatabase(
       p.join(dir, _file),
       key: key,
-      version: 8,
+      version: 9,
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await _migrate(db, 'ALTER TABLE messages ADD COLUMN media_json TEXT');
         if (oldVersion < 3) await _migrate(db, 'ALTER TABLE chats ADD COLUMN avatar_path TEXT');
@@ -98,6 +102,11 @@ class LocalDb {
         }
         if (oldVersion < 8) {
           for (final sql in _v8) {
+            await _migrate(db, sql);
+          }
+        }
+        if (oldVersion < 9) {
+          for (final sql in _v9) {
             await _migrate(db, sql);
           }
         }
@@ -128,7 +137,7 @@ class LocalDb {
             media_json TEXT
           )''');
         await db.execute('CREATE INDEX messages_chat_idx ON messages(chat_id, created_at)');
-        for (final sql in [..._v4, ..._v5, ..._v6, ..._v7, ..._v8]) {
+        for (final sql in [..._v4, ..._v5, ..._v6, ..._v7, ..._v8, ..._v9]) {
           await db.execute(sql);
         }
       },

@@ -24,6 +24,8 @@ class _Perk {
 }
 
 const _perks = [
+  _Perk(Icons.auto_awesome_rounded, [Color(0xFFFFB347), Color(0xFFE8283E)], 'Efectos de pantalla',
+      'Dibujos que cruzan el chat: motoconcho, Santa, Halloween y más.'),
   _Perk(Icons.handshake_rounded, [Color(0xFF2FAE6B), Color(0xFF1F7A4D)], 'San Plus',
       'Varios sanes a la vez, recordatorios solos e historial en PDF.'),
   _Perk(Icons.graphic_eq_rounded, [Color(0xFFFF5C8A), Color(0xFFD81B60)], 'Sonidos y «Con mi voz»',

@@ -34,6 +34,7 @@ import '../../business/business_screens.dart';
 import '../../contacts/contact_actions.dart';
 import '../../contacts/contact_info_screen.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../effects/screen_effects.dart';
 import '../../plus/plus_screen.dart';
 import '../../plus/plus_state.dart';
 import '../../messaging/custom_stickers.dart';
@@ -216,7 +217,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _typingOff = Timer(const Duration(seconds: 5), () => _app.setTyping(widget.chatId, false));
   }
 
-  Future<void> _send({DateTime? at}) async {
+  /// Enviar con efecto de pantalla (KLK Plus): ✨ o mantener pulsado «Enviar».
+  Future<void> _sendWithEffect() async {
+    if (_input.text.trim().isEmpty) {
+      _snack(tr('Escribe primero el mensaje'));
+      return;
+    }
+    if (!plusActive.value) {
+      await showPlusRequired(context, 'Enviar con efectos');
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    final id = await pickScreenEffect(context);
+    if (id == null || !mounted) return;
+    await _send(fx: id);
+  }
+
+  Future<void> _send({DateTime? at, String? fx}) async {
     final text = _input.text.trim();
     if (text.isEmpty) return;
     _input.clear();
@@ -232,7 +249,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _replyTo = null;
       _mentionQuery = null;
     });
-    await _app.sendText(widget.chatId, text, at: at, replyTo: reply, mentions: mentions);
+    await _app.sendText(widget.chatId, text, at: at, replyTo: reply, mentions: mentions, fx: fx);
     if (at != null) _snack('Mensaje programado para el ${DateFormat.MMMd('es').add_jm().format(at)}');
   }
 
@@ -1400,6 +1417,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 },
               );
             }),
+            // Efectos de pantalla de KLK Plus (por encima de los mensajes).
+            Positioned.fill(child: ScreenEffectLayer(chatId: widget.chatId)),
           ]),
         ),
         ColoredBox(
@@ -1593,12 +1612,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onPressed: _toggleEmoji,
               icon: Icon(_emoji ? Icons.keyboard_outlined : Icons.emoji_emotions_outlined, color: muted),
             ),
-            if (hasText)
+            if (hasText) ...[
+              IconButton(
+                tooltip: tr('Enviar con efecto'),
+                onPressed: _sendWithEffect,
+                icon: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFE0A030)),
+              ),
               IconButton(
                 tooltip: tr('Programar mensaje'),
                 onPressed: _schedule,
                 icon: Icon(Icons.schedule_send_outlined, color: muted),
-              )
+              ),
+            ]
             else
               IconButton(
                 tooltip: tr('Cámara'),
@@ -1609,16 +1634,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
       ),
       const SizedBox(width: 6),
-      SizedBox(
-        width: 48,
-        height: 48,
-        child: FloatingActionButton(
-          heroTag: null,
-          elevation: 1,
-          shape: const CircleBorder(),
-          tooltip: hasText ? tr('Enviar') : 'Grabar nota de voz',
-          onPressed: hasText ? () => _send() : _startRecording,
-          child: Icon(hasText ? Icons.send_rounded : Icons.mic_rounded, size: 24),
+      GestureDetector(
+        // Mantener pulsado «Enviar»: elegir un efecto de pantalla.
+        onLongPress: hasText ? _sendWithEffect : null,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: FloatingActionButton(
+            heroTag: null,
+            elevation: 1,
+            shape: const CircleBorder(),
+            tooltip: hasText ? tr('Enviar') : 'Grabar nota de voz',
+            onPressed: hasText ? () => _send() : _startRecording,
+            child: Icon(hasText ? Icons.send_rounded : Icons.mic_rounded, size: 24),
+          ),
         ),
       ),
     ]);

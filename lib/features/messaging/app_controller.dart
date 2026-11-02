@@ -32,6 +32,7 @@ import '../../core/util/phone.dart';
 import '../privacy/domain/privacy_settings.dart';
 import '../privacy/presentation/privacy_provider.dart';
 import '../communities/community.dart';
+import '../effects/screen_effects.dart';
 import '../plus/plus_state.dart';
 import '../san/san.dart';
 import '../business/business.dart';
@@ -977,9 +978,19 @@ class AppController extends ChangeNotifier {
       replyPreview: p.reply?['p'] as String?,
       expiresAt: exp == null || exp <= 0 ? null : ts.add(Duration(seconds: exp)),
       link: _trustedPreview(p.link, p.text ?? ''),
+      fx: effectById(p.fx)?.id,
     );
     final mentioned = isGroup && (p.mentions?.contains(myId) ?? false);
     await db.addMessage(msg, countUnread: openChatId != chatId);
+    // Efecto de pantalla: se ve ahora si el chat está abierto o al abrirlo.
+    final fx = msg.fx;
+    if (fx != null) {
+      if (openChatId == chatId) {
+        playScreenEffect(chatId, fx);
+      } else {
+        _pendingFx[chatId] = fx;
+      }
+    }
     if (media?.needsDownload ?? false) unawaited(_downloadMedia(msg));
     if (media?.type == MediaType.san) unawaited(_scheduleSan(msg));
     _typingUntil.remove(chatId);
@@ -1377,8 +1388,11 @@ class AppController extends ChangeNotifier {
 
   // ---------- Acciones: mensajes ----------
 
+  /// Efectos de pantalla recibidos con el chat cerrado (se ven al abrirlo).
+  final Map<String, String> _pendingFx = {};
+
   Future<void> sendText(String chatId, String text,
-      {DateTime? at, Message? replyTo, List<String> mentions = const []}) async {
+      {DateTime? at, Message? replyTo, List<String> mentions = const [], String? fx}) async {
     final scheduled = at != null && at.isAfter(DateTime.now());
     final timer = _timerOf(chatId);
     final now = DateTime.now();
@@ -1393,9 +1407,11 @@ class AppController extends ChangeNotifier {
       replyToId: replyTo?.id,
       replyPreview: replyTo == null ? null : _replyPreview(replyTo),
       expiresAt: timer == null ? null : (scheduled ? at : now).add(Duration(seconds: timer)),
+      fx: effectById(fx)?.id,
     );
     await _db!.addMessage(m);
     await _refresh();
+    if (m.fx != null && !scheduled) playScreenEffect(chatId, m.fx!);
 
     // Vista previa del enlace (como mucho 4 s; si no llega, se envía sin ella).
     LinkPreview? link;
@@ -1429,6 +1445,7 @@ class AppController extends ChangeNotifier {
           exp: timer,
           mentions: mentions.isEmpty ? null : mentions,
           link: link?.toJson(),
+          fx: m.fx,
         ),
         ref: m.id,
         deliverAt: scheduled ? at : null,
@@ -3274,6 +3291,13 @@ class AppController extends ChangeNotifier {
 
   Future<void> openChat(String chatId) async {
     openChatId = chatId;
+    final fx = _pendingFx.remove(chatId);
+    if (fx != null) {
+      // Un momento para que la pantalla del chat termine de dibujarse.
+      Future<void>.delayed(const Duration(milliseconds: 700), () {
+        if (openChatId == chatId) playScreenEffect(chatId, fx);
+      });
+    }
     await _db!.clearUnread(chatId);
     await _sendReadReceipts(chatId);
     await _refresh();
