@@ -738,7 +738,7 @@ class _ScreenEffectLayerState extends State<ScreenEffectLayer> with SingleTicker
             alignment: t.origin,
             transform: Matrix4.identity()
               ..rotateZ(k.r)
-              ..scale(k.s, k.s),
+              ..scaleByDouble(k.s, k.s, 1, 1),
             child: OverflowBox(
               minWidth: 0,
               minHeight: 0,
