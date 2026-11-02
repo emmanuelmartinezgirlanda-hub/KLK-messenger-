@@ -441,7 +441,6 @@ class MessageMedia {
     this.transcript,
     this.san,
     this.biz,
-    this.fx,
   });
 
   bool get hasFile =>
@@ -760,6 +759,7 @@ class Payload {
     this.about,
     this.san,
     this.biz,
+    this.fx,
   });
 
   List<int> encode() => utf8.encode(jsonEncode({
