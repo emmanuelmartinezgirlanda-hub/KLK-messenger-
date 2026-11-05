@@ -1,0 +1,45 @@
+02.0 [1.00] Chatea, llama y manda audios a tu gente. Estés donde estés.
+02.1 [1.00] Chatea. Llama y manda audios a tu gente. Estés donde estés.
+02.2 [1.00] Chatea, llama y manda audios a tu gente. Estés donde estés.
+02.3 [1.00] Chatea, llama y manda audios a tu gente. Estés donde estés.
+==> 02 (1.00) fin=3.82
+03.0 [0.92] pasa los audios a texto y a stickers con tu propia voz.
+03.1 [0.87] Pásanos audios a texto y haz stickers con tu propia voz.
+03.2 [0.67] Pásanos a Odios a texto y a stickers con tu propia voz.
+03.3 [0.83] pasan los audios a texto y a stickers con tu propia voz.
+==> 03 (0.92) fin=3.26
+04.0 [0.90] con que lo que mi gente publica tus fotos y coméntalas de tu familia.
+04.1 [0.90] con que lo que mi gente, publica tus fotos y coméntalas de tu familia.
+04.2 [0.90] con que lo que mi gente, publica tus fotos y coméntalas de tu familia.
+04.3 [0.90] con que lo que mi gente publica tus fotos y coméntalas de tu familia.
+==> 04 (0.90) fin=3.88
+05.0 [0.96] Organiza el san, que lo que sortea los turnos y lleva a quien pagó.
+05.1 [0.89] Organiza el San, que lo que sorté a los turnos y lleva quien pagó.
+05.2 [0.89] Organiza el San, que lo que sorte a los turnos y lleva quien pagó.
+05.3 [1.00] Organiza el San, que lo que sortea los turnos y lleva quien pagó.
+==> 05 (1.00) fin=3.88
+06.0 [1.00] ¿Tienes un negocio? Ponlo en que lo que, gratis.
+06.1 [1.00] Tienes un negocio, ponlo en que lo que gratis.
+06.2 [0.59] Tiene su negocio, ponlo en que loque gratis.
+06.3 [0.82] ¿Tienes un negocio? Ponlo en que loque, gratis.
+==> 06 (1.00) fin=2.84
+07.0 [1.00] Sube tus productos con foto y precio y recibe pedidos por el chat.
+07.1 [1.00] Sube tus productos con foto y precio y recibe pedidos por el chat.
+07.2 [1.00] Sube tus productos con foto y precio y recibe pedidos por el chat.
+07.3 [1.00] Sube tus productos con foto y precio y recibe pedidos por el chat.
+==> 07 (1.00) fin=3.76
+08.0 [1.00] y manda mensajes con efectos que cruzan la pantalla. Capicua!
+08.1 [1.00] y manda mensajes con efectos que cruzan la pantalla. Capicúa.
+08.2 [1.00] y manda mensajes con efectos que cruzan la pantalla. Capicua.
+08.3 [0.95] y manda mensajes con efectos que cruzan la pantalla.
+==> 08 (1.00) fin=3.86
+09.0 [1.00] con que lo que plus más efectos, temas y tonos de merengue y bachata.
+09.1 [1.00] con que lo que plus, más efectos, temas y tonos de merengue y bachata.
+09.2 [0.81] con que Loque Plus, Más Efectos, Temas y Tonos de Meringa y Bachata.
+09.3 [1.00] con que lo que plus más efectos, temas y tonos de merengue y bachata.
+==> 09 (1.00) fin=4.66
+10.0 [0.89] y en la próxima actualización, precargas a República Dominicana.
+10.1 [1.00] y en la próxima actualización, recargas a República Dominicana.
+10.2 [1.00] y en la próxima actualización, recargas a República Dominicana.
+10.3 [1.00] y en la próxima actualización, recargas a República Dominicana.
+==> 10 (1.00) fin=3.68
