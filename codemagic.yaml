@@ -90,10 +90,11 @@ workflows:
         script: xcode-project use-profiles
       - name: Compilar IPA firmada
         script: |
-          # App Store: Negocios y Mi Gente encendidos. Plus y dinero (recargas,
-          # remesas) apagados hasta que tengan compras de Apple y proveedor autorizado.
+          # App Store: Negocios, Mi Gente y KLK Plus (suscripciones de Apple) encendidos.
+          # Dinero (recargas, remesas) apagado hasta tener proveedor autorizado.
           flutter build ipa --release \
             --build-number=$((PROJECT_BUILD_NUMBER + 10)) \
+            --dart-define=KLK_PLUS=true \
             --dart-define=KLK_BUSINESS=true \
             --dart-define=KLK_GENTE=true \
             --export-options-plist=/Users/builder/export_options.plist
