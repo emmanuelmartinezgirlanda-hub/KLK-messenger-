@@ -1,0 +1,10 @@
+11.0 [1.00] y es privada de verdad. Solo tú y tu gente pueden leer tus mensajes.
+11.1 [1.00] y es privada de verdad, solo tú y tu gente pueden leer tus mensajes.
+11.2 [1.00] y es privada de verdad, solo tú y tu gente pueden leer tus mensajes.
+11.3 [0.93] y es privada de verdad, solo tú y tu gente puede leer tus mensajes.
+==> 11 (1.00) fin=4.46
+12.0 [0.73] que lo que me sende, descarga la ya en la App Store.
+12.1 [0.82] que lo que me se enlleve. Descargala ya en la App Store.
+12.2 [0.73] que lo que me sendiera. Descarga la ya en la App Store.
+12.3 [0.73] que lo que me sende, descarga la ya en la App Store.
+==> 12 (0.82) fin=3.14
