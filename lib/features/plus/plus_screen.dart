@@ -39,7 +39,7 @@ const _perks = [
   _Perk(Icons.emoji_emotions_rounded, [Color(0xFFFF7A59), Color(0xFFE63946)], 'Stickers exclusivos',
       '12 stickers criollos: ¡El jefe!, ¡Tá en fuego!…'),
   _Perk(Icons.music_note_rounded, [Color(0xFFF4A261), Color(0xFFE76F51)], 'Tonos dominicanos',
-      'Tambora, merengue y acordeón para tus mensajes.'),
+      'Bachata, merengue, güira y más, con instrumentos reales.'),
   _Perk(Icons.cloud_done_rounded, [Color(0xFF8E7BFF), Color(0xFF4A3AFF)], 'Fotos y vídeos, 1 año',
       'Se guardan cifrados un año en vez de 30 días.'),
   _Perk(Icons.verified_rounded, [Color(0xFFFFD86B), Color(0xFFE0A030)], 'Insignia Plus', 'Sale al lado de tu nombre.'),
