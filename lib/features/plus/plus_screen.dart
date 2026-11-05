@@ -146,6 +146,8 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
   final _code = TextEditingController();
   bool _test = false;
   bool _busy = false;
+  // Solo pruebas: ver la pantalla como alguien sin Plus (para capturas).
+  bool _preview = false;
   bool _loadingStore = true;
   String? _icon;
   List<Map<String, dynamic>> _products = const [];
@@ -290,7 +292,8 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
     final perks = _shownPerks;
     return ValueListenableBuilder<bool>(
       valueListenable: plusActive,
-      builder: (context, plus, _) {
+      builder: (context, realPlus, _) {
+        final plus = realPlus && !_preview;
         final until = plusUntilNotifier.value;
         final chosen = _products.where((p) => p['id'] == _chosen).firstOrNull;
         final trial = chosen == null ? null : _trial(chosen);
@@ -601,6 +604,11 @@ class _PlusScreenState extends ConsumerState<PlusScreen> {
                         child: const Text('Activar'),
                       ),
                     ]),
+                    if (realPlus)
+                      TextButton(
+                        onPressed: () => setState(() => _preview = !_preview),
+                        child: Text(_preview ? 'Volver a mi Plus' : 'Ver como alguien sin Plus'),
+                      ),
                   ],
                 ],
               ),
