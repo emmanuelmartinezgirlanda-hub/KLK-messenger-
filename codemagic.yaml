@@ -107,6 +107,7 @@ workflows:
       - name: Firma de código
         script: |
           xcode-project use-profiles
+          ruby tool/watch_sign_like_runner.rb
           # Muestra con qué se firma cada parte (iPhone y reloj)
           xcodebuild -project ios/Runner.xcodeproj -target KLKWatch -configuration Release -showBuildSettings 2>/dev/null | grep -E " (CODE_SIGN_IDENTITY|PROVISIONING_PROFILE_SPECIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE) = " || true
           xcodebuild -project ios/Runner.xcodeproj -target Runner -configuration Release -showBuildSettings 2>/dev/null | grep -E " (CODE_SIGN_IDENTITY|PROVISIONING_PROFILE_SPECIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE) = " || true
