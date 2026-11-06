@@ -1,0 +1,52 @@
+# Comprueba que KLK compila con la app de Apple Watch dentro (sin firmar).
+# Sirve para ver los errores de compilación del reloj sin entrar en Codemagic.
+name: KLK con Apple Watch (comprobación)
+
+on:
+  push:
+    branches: [watch, watch-dev]
+  workflow_dispatch:
+
+concurrency:
+  group: watch-check
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Preparar carpetas nativas (con el reloj)
+        env:
+          KLK_WATCH: "1"
+          KLK_BUILD_NUMBER: "999"
+          KLK_BUILD_NAME: "1.1.0"
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i watch || true
+          bash tool/prepare_native.sh
+      - name: Compilar solo el reloj
+        shell: bash
+        run: |
+          set -o pipefail
+          cd ios
+          xcodebuild -project Runner.xcodeproj -target KLKWatch -configuration Release \
+            -sdk watchos CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ../watch.log | tail -40
+      - name: Compilar iPhone + reloj (sin firma)
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign \
+            --dart-define=KLK_TEST=true --dart-define=KLK_PLUS=true \
+            --dart-define=KLK_BUSINESS=true --dart-define=KLK_GENTE=true 2>&1 | tee build.log | tail -60
+          ls build/ios/iphoneos/Runner.app/Watch || true
+      - name: Errores
+        if: failure()
+        shell: bash
+        run: |
+          grep -h -E "error:|Error \(Xcode\)|fatal" watch.log build.log 2>/dev/null | sort -u | head -80 || true
