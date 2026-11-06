@@ -61,6 +61,14 @@ embed.dst_subfolder_spec = '16'
 embed.dst_path = '$(CONTENTS_FOLDER_PATH)/Watch'
 bf = embed.add_file_reference(watch.product_reference)
 bf.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+# Evita el «Cycle inside Runner»: incrustar el reloj antes de los scripts de Flutter
+# («Run Script» y «Thin Binary»).
+runner.build_phases.delete(embed)
+first_script = runner.build_phases.index { |ph| ph.is_a?(Xcodeproj::Project::Object::PBXShellScriptBuildPhase) && ph.name.to_s =~ /Thin Binary|Run Script/ }
+res = runner.build_phases.index(runner.resources_build_phase)
+pos = [first_script, res && res + 1].compact.min || runner.build_phases.length
+runner.build_phases.insert(pos, embed)
+puts 'Fases del iPhone: ' + runner.build_phases.map { |ph| ph.display_name }.join(' → ')
 
 project.save
 puts "App del reloj añadida (#{bundle})"
