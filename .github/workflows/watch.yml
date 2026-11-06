@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          flutter build ios --config-only --release \
+          flutter build ios --config-only --release --no-codesign \
             --dart-define=KLK_TEST=true --dart-define=KLK_PLUS=true \
             --dart-define=KLK_BUSINESS=true --dart-define=KLK_GENTE=true
           xcodebuild archive -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
