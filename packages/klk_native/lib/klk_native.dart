@@ -171,6 +171,31 @@ class KlkNative {
   static Stream<void> get screenshots =>
       supported ? _shots.receiveBroadcastStream().map((_) {}) : const Stream.empty();
 
+  // ---------- Apple Watch (walkie-talkie) ----------
+
+  static const _watch = EventChannel('klk/watch');
+
+  /// Grabaciones que manda el reloj: {type, chatId, ms, path}.
+  static Stream<Map<String, dynamic>> get watchEvents => supported
+      ? _watch.receiveBroadcastStream().map((e) => Map<String, dynamic>.from(e as Map))
+      : const Stream.empty();
+
+  /// Pasa al reloj la lista de contactos para el walkie: [{id, title}].
+  static Future<void> watchContacts(List<Map<String, String>> contacts) async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod('watchContacts', {'contacts': contacts});
+    } catch (_) {}
+  }
+
+  /// Hace sonar en el reloj un audio de walkie que acaba de llegar.
+  static Future<void> watchPlay(String path, {required String chatId, required String from}) async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod('watchPlay', {'path': path, 'chatId': chatId, 'from': from});
+    } catch (_) {}
+  }
+
   // ---------- KLK Plus con Apple (StoreKit 2) o Google Play (Android) ----------
 
   /// ¿Se puede comprar Plus en este móvil (App Store en iPhone, Google Play en Android)?

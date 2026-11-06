@@ -38,6 +38,7 @@ import '../san/san.dart';
 import '../business/business.dart';
 import 'demo_data.dart';
 import 'models.dart';
+import '../../core/features.dart';
 
 final appProvider = ChangeNotifierProvider<AppController>((ref) => AppController(ref));
 
@@ -581,6 +582,7 @@ class AppController extends ChangeNotifier {
       }
       unawaited(_resumeDownloads());
       unawaited(_registerPush());
+      _startWatchLink();
       unawaited(refreshPlus());
       unawaited(_loadAnnouncements());
       unawaited(_ensureSignalKeys());
@@ -2834,6 +2836,48 @@ class AppController extends ChangeNotifier {
   final _walkieIn = StreamController<({String chatId, String path, String id})>.broadcast();
   Stream<({String chatId, String path, String id})> get walkieIncoming => _walkieIn.stream;
 
+  // ---------- Apple Watch (walkie-talkie) ----------
+
+  bool _watchStarted = false;
+  String _watchSig = '';
+
+  /// Escucha las grabaciones del reloj y las manda como walkie (cifradas, como siempre).
+  void _startWatchLink() {
+    if (_watchStarted || !kWalkieFeatures || !Platform.isIOS || isDemo) return;
+    _watchStarted = true;
+    KlkNative.watchEvents.listen((e) async {
+      final chatId = e['chatId'] as String? ?? '';
+      final path = e['path'] as String? ?? '';
+      if (chatId.isEmpty || path.isEmpty || chatById(chatId) == null) return;
+      try {
+        await sendMedia(chatId, MessageMedia(
+          type: MediaType.audio,
+          localPath: path,
+          mime: 'audio/mp4',
+          name: walkieAudioName,
+          durationMs: (e['ms'] as num?)?.toInt() ?? 0,
+          size: await File(path).length(),
+        ));
+      } catch (err) {
+        debugPrint('Walkie del reloj: $err');
+      }
+    }, onError: (_) {});
+    _syncWatchContacts();
+  }
+
+  /// Le pasa al reloj los chats de persona a persona (los primeros 25).
+  void _syncWatchContacts() {
+    if (!_watchStarted) return;
+    final list = [
+      for (final c in chats.where((c) => !c.isGroup && !c.hidden && !c.isNotes).take(25))
+        {'id': c.id, 'title': c.title},
+    ];
+    final sig = list.map((m) => '${m['id']}=${m['title']}').join('|');
+    if (sig == _watchSig) return;
+    _watchSig = sig;
+    unawaited(KlkNative.watchContacts(list));
+  }
+
   Future<void> _downloadMedia(Message msg) async {
     final media = msg.media;
     if (media == null || !media.needsDownload || _downloading.contains(msg.id) || _api == null) return;
@@ -2843,7 +2887,10 @@ class AppController extends ChangeNotifier {
       final done = media.copyWith(localPath: path);
       await _db?.setMedia(msg.id, done);
       await _refresh();
-      if (done.isWalkie && !msg.isMine) _walkieIn.add((chatId: msg.chatId, path: path, id: msg.id));
+      if (done.isWalkie && !msg.isMine) {
+        _walkieIn.add((chatId: msg.chatId, path: path, id: msg.id));
+        if (_watchStarted) unawaited(KlkNative.watchPlay(path, chatId: msg.chatId, from: chatById(msg.chatId)?.title ?? ''));
+      }
     } catch (e) {
       debugPrint('Descarga de adjunto: $e');
     } finally {
@@ -3502,6 +3549,7 @@ class AppController extends ChangeNotifier {
     final db = _db;
     if (db == null) return;
     chats = await db.chats();
+    _syncWatchContacts();
     statuses = await db.statuses(DateTime.now());
     final open = openChatId;
     if (open != null) _messages[open] = await db.messages(open);

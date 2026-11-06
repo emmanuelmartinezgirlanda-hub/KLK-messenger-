@@ -168,5 +168,11 @@ for g in android/app/build.gradle; do
   fi
 done
 
+
+# iOS: app de Apple Watch (walkie-talkie). Solo con KLK_WATCH=1 (rama "watch").
+if [ "${KLK_WATCH:-0}" = "1" ] && [ -d ios ]; then
+  ruby tool/add_watch_target.rb
+fi
+
 find ios android -name "*.bak" -delete
 echo "Carpetas nativas listas (bundle: $BUNDLE_ID)"

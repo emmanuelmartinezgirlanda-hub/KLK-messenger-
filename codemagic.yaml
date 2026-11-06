@@ -56,6 +56,65 @@ workflows:
         auth: integration
         submit_to_testflight: true
 
+  # ---------- iPhone + Apple Watch (walkie-talkie) → TestFlight ----------
+  # Se lanza subiendo a la rama "watch". Igual que TestFlight, pero con la app del reloj dentro.
+  ios-watch:
+    name: KLK iOS + Watch → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 75
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'watch'
+          include: true
+          source: true
+    integrations:
+      app_store_connect: codemagic key
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.klkapp.klk
+      vars:
+        KLK_PUSH: "1"
+        KLK_WATCH: "1"
+    scripts:
+      - name: Preparar carpetas nativas (con el reloj)
+        script: |
+          export KLK_BUILD_NUMBER=$((PROJECT_BUILD_NUMBER + 100))
+          export KLK_BUILD_NAME=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          echo "KLK_BUILD_NUMBER=$KLK_BUILD_NUMBER" >> $CM_ENV
+          echo "KLK_BUILD_NAME=$KLK_BUILD_NAME" >> $CM_ENV
+          bash tool/prepare_native.sh
+      - name: Perfiles del reloj
+        script: |
+          set -x
+          env | grep -i -E 'APP_STORE_CONNECT|CERTIFICATE' | sed 's/=.*/=***/' || true
+          ls ~/Library/MobileDevice/Provisioning\ Profiles/ || true
+          app-store-connect bundle-ids create com.klkapp.klk.watchkitapp --name "KLK Watch" --platform IOS || true
+          app-store-connect fetch-signing-files com.klkapp.klk.watchkitapp --platform IOS --type IOS_APP_STORE --create || true
+          ls ~/Library/MobileDevice/Provisioning\ Profiles/ || true
+      - name: Firma de código
+        script: xcode-project use-profiles
+      - name: Compilar IPA firmada
+        script: |
+          flutter build ipa --release \
+            --build-number=$KLK_BUILD_NUMBER \
+            --dart-define=KLK_TEST=true \
+            --dart-define=KLK_PLUS=true \
+            --dart-define=KLK_BUSINESS=true \
+            --dart-define=KLK_GENTE=true \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+
   # ---------- iPhone para la App Store (sin cosas de prueba) ----------
   # Se lanza subiendo a la rama "appstore". Esta es la versión que se elige en
   # App Store Connect para enviar a revisión.

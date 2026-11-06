@@ -32,10 +32,14 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     let caps = FlutterEventChannel(name: "klk/captions", binaryMessenger: registrar.messenger())
     caps.setStreamHandler(instance.captions)
     registrar.register(GlassViewFactory(), withId: "klk/glass")
+    let watch = FlutterEventChannel(name: "klk/watch", binaryMessenger: registrar.messenger())
+    watch.setStreamHandler(WatchBridge.shared)
+    WatchBridge.shared.activate()
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     if PlusStore.handle(call, result: result) { return }
+    if WatchBridge.handle(call, result: result) { return }
     switch call.method {
     case "transcribe":
       guard let args = call.arguments as? [String: Any], let path = args["path"] as? String else {
