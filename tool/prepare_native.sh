@@ -24,6 +24,12 @@ if command -v /usr/libexec/PlistBuddy >/dev/null; then
   /usr/libexec/PlistBuddy -c "Delete :CFBundleDisplayName" "$PLIST" 2>/dev/null || true
   /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'KLK messenger'" "$PLIST" 2>/dev/null || true
   /usr/libexec/PlistBuddy -c "Set :CFBundleName KLK" "$PLIST" 2>/dev/null || true
+  # Idioma principal español y los idiomas que trae la app (para la App Store)
+  /usr/libexec/PlistBuddy -c "Set :CFBundleDevelopmentRegion es" "$PLIST" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Delete :CFBundleLocalizations" "$PLIST" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations array" "$PLIST"
+  for l in es en it fr pt; do /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations: string $l" "$PLIST"; done
+  ruby tool/add_localizations.rb || echo "Aviso: no se pudieron añadir los idiomas"
 fi
 # Permisos (textos que ve el usuario cuando KLK los pide)
 if command -v plutil >/dev/null; then
