@@ -99,15 +99,17 @@ workflows:
           # El mismo certificado de distribución que ya instaló ios_signing para el iPhone
           CERTS=$(app-store-connect certificates list --type DISTRIBUTION --type IOS_DISTRIBUTION --json | python3 -c 'import sys,json;d=json.load(sys.stdin);print(" ".join(x["id"] for x in d))')
           echo "Certificados: $CERTS"
-          EXIST=$(app-store-connect profiles list --bundle-id $BID --type IOS_APP_STORE --json 2>/dev/null | python3 -c 'import sys,json;d=json.load(sys.stdin);print(" ".join(x["id"] for x in d if x["attributes"].get("profileState")=="ACTIVE"))' || true)
-          if [ -n "$EXIST" ]; then
-            for P in $EXIST; do app-store-connect profiles get $P --save || true; done
-          else
-            app-store-connect profiles create $BID --certificate-ids $CERTS --type IOS_APP_STORE --name "KLK Watch App Store" --save
+          app-store-connect fetch-signing-files $W --platform IOS --type IOS_APP_STORE 2>&1 | tail -5 || true
+          if ! grep -l "$W" ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision >/dev/null 2>&1; then
+            app-store-connect profiles create $BID --certificate-ids $CERTS --type IOS_APP_STORE --name "KLK Watch App Store $(date +%s)" --save
           fi
           ls ~/Library/MobileDevice/Provisioning\ Profiles/
       - name: Firma de código
-        script: xcode-project use-profiles
+        script: |
+          xcode-project use-profiles
+          # Muestra con qué se firma cada parte (iPhone y reloj)
+          xcodebuild -project ios/Runner.xcodeproj -target KLKWatch -configuration Release -showBuildSettings 2>/dev/null | grep -E " (CODE_SIGN_IDENTITY|PROVISIONING_PROFILE_SPECIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE) = " || true
+          xcodebuild -project ios/Runner.xcodeproj -target Runner -configuration Release -showBuildSettings 2>/dev/null | grep -E " (CODE_SIGN_IDENTITY|PROVISIONING_PROFILE_SPECIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE) = " || true
       - name: Compilar IPA firmada
         script: |
           flutter build ipa --release \

@@ -47,6 +47,9 @@ watch.build_configurations.each do |c|
   s['ASSETCATALOG_COMPILER_APPICON_NAME'] = 'AppIcon'
   s['SKIP_INSTALL'] = 'YES'
   s['CODE_SIGN_STYLE'] = 'Manual'
+  # Mismo certificado que el iPhone (si no, Apple rechaza la app del reloj incrustada)
+  s['CODE_SIGN_IDENTITY'] = 'iPhone Distribution'
+  s['CODE_SIGN_IDENTITY[sdk=watchos*]'] = 'iPhone Distribution'
   s['DEVELOPMENT_TEAM'] = team if team
   # Apple exige la misma versión y número de compilación que la app del iPhone
   s['CURRENT_PROJECT_VERSION'] = ENV.fetch('KLK_BUILD_NUMBER', '1')
