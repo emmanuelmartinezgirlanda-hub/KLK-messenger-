@@ -92,11 +92,20 @@ workflows:
       - name: Perfiles del reloj
         script: |
           set -x
-          env | grep -i -E 'APP_STORE_CONNECT|CERTIFICATE' | sed 's/=.*/=***/' || true
-          ls ~/Library/MobileDevice/Provisioning\ Profiles/ || true
-          app-store-connect bundle-ids create com.klkapp.klk.watchkitapp --name "KLK Watch" --platform IOS || true
-          app-store-connect fetch-signing-files com.klkapp.klk.watchkitapp --platform IOS --type IOS_APP_STORE --create || true
-          ls ~/Library/MobileDevice/Provisioning\ Profiles/ || true
+          W=com.klkapp.klk.watchkitapp
+          app-store-connect bundle-ids create $W --name "KLK Watch" --platform IOS || true
+          BID=$(app-store-connect bundle-ids list --bundle-id-identifier $W --json | python3 -c 'import sys,json;d=json.load(sys.stdin);print([x for x in d if x["attributes"]["identifier"]=="'$W'"][0]["id"])')
+          echo "Bundle ID del reloj: $BID"
+          # El mismo certificado de distribución que ya instaló ios_signing para el iPhone
+          CERTS=$(app-store-connect certificates list --type DISTRIBUTION --type IOS_DISTRIBUTION --json | python3 -c 'import sys,json;d=json.load(sys.stdin);print(" ".join(x["id"] for x in d))')
+          echo "Certificados: $CERTS"
+          EXIST=$(app-store-connect profiles list --bundle-id $BID --type IOS_APP_STORE --json 2>/dev/null | python3 -c 'import sys,json;d=json.load(sys.stdin);print(" ".join(x["id"] for x in d if x["attributes"].get("profileState")=="ACTIVE"))' || true)
+          if [ -n "$EXIST" ]; then
+            for P in $EXIST; do app-store-connect profiles get $P --save || true; done
+          else
+            app-store-connect profiles create $BID --certificate-ids $CERTS --type IOS_APP_STORE --name "KLK Watch App Store" --save
+          fi
+          ls ~/Library/MobileDevice/Provisioning\ Profiles/
       - name: Firma de código
         script: xcode-project use-profiles
       - name: Compilar IPA firmada
