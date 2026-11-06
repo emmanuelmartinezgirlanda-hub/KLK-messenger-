@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"sync"
 	"time"
@@ -12,8 +13,9 @@ import (
 // Memory es una implementación en memoria para desarrollo y tests.
 type Memory struct {
 	mu        sync.Mutex
-	accounts  map[string]Account // por ID
-	byPhone   map[string]string  // phone -> accountID
+	owner     map[string]json.RawMessage // ajustes del dueño (panel)
+	accounts  map[string]Account         // por ID
+	byPhone   map[string]string          // phone -> accountID
 	devices   map[devKey]Device
 	byToken   map[string]devKey
 	signed    map[devKey]SignedPreKey

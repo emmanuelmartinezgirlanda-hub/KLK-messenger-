@@ -82,6 +82,7 @@ type RegisterParams struct {
 
 type Store interface {
 	PushStore
+	OwnerSettings
 	PlusStore
 	BusinessStore
 	BusinessImageStore
