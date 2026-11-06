@@ -42,6 +42,8 @@ import '../../messaging/stickers.dart';
 import 'media_bubbles.dart';
 import 'message_bubble.dart';
 import 'starred_screen.dart';
+import '../../walkie/walkie_screen.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../security/safety_number_screen.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -85,11 +87,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   DateTime? _recStart;
   Timer? _recTimer;
 
+  // Walkie-talkie: con el chat abierto, lo que te mandan por walkie suena solo.
+  StreamSubscription? _walkieSub;
+  AudioPlayer? _walkiePlayer;
+
   @override
   void initState() {
     super.initState();
     _app = ref.read(appProvider);
     _app.openChat(widget.chatId);
+    if (kWalkieFeatures) {
+      _walkieSub = _app.walkieIncoming
+          .where((w) => w.chatId == widget.chatId && WalkieScreen.activeChat != widget.chatId && !_recording)
+          .listen((w) async {
+        try {
+          final pl = _walkiePlayer ??= AudioPlayer();
+          HapticFeedback.heavyImpact();
+          await pl.setFilePath(w.path);
+          await pl.play();
+        } catch (_) {}
+      });
+    }
     final initial = widget.initialText;
     if (initial != null && initial.isNotEmpty) _input.text = initial;
     // Refresca la "hora de allá" cada minuto.
@@ -115,6 +133,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _walkieSub?.cancel();
+    _walkiePlayer?.dispose();
     _typingOff?.cancel();
     _clock?.cancel();
     _presenceTimer?.cancel();
@@ -1292,6 +1312,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         titleSpacing: 0,
         actions: [
           if (!(chat?.isGroup ?? false) && !blocked && !(chat?.isNotes ?? false)) ...[
+            if (kWalkieFeatures)
+              IconButton(
+                tooltip: tr('Walkie-talkie'),
+                icon: const Icon(Icons.settings_voice_outlined),
+                onPressed: () => Navigator.of(context)
+                    .push(MaterialPageRoute(builder: (_) => WalkieScreen(chatId: widget.chatId))),
+              ),
             IconButton(
               tooltip: tr('Videollamada'),
               icon: const Icon(Icons.videocam_outlined),

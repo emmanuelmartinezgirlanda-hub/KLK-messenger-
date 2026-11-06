@@ -2830,14 +2830,20 @@ class AppController extends ChangeNotifier {
 
   // ---------- Descargas ----------
 
+  /// Audios del walkie-talkie que acaban de llegar (ya descargados), para que suenen solos.
+  final _walkieIn = StreamController<({String chatId, String path, String id})>.broadcast();
+  Stream<({String chatId, String path, String id})> get walkieIncoming => _walkieIn.stream;
+
   Future<void> _downloadMedia(Message msg) async {
     final media = msg.media;
     if (media == null || !media.needsDownload || _downloading.contains(msg.id) || _api == null) return;
     _downloading.add(msg.id);
     try {
       final path = await _fetchMedia(media);
-      await _db?.setMedia(msg.id, media.copyWith(localPath: path));
+      final done = media.copyWith(localPath: path);
+      await _db?.setMedia(msg.id, done);
       await _refresh();
+      if (done.isWalkie && !msg.isMine) _walkieIn.add((chatId: msg.chatId, path: path, id: msg.id));
     } catch (e) {
       debugPrint('Descarga de adjunto: $e');
     } finally {

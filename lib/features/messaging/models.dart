@@ -365,6 +365,9 @@ String? firstUrl(String text) {
 
 const voiceStickerPrefix = 'klk-sticker:';
 
+/// Nombre que llevan los audios del walkie-talkie (al otro le suenan solos).
+const walkieAudioName = 'klk-walkie';
+
 /// Nombre que llevan los stickers propios (los demás usan el id del sticker del pack).
 const customStickerName = 'custom';
 
@@ -451,6 +454,7 @@ class MessageMedia {
 
   /// Sticker con la voz del usuario: viaja como nota de voz (las versiones
   /// viejas la oyen como un audio normal) con el sticker en el nombre.
+  bool get isWalkie => type == MediaType.audio && name == walkieAudioName;
   bool get isVoiceSticker => type == MediaType.audio && (name?.startsWith(voiceStickerPrefix) ?? false);
   String get voiceStickerId => isVoiceSticker ? name!.substring(voiceStickerPrefix.length) : '';
 

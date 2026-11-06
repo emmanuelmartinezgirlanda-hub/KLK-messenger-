@@ -10,3 +10,8 @@ const bool kMoneyFeatures = bool.fromEnvironment('KLK_MONEY', defaultValue: fals
 /// comentarios). Apagado en la App Store hasta que esté probado: se enciende
 /// con `--dart-define=KLK_GENTE=true` (TestFlight lo lleva encendido).
 const bool kGenteFeatures = bool.fromEnvironment('KLK_GENTE', defaultValue: false);
+
+/// Walkie-talkie: mantener pulsado para hablar; al otro le suena sola.
+/// De momento solo en las versiones de prueba (TestFlight lleva KLK_TEST).
+const bool kWalkieFeatures =
+    bool.fromEnvironment('KLK_WALKIE', defaultValue: bool.fromEnvironment('KLK_TEST'));
