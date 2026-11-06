@@ -37,14 +37,17 @@ jobs:
           cd ios
           xcodebuild -project Runner.xcodeproj -target KLKWatch -configuration Release \
             -sdk watchos CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ../watch.log | tail -40
-      - name: Compilar iPhone + reloj (sin firma)
+      - name: Archivar iPhone + reloj (sin firma, como la App Store)
         shell: bash
         run: |
           set -o pipefail
-          flutter build ios --release --no-codesign \
+          flutter build ios --config-only --release \
             --dart-define=KLK_TEST=true --dart-define=KLK_PLUS=true \
-            --dart-define=KLK_BUSINESS=true --dart-define=KLK_GENTE=true 2>&1 | tee build.log | tail -60
-          ls build/ios/iphoneos/Runner.app/Watch || true
+            --dart-define=KLK_BUSINESS=true --dart-define=KLK_GENTE=true
+          xcodebuild archive -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination generic/platform=iOS -archivePath build/klk.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee build.log | tail -60
+          ls build/klk.xcarchive/Products/Applications/Runner.app/Watch || true
       - name: Errores
         if: failure()
         shell: bash
