@@ -30,6 +30,7 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i watch || true
           bash tool/prepare_native.sh
+          xcodebuild -project ios/Runner.xcodeproj -target KLKWatch -showBuildSettings 2>/dev/null | grep -E " (SDKROOT|SUPPORTED_PLATFORMS|PLATFORM_NAME|EFFECTIVE_PLATFORM_NAME) " || true
       - name: Compilar solo el reloj
         shell: bash
         run: |
