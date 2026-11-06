@@ -68,6 +68,8 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /admin/api/announcements", s.admin(s.adminNewsAdd))
 	mux.HandleFunc("DELETE /admin/api/announcements/{id}", s.admin(s.adminNewsDelete))
 	mux.HandleFunc("GET /admin/api/topups", s.admin(s.adminTopups))
+	mux.HandleFunc("GET /admin/api/expenses", s.admin(s.adminExpenses))
+	mux.HandleFunc("PUT /admin/api/expenses", s.admin(s.adminSaveExpenses))
 	mux.HandleFunc("POST /admin/api/business/{id}/verify", s.admin(s.adminVerifyBusiness))
 	mux.HandleFunc("POST /admin/api/business/{id}/unverify", s.admin(s.adminVerifyBusiness))
 }
