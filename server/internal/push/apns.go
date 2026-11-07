@@ -36,11 +36,19 @@ type Config struct {
 	Sandbox bool   // true solo para apps compiladas desde Xcode en modo desarrollo
 }
 
+// Tokens es lo que APNs necesita de la base de datos.
+type Tokens interface {
+	store.PushStore
+	store.VoIPStore
+	AccountPhone(ctx context.Context, accountID string) (string, error)
+	Username(ctx context.Context, accountID string) (string, error)
+}
+
 // APNs envía avisos a iPhone.
 type APNs struct {
 	cfg    Config
 	key    *ecdsa.PrivateKey
-	tokens store.PushStore
+	tokens Tokens
 	client *http.Client
 	host   string
 	now    func() time.Time
@@ -56,7 +64,7 @@ type APNs struct {
 const minGap = 3 * time.Second
 
 // NewAPNs prepara el envío. Devuelve error si la clave .p8 no es válida.
-func NewAPNs(cfg Config, tokens store.PushStore) (*APNs, error) {
+func NewAPNs(cfg Config, tokens Tokens) (*APNs, error) {
 	key, err := parseP8(cfg.KeyPEM)
 	if err != nil {
 		return nil, err
@@ -123,6 +131,45 @@ func (a *APNs) Notify(_ context.Context, accountID string, deviceID int) {
 	}()
 }
 
+// Ring hace sonar una llamada entrante en el iPhone aunque esté bloqueado
+// (aviso VoIP de PushKit; la app lo enseña con la pantalla de llamada de iPhone).
+// Solo lleva el id de la llamada y quién llama, para que el iPhone le ponga
+// el nombre de su agenda. La llamada en sí sigue cifrada de punta a punta.
+func (a *APNs) Ring(_ context.Context, accountID string, deviceID int, c store.CallInvite) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		tok, err := a.tokens.GetVoIPToken(ctx, accountID, deviceID)
+		if err != nil || tok == "" {
+			return
+		}
+		handle, name := "", ""
+		if ph, err := a.tokens.AccountPhone(ctx, c.From); err == nil && !strings.HasPrefix(ph, "mail:") {
+			handle = ph
+		}
+		if u, err := a.tokens.Username(ctx, c.From); err == nil && u != "" {
+			name = "@" + u
+		}
+		body, _ := json.Marshal(map[string]any{
+			"aps":  map[string]any{},
+			"call": map[string]any{"id": c.ID, "video": c.Video, "from": c.From, "handle": handle, "name": name},
+		})
+		gone, err := a.post(ctx, tok, body, map[string]string{
+			"apns-topic":      a.cfg.Topic + ".voip",
+			"apns-push-type":  "voip",
+			"apns-priority":   "10",
+			"apns-expiration": "0", // si no llega ya, que no llegue tarde
+		})
+		if gone {
+			_ = a.tokens.DeleteVoIPToken(ctx, accountID, deviceID)
+			return
+		}
+		if err != nil {
+			slog.Warn("aviso de llamada", "err", err)
+		}
+	}()
+}
+
 func (a *APNs) allow(token string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -166,6 +213,17 @@ func (a *APNs) send(ctx context.Context, token, text string) (gone bool, err err
 			"thread-id": "klk",
 		},
 	})
+	return a.post(ctx, token, body, map[string]string{
+		"apns-topic":       a.cfg.Topic,
+		"apns-push-type":   "alert",
+		"apns-priority":    "10",
+		"apns-collapse-id": "klk-new",
+		"apns-expiration":  fmt.Sprint(a.now().Add(24 * time.Hour).Unix()),
+	})
+}
+
+// post manda un aviso a Apple. gone=true si el token ya no vale.
+func (a *APNs) post(ctx context.Context, token string, body []byte, headers map[string]string) (gone bool, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.host+"/3/device/"+token, bytes.NewReader(body))
 	if err != nil {
 		return false, err
@@ -175,11 +233,9 @@ func (a *APNs) send(ctx context.Context, token, text string) (gone bool, err err
 		return false, err
 	}
 	req.Header.Set("authorization", "bearer "+jwt)
-	req.Header.Set("apns-topic", a.cfg.Topic)
-	req.Header.Set("apns-push-type", "alert")
-	req.Header.Set("apns-priority", "10")
-	req.Header.Set("apns-collapse-id", "klk-new")
-	req.Header.Set("apns-expiration", fmt.Sprint(a.now().Add(24*time.Hour).Unix()))
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 	res, err := a.client.Do(req)
 	if err != nil {
 		return false, err
