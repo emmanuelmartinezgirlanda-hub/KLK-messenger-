@@ -21,9 +21,10 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
           pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install -q chatterbox-tts soundfile openai-whisper
+          pip install -q soundfile openai-whisper
+          git clone -q --depth 1 -b marketing-keloke "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" out && rm -rf out/.git
       - name: Generar
-        run: python marketing/anuncio/keloke/arreglar.py
+        run: python marketing/anuncio/keloke/palabras.py
       - name: Guardar en la rama marketing-keloke
         if: always()
         run: |
