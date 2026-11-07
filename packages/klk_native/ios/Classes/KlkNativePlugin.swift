@@ -32,6 +32,8 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     let caps = FlutterEventChannel(name: "klk/captions", binaryMessenger: registrar.messenger())
     caps.setStreamHandler(instance.captions)
     registrar.register(GlassViewFactory(), withId: "klk/glass")
+    // Llamadas con el iPhone bloqueado (PushKit + CallKit).
+    Calls.shared.start(messenger: registrar.messenger())
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

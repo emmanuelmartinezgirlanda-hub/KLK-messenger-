@@ -487,6 +487,9 @@ class ApiClient {
 
   Future<void> deletePushToken() => _send('DELETE', '/v1/push-token');
 
+  /// iPhone: token VoIP para que las llamadas suenen con el móvil bloqueado.
+  Future<void> setVoipToken(String token) => _send('PUT', '/v1/voip-token', {'token': token});
+
   /// Borra la cuenta y todo lo suyo del servidor.
   Future<void> deleteAccount() => _send('DELETE', '/v1/account');
 
