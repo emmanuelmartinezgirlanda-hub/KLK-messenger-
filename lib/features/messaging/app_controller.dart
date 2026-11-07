@@ -572,8 +572,13 @@ class AppController extends ChangeNotifier {
         (data) => _queue = _queue.then((_) => _onFrame(data as String)).catchError((Object e) {
           debugPrint('frame: $e');
         }),
-        onDone: _onDisconnect,
-        onError: (Object _) => _onDisconnect(),
+        // Solo cuenta si es la conexión actual (no una vieja cerrada a propósito).
+        onDone: () {
+          if (identical(_ws, ch)) _onDisconnect();
+        },
+        onError: (Object _) {
+          if (identical(_ws, ch)) _onDisconnect();
+        },
         cancelOnError: true,
       );
       for (final frame in _outbox.values) {
@@ -581,6 +586,7 @@ class AppController extends ChangeNotifier {
       }
       unawaited(_resumeDownloads());
       unawaited(_registerPush());
+      unawaited(_registerVoip());
       unawaited(refreshPlus());
       unawaited(_loadAnnouncements());
       unawaited(_ensureSignalKeys());
@@ -644,6 +650,23 @@ class AppController extends ChangeNotifier {
     sessionReplaced = false;
     phase = AppPhase.onboarding;
     notifyListeners();
+  }
+
+  /// Una llamada suena en la pantalla del iPhone (KLK despertada con el móvil
+  /// bloqueado): conectar ya para recibir la oferta. Con [force] se abre una
+  /// conexión nueva por si la vieja se quedó colgada mientras KLK dormía.
+  void wakeForCall({bool force = false}) {
+    if (session == null || session!.isDemo || sessionReplaced) return;
+    final ws = _ws;
+    if (ws != null && force) {
+      _ws = null;
+      unawaited(ws.sink.close().catchError((_) {}));
+    }
+    if (_ws == null) {
+      _retry?.cancel();
+      _backoff = 1;
+      unawaited(_connect());
+    }
   }
 
   void _onDisconnect() {
@@ -1257,16 +1280,16 @@ class AppController extends ChangeNotifier {
   // ---------- Envío ----------
 
   Future<void> _sendEncrypted(String chatId, Payload p,
-      {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
+      {required String ref, DateTime? deliverAt, bool ephemeral = false, Map<String, dynamic>? ring}) async {
     if (isNotesChat(chatId)) return; // las notas nunca salen del móvil
     final chat = await _db!.chat(chatId);
     final key = chat?.identityKey;
     if (key == null) throw StateError('Sin clave del contacto');
-    await _sendTo(chatId, key, p, ref: ref, deliverAt: deliverAt, ephemeral: ephemeral);
+    await _sendTo(chatId, key, p, ref: ref, deliverAt: deliverAt, ephemeral: ephemeral, ring: ring);
   }
 
   Future<void> _sendTo(String accountId, String identityKey, Payload p,
-      {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
+      {required String ref, DateTime? deliverAt, bool ephemeral = false, Map<String, dynamic>? ring}) async {
     final sealed = await _seal(accountId, identityKey, p.encode());
     final frame = jsonEncode({
       't': 'send',
@@ -1279,6 +1302,8 @@ class AppController extends ChangeNotifier {
       if (ephemeral) 'ephemeral': true,
       // Solo los mensajes de verdad piden aviso push (no las confirmaciones de lectura…)
       if (!ephemeral && p.kind == 'text') 'push': 'msg',
+      // Empieza una llamada: el servidor la hace sonar aunque el móvil esté bloqueado.
+      if (ring != null) ...{'push': 'call', 'call': ring},
     });
     if (!ephemeral) _outbox[ref] = frame;
     _ws?.sink.add(frame);
@@ -2953,6 +2978,27 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  String? _voipSent;
+
+  /// Llamadas con el iPhone bloqueado: le da al servidor el token VoIP
+  /// (PushKit) para que pueda hacer sonar una llamada aunque KLK esté cerrada.
+  Future<void> _registerVoip() async {
+    if (isDemo || _api == null || !Platform.isIOS) return;
+    Future<void> send(String token) async {
+      if (token.isEmpty || token == _voipSent || _api == null) return;
+      try {
+        await _api!.setVoipToken(token);
+        _voipSent = token;
+      } catch (e) {
+        debugPrint('Token de llamadas: $e');
+      }
+    }
+
+    KlkCalls.onToken = (t) => unawaited(send(t));
+    final token = await KlkCalls.voipToken();
+    if (token != null) await send(token);
+  }
+
   Future<void> _resumeDownloads() async {
     final db = _db;
     if (db == null) return;
@@ -3022,8 +3068,18 @@ class AppController extends ChangeNotifier {
 
   /// Envía una señal de llamada cifrada. Es efímera: si el otro no está
   /// conectado no se guarda (una llamada no debe sonar horas después).
-  Future<void> sendCallSignal(String chatId, Map<String, dynamic> signal) =>
-      _sendEncrypted(chatId, Payload(kind: 'call', call: signal), ref: 'x-call', ephemeral: true);
+  /// Señales de llamada. La oferta y el colgar se guardan en el servidor (no son
+  /// efímeras) para que lleguen aunque el otro móvil esté bloqueado y KLK se
+  /// despierte unos segundos después; el resto solo va a quien esté conectado.
+  Future<void> sendCallSignal(String chatId, Map<String, dynamic> signal) {
+    final a = signal['a'];
+    final id = (signal['id'] as String?) ?? '';
+    final keep = a == 'offer' || a == 'end';
+    return _sendEncrypted(chatId, Payload(kind: 'call', call: signal),
+        ref: keep ? 'x-call-$id-$a' : 'x-call',
+        ephemeral: !keep,
+        ring: a == 'offer' ? {'id': id, 'video': signal['v'] == true} : null);
+  }
 
   /// Anota la llamada en el chat ("Llamada de voz · 2:31", "Llamada perdida"…).
   Future<void> logCall(String chatId, String text,

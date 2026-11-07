@@ -34,6 +34,53 @@ enum CallPhase { idle, outgoing, incoming, connecting, active, ended }
 class CallController extends ChangeNotifier {
   CallController(this._ref) {
     _app.onCallSignal = _onSignal;
+    // iPhone: llamadas que suenan con el móvil bloqueado (pantalla de llamada del iPhone).
+    KlkCalls.onIncoming = _onCallKitIncoming;
+    KlkCalls.onAnswer = _onCallKitAnswer;
+    KlkCalls.onEnd = _onCallKitEnd;
+    unawaited(KlkCalls.start());
+  }
+
+  /// Llamadas que está enseñando la pantalla de llamada del iPhone (CallKit).
+  final Set<String> _callKit = {};
+  /// Contestó en la pantalla del iPhone antes de que llegara la oferta.
+  String? _answerWhenReady;
+  /// Mis candidatos de red, por si el otro móvil estaba dormido y se los perdió.
+  final List<Map<String, dynamic>> _sentIce = [];
+  AudioPlayer? _ringback;
+
+  void _onCallKitIncoming(String id, bool video, String from) {
+    _callKit.add(id);
+    // Ya suena la pantalla del iPhone: sin el tono de KLK encima.
+    if (phase == CallPhase.incoming && callId == id) {
+      _stopRinging();
+      return;
+    }
+    // KLK estaba dormida: conectar para recibir la oferta. Si a los 3 segundos
+    // no ha llegado, la conexión vieja estaba colgada: se abre otra.
+    _app.wakeForCall();
+    Timer(const Duration(seconds: 3), () {
+      if (callId != id && _callKit.contains(id)) _app.wakeForCall(force: true);
+    });
+  }
+
+  void _onCallKitAnswer(String id) {
+    if (phase == CallPhase.incoming && callId == id) {
+      unawaited(accept());
+    } else if (callId != id) {
+      _answerWhenReady = id; // la oferta aún no ha llegado
+    }
+  }
+
+  void _onCallKitEnd(String id) {
+    _callKit.remove(id);
+    if (_answerWhenReady == id) _answerWhenReady = null;
+    if (callId != id) return;
+    if (phase == CallPhase.incoming) {
+      unawaited(reject());
+    } else if (phase != CallPhase.idle && phase != CallPhase.ended) {
+      unawaited(hangUp());
+    }
   }
 
   final Ref _ref;
@@ -144,8 +191,9 @@ class CallController extends ChangeNotifier {
       await _createPeer();
       final offer = await _pc!.createOffer({'offerToReceiveAudio': true, 'offerToReceiveVideo': video});
       await _pc!.setLocalDescription(offer);
-      await _signal({'a': 'offer', 'sdp': offer.sdp, 'v': video});
+      await _signal({'a': 'offer', 'sdp': offer.sdp, 'v': video, 'ts': DateTime.now().millisecondsSinceEpoch});
       _setPhase(CallPhase.outgoing, 'Sonando…');
+      _startRingback();
       _ringTimeout = Timer(const Duration(seconds: 45), () => _finish('Sin respuesta', notifyPeer: true, missed: true));
     } catch (e) {
       debugPrint('Llamada: $e');
@@ -158,7 +206,12 @@ class CallController extends ChangeNotifier {
     final offer = _pendingOffer;
     if (phase != CallPhase.incoming || offer == null) return;
     _stopRinging();
-    video = video && withVideo;
+    final cid = callId;
+    if (cid != null && _callKit.contains(cid)) unawaited(KlkCalls.answered(cid));
+    // Contestada con el iPhone bloqueado: la cámara no se puede usar en segundo
+    // plano, así que entra como llamada de voz (como en WhatsApp).
+    final foreground = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    video = video && withVideo && foreground;
     speaker = video;
     _setPhase(CallPhase.connecting, 'Conectando…');
     try {
@@ -335,7 +388,18 @@ class CallController extends ChangeNotifier {
     final id = s['id'] as String?;
 
     if (action == 'offer') {
+      if (id != null && id == callId) return; // la misma oferta repetida
+      // Oferta vieja (el móvil estaba apagado): ya no hay nadie esperando.
+      final ts = (s['ts'] as num?)?.toInt();
+      if (id != null && ts != null && DateTime.now().millisecondsSinceEpoch - ts > 60000) {
+        if (_callKit.remove(id)) unawaited(KlkCalls.end(id, reason: 'unanswered'));
+        final v = s['v'] == true;
+        await _app.logCall(from, '📵 ${v ? 'Videollamada' : 'Llamada de voz'} perdida',
+            incoming: true, video: v, missed: true);
+        return;
+      }
       if (busy) {
+        if (id != null && _callKit.remove(id)) unawaited(KlkCalls.end(id, reason: 'declined'));
         // Ya estoy en otra llamada: aviso de que estoy ocupado.
         await _app.sendCallSignal(from, {'a': 'busy', 'id': id});
         return;
@@ -349,9 +413,22 @@ class CallController extends ChangeNotifier {
       _pendingIce.clear();
       _setPhase(CallPhase.incoming, video ? 'Videollamada entrante' : 'Llamada entrante');
       _servers = _app.callServers();
-      _startRinging();
+      if (id != null && await KlkCalls.has(id)) _callKit.add(id);
+      // Si suena la pantalla del iPhone, el tono lo pone el iPhone.
+      if (id == null || !_callKit.contains(id)) _startRinging();
       _openScreen();
       _ringTimeout = Timer(const Duration(seconds: 45), () => _finish('Llamada perdida', missed: true));
+      if (id != null && _answerWhenReady == id) {
+        _answerWhenReady = null;
+        unawaited(accept());
+      }
+      return;
+    }
+
+    // Colgó antes de que mi móvil recibiera la oferta: que deje de sonar el iPhone.
+    if (action == 'end' && id != null && id != callId && _callKit.remove(id)) {
+      unawaited(KlkCalls.end(id));
+      if (_answerWhenReady == id) _answerWhenReady = null;
       return;
     }
 
@@ -378,10 +455,15 @@ class CallController extends ChangeNotifier {
       case 'answer':
         {
           _ringTimeout?.cancel();
+          _stopRinging();
           _setPhase(CallPhase.connecting, 'Conectando…');
           await _pc?.setRemoteDescription(RTCSessionDescription(s['sdp'] as String, 'answer'));
           _remoteSet = true;
           await _drainIce();
+          // Si su móvil estaba bloqueado, se perdió mis candidatos de red: van otra vez.
+          for (final c in List.of(_sentIce)) {
+            await _signal(c);
+          }
         }
       case 'ice':
         {
@@ -452,7 +534,9 @@ class CallController extends ChangeNotifier {
     }
     pc.onIceCandidate = (c) {
       if (c.candidate == null) return;
-      _signal({'a': 'ice', 'c': c.candidate, 'm': c.sdpMid, 'i': c.sdpMLineIndex});
+      final m = <String, dynamic>{'a': 'ice', 'c': c.candidate, 'm': c.sdpMid, 'i': c.sdpMLineIndex};
+      if (!incoming && phase == CallPhase.outgoing) _sentIce.add(m);
+      _signal(m);
     };
     pc.onTrack = (e) {
       if (e.streams.isEmpty) return;
@@ -579,7 +663,27 @@ class CallController extends ChangeNotifier {
     _vibrate = Timer.periodic(const Duration(milliseconds: 1500), (_) => HapticFeedback.heavyImpact());
   }
 
+  /// Tono de espera para quien llama («tuu… tuu…») hasta que el otro conteste.
+  void _startRingback() {
+    if (_ringback != null) return;
+    final p = AudioPlayer();
+    _ringback = p;
+    unawaited(() async {
+      try {
+        await p.setAsset('assets/sounds/tono_espera.wav');
+        await p.setLoopMode(LoopMode.one);
+        await p.setVolume(0.6);
+        if (_ringback == p) await p.play();
+      } catch (e) {
+        debugPrint('Tono de espera: $e');
+      }
+    }());
+  }
+
   void _stopRinging() {
+    final b = _ringback;
+    _ringback = null;
+    if (b != null) unawaited(b.stop().then((_) => b.dispose()).catchError((_) {}));
     final r = _ring;
     _ring = null;
     if (r != null) unawaited(r.stop().then((_) => r.dispose()).catchError((_) {}));
@@ -606,6 +710,11 @@ class CallController extends ChangeNotifier {
     _servers = null;
     final talked = startedAt == null ? null : elapsed;
     final id = chatId;
+    final cid = callId;
+    _sentIce.clear();
+    if (cid != null && _callKit.remove(cid)) {
+      unawaited(KlkCalls.end(cid, reason: talked == null && incoming ? 'unanswered' : 'remote'));
+    }
     _ringTimeout?.cancel();
     _tick?.cancel();
     _stopRinging();

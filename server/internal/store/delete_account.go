@@ -30,6 +30,7 @@ func (m *Memory) DeleteAccount(_ context.Context, acc string) error {
 			delete(m.signed, k)
 			delete(m.prekeys, k)
 			delete(m.push, k)
+			delete(m.voip, k)
 		}
 	}
 	for t, k := range m.byToken {
