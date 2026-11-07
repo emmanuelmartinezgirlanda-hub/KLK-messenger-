@@ -84,6 +84,7 @@ type Store interface {
 	PushStore
 	OwnerSettings
 	PlusStore
+	PlusAdminStore
 	BusinessStore
 	BusinessImageStore
 	GenteStore

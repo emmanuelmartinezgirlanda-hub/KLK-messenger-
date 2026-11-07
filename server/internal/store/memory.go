@@ -31,6 +31,7 @@ type Memory struct {
 	push        map[devKey]PushToken
 	plus        map[string]time.Time
 	appleSubs   map[string]string // originalTransactionId -> cuenta
+	gifts       map[string]*memGift
 	business    map[string]Business
 	bizImages   map[string]BusinessImage
 	gent        *memGente
