@@ -23,7 +23,7 @@ jobs:
           pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install -q chatterbox-tts soundfile openai-whisper
       - name: Generar
-        run: GUION=marketing/anuncio/keloke/** python marketing/anuncio/voz_neutra.py
+        run: python marketing/anuncio/keloke/arreglar.py
       - name: Guardar en la rama marketing-keloke
         if: always()
         run: |
