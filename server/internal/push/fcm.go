@@ -291,3 +291,14 @@ func (m Multi) Notify(ctx context.Context, accountID string, deviceID int) {
 		p.Notify(ctx, accountID, deviceID)
 	}
 }
+
+// Ring pasa la llamada a los que saben hacerla sonar (APNs).
+func (m Multi) Ring(ctx context.Context, accountID string, deviceID int, c store.CallInvite) {
+	for _, p := range m {
+		if r, ok := p.(interface {
+			Ring(context.Context, string, int, store.CallInvite)
+		}); ok {
+			r.Ring(ctx, accountID, deviceID, c)
+		}
+	}
+}

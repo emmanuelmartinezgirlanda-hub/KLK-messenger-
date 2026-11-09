@@ -1,0 +1,28 @@
+# Comprobación del servidor (Go): compila y pasa las pruebas en cada cambio.
+name: Comprobar servidor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/server.yml"
+  workflow_dispatch:
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Compilar
+        run: go mod tidy && go build ./... && go vet ./...
+      - name: Pruebas
+        run: go test ./...

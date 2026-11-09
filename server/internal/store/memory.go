@@ -29,8 +29,10 @@ type Memory struct {
 	communities map[string]map[string]bool // comunidad -> cuentas
 	topups      map[string]Topup
 	push        map[devKey]PushToken
+	voip        map[devKey]string
 	plus        map[string]time.Time
 	appleSubs   map[string]string // originalTransactionId -> cuenta
+	gifts       map[string]*memGift
 	business    map[string]Business
 	bizImages   map[string]BusinessImage
 	gent        *memGente
@@ -155,6 +157,7 @@ func (m *Memory) RegisterPrimary(_ context.Context, p RegisterParams) (Device, e
 	delete(m.signed, k)
 	delete(m.prekeys, k)
 	delete(m.push, k)
+	delete(m.voip, k)
 	for id, e := range m.envelopes {
 		if e.ToAccount == accID && e.ToDevice == 1 {
 			delete(m.envelopes, id)

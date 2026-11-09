@@ -35,6 +35,8 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     let watch = FlutterEventChannel(name: "klk/watch", binaryMessenger: registrar.messenger())
     watch.setStreamHandler(WatchBridge.shared)
     WatchBridge.shared.activate()
+    // Llamadas con el iPhone bloqueado (PushKit + CallKit).
+    Calls.shared.start(messenger: registrar.messenger())
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

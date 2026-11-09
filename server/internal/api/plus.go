@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/klk-app/klk-server/internal/playstore"
+	"github.com/klk-app/klk-server/internal/store"
 )
 
 // PlusCode es un código que activa KLK Plus (para el dueño y pruebas).
@@ -85,16 +86,28 @@ func (s *Server) plusRedeem(w http.ResponseWriter, r *http.Request) {
 			match = c
 		}
 	}
-	if match == nil {
-		writeErr(w, http.StatusBadRequest, "bad_code", "ese código no es válido")
+	now := time.Now()
+	days := 0
+	if match != nil {
+		days = match.Days
+	} else if len(given) >= 6 && len(given) <= 40 {
+		// Código de regalo del panel: vale una sola vez.
+		d, err := s.store.UseGiftCode(r.Context(), given, dev.AccountID, now)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+			return
+		}
+		days = d
+	}
+	if days <= 0 {
+		writeErr(w, http.StatusBadRequest, "bad_code", "ese código no es válido o ya se usó")
 		return
 	}
-	now := time.Now()
 	from := now
 	if cur, err := s.store.PlusUntil(r.Context(), dev.AccountID); err == nil && cur.After(now) {
 		from = cur // si ya tenía Plus, se suma
 	}
-	until := from.Add(time.Duration(match.Days) * 24 * time.Hour)
+	until := from.Add(time.Duration(days) * 24 * time.Hour)
 	if err := s.store.SetPlusUntil(r.Context(), dev.AccountID, until); err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return

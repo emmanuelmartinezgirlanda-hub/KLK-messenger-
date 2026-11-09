@@ -82,8 +82,10 @@ type RegisterParams struct {
 
 type Store interface {
 	PushStore
+	VoIPStore
 	OwnerSettings
 	PlusStore
+	PlusAdminStore
 	BusinessStore
 	BusinessImageStore
 	GenteStore

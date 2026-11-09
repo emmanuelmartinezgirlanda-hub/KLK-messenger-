@@ -55,6 +55,12 @@ type Pusher interface {
 	Notify(ctx context.Context, accountID string, deviceID int)
 }
 
+// Ringer hace sonar una llamada entrante aunque el móvil esté bloqueado
+// (avisos VoIP de iPhone). Es opcional: si el Pusher no lo tiene, no se hace.
+type Ringer interface {
+	Ring(ctx context.Context, accountID string, deviceID int, c store.CallInvite)
+}
+
 type NoopPusher struct{}
 
 func (NoopPusher) Notify(context.Context, string, int) {}
@@ -109,6 +115,38 @@ func (h *Hub) notify(e store.Envelope, delivered bool) {
 	})
 }
 
+// ring hace sonar una llamada: al momento si el móvil no está conectado, o si
+// está conectado pero no confirma enseguida (iPhone en segundo plano o bloqueado).
+// Si la app está abierta, confirma y suena dentro de KLK sin aviso VoIP.
+func (h *Hub) ring(e store.Envelope, delivered bool, c store.CallInvite) {
+	r, ok := h.pusher.(Ringer)
+	if !ok {
+		return
+	}
+	if !delivered {
+		r.Ring(context.Background(), e.ToAccount, e.ToDevice, c)
+		return
+	}
+	wait := h.ackWait
+	if wait > 2*time.Second {
+		wait = 2 * time.Second // una llamada no puede esperar
+	}
+	h.pmu.Lock()
+	defer h.pmu.Unlock()
+	if _, ok := h.waiting[e.ID]; ok {
+		return
+	}
+	h.waiting[e.ID] = time.AfterFunc(wait, func() {
+		h.pmu.Lock()
+		_, still := h.waiting[e.ID]
+		delete(h.waiting, e.ID)
+		h.pmu.Unlock()
+		if still {
+			r.Ring(context.Background(), e.ToAccount, e.ToDevice, c)
+		}
+	})
+}
+
 // acked: el móvil confirmó el mensaje, ya no hace falta avisar.
 func (h *Hub) acked(id string) {
 	h.pmu.Lock()
@@ -156,6 +194,12 @@ type inFrame struct {
 	Ephemeral bool       `json:"ephemeral,omitempty"`
 	Push      string     `json:"push,omitempty"`
 	ID        string     `json:"id,omitempty"`
+	// Call: solo con push "call" (empieza una llamada). Lo único que el
+	// servidor ve de la llamada: su id y si es de vídeo.
+	Call *struct {
+		ID    string `json:"id"`
+		Video bool   `json:"video"`
+	} `json:"call,omitempty"`
 }
 
 type msgFrame struct {
@@ -356,7 +400,11 @@ func (h *Hub) handleSend(ctx context.Context, from store.Device, f inFrame) []by
 			delivered := h.deliver(e, false)
 			// Solo los mensajes de verdad (no confirmaciones de lectura, etc.)
 			// merecen aviso; lo marca el remitente porque el servidor no puede leerlos.
-			if f.Push != "" {
+			if f.Push == "call" {
+				if f.Call != nil && f.Call.ID != "" && len(f.Call.ID) <= 64 {
+					h.ring(e, delivered, store.CallInvite{ID: f.Call.ID, Video: f.Call.Video, From: e.FromAccount})
+				}
+			} else if f.Push != "" {
 				h.notify(e, delivered)
 			}
 		}

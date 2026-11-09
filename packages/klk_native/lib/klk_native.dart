@@ -268,3 +268,67 @@ class KlkNative {
     } catch (_) {}
   }
 }
+
+/// Llamadas con el iPhone bloqueado (PushKit + CallKit). En Android no hace nada.
+///
+/// El iPhone avisa a Dart cuando:
+/// - [onToken]: tiene el token VoIP (hay que dárselo al servidor).
+/// - [onIncoming]: está enseñando una llamada (con la pantalla del iPhone).
+/// - [onAnswer] / [onEnd]: la persona contestó o colgó desde esa pantalla.
+class KlkCalls {
+  static const _ch = MethodChannel('klk/calls');
+
+  static void Function(String token)? onToken;
+  static void Function(String id, bool video, String from)? onIncoming;
+  static void Function(String id)? onAnswer;
+  static void Function(String id)? onEnd;
+
+  static bool _started = false;
+
+  /// Empieza a escuchar al iPhone. Los avisos que llegaron antes se entregan ahora.
+  static Future<void> start() async {
+    if (!Platform.isIOS || _started) return;
+    _started = true;
+    _ch.setMethodCallHandler((call) async {
+      final a = (call.arguments as Map?)?.cast<String, dynamic>() ?? const {};
+      final id = (a['id'] as String?) ?? '';
+      switch (call.method) {
+        case 'token':
+          onToken?.call((a['token'] as String?) ?? '');
+        case 'incoming':
+          onIncoming?.call(id, a['video'] == true, (a['from'] as String?) ?? '');
+        case 'answer':
+          onAnswer?.call(id);
+        case 'end':
+          onEnd?.call(id);
+      }
+      return null;
+    });
+    try {
+      await _ch.invokeMethod('ready');
+    } on MissingPluginException {
+      _started = false;
+    } catch (_) {}
+  }
+
+  static Future<String?> voipToken() => _call<String>('voipToken');
+
+  /// ¿Está sonando esta llamada con la pantalla del iPhone?
+  static Future<bool> has(String id) async => (await _call<bool>('has', {'id': id})) ?? false;
+
+  /// Contesté desde la pantalla de KLK.
+  static Future<void> answered(String id) => _call<void>('answered', {'id': id});
+
+  /// La llamada terminó (reason: remote, unanswered, declined, failed).
+  static Future<void> end(String id, {String reason = 'remote'}) =>
+      _call<void>('end', {'id': id, 'reason': reason});
+
+  static Future<T?> _call<T>(String method, [Map<String, dynamic>? args]) async {
+    if (!Platform.isIOS) return null;
+    try {
+      return await _ch.invokeMethod<T>(method, args);
+    } catch (_) {
+      return null;
+    }
+  }
+}
