@@ -26,6 +26,7 @@ import '../../core/security/secure_store.dart';
 import '../home/tabs_provider.dart';
 import 'account_id_screen.dart';
 import 'backup_screen.dart';
+import '../import/whatsapp_import_screen.dart';
 import '../plus/plus_screen.dart';
 import '../plus/plus_state.dart';
 import '../business/business.dart';
@@ -242,6 +243,13 @@ class SettingsView extends ConsumerWidget {
           subtitle: Text(app.hiddenChats.isEmpty ? tr('Protegidos con tu PIN') : '${app.hiddenChats.length} ocultos · protegidos con tu PIN'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HiddenChatsScreen())),
+        ),
+        ListTile(
+          leading: const Icon(Icons.download_outlined),
+          title: Text(tr('Importar chats de WhatsApp')),
+          subtitle: Text(tr('Trae tus mensajes y fotos a KLK')),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WhatsAppImportScreen())),
         ),
         ListTile(
           leading: const Icon(Icons.cloud_upload_outlined),

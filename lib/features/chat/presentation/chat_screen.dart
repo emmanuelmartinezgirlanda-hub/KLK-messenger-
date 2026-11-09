@@ -19,6 +19,7 @@ import '../../../core/translate/translator.dart';
 import '../../../core/util/phone.dart';
 import '../../calls/call_controller.dart';
 import '../../calls/group_call_controller.dart';
+import '../../import/whatsapp_import_screen.dart';
 import '../../topup/recharge_sheet.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
@@ -55,7 +56,10 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// Algo que hacer nada más abrir: 'call', 'video' o 'info'.
   final String? startAction;
-  const ChatScreen({super.key, required this.chatId, this.initialText, this.startAction});
+
+  /// Abrir con la búsqueda dentro del chat ya escrita (desde «Buscar en todos los chats»).
+  final String? initialSearch;
+  const ChatScreen({super.key, required this.chatId, this.initialText, this.startAction, this.initialSearch});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -97,6 +101,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.initState();
     _app = ref.read(appProvider);
     _app.openChat(widget.chatId);
+    final initialSearch = widget.initialSearch;
+    if (initialSearch != null && initialSearch.isNotEmpty) {
+      _searching = true;
+      _search.text = initialSearch;
+    }
     if (kWalkieFeatures) {
       _walkieSub = _app.walkieIncoming
           .where((w) => w.chatId == widget.chatId && WalkieScreen.activeChat != widget.chatId && !_recording)
@@ -1094,6 +1103,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _menuItem('timer', Icons.timer_outlined, '${tr('Mensajes temporales')} · ${disappearLabel(chat.disappearSec)}'),
       ],
       _menuItem('wallpaper', Icons.wallpaper_outlined, tr('Fondo de pantalla')),
+      _menuItem('importwa', Icons.download_outlined, tr('Importar de WhatsApp')),
       gap,
       if (isContact) _menuItem('safety', Icons.verified_user_outlined, tr('Código de seguridad')),
       if (chat != null && !chat.isNotes)
@@ -1166,6 +1176,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         });
       case 'wallpaper':
         await _pickWallpaper();
+      case 'importwa':
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => WhatsAppImportScreen(chatId: widget.chatId)));
       case 'rename':
         await editContactName(context, _app, chat);
       case 'clear':

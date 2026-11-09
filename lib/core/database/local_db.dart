@@ -227,6 +227,44 @@ class LocalDb {
     });
   }
 
+  /// Busca en todos los chats (menos los ocultos). [kind]: null = texto,
+  /// 'image' = fotos y vídeos, 'link' = enlaces, 'file' = documentos.
+  Future<List<Message>> searchAll(String query, {String? kind, int limit = 80}) async {
+    final q = '%${query.replaceAll('%', r'\%').replaceAll('_', r'\_')}%';
+    final where = <String>['c.hidden = 0', 'm.deleted = 0', 'm.kind != ?'];
+    final args = <Object>[MessageKind.system.index];
+    if (query.isNotEmpty) {
+      where.add("(m.body LIKE ? ESCAPE '\\' OR m.media_json LIKE ? ESCAPE '\\')");
+      args.addAll([q, q]);
+    }
+    switch (kind) {
+      case 'image':
+        where.add("(m.media_json LIKE '%\"t\":\"image\"%' OR m.media_json LIKE '%\"t\":\"video\"%')");
+      case 'link':
+        where.add("(m.body LIKE '%http://%' OR m.body LIKE '%https://%' OR m.body LIKE '%www.%')");
+      case 'file':
+        where.add("m.media_json LIKE '%\"t\":\"file\"%'");
+    }
+    final rows = await _db.rawQuery(
+      'SELECT m.* FROM messages m JOIN chats c ON c.id = m.chat_id WHERE ${where.join(' AND ')} '
+      'ORDER BY m.created_at DESC LIMIT $limit',
+      args,
+    );
+    return rows.map(Message.fromRow).toList();
+  }
+
+  /// Mete muchos mensajes de una vez (chat importado de WhatsApp). No cambia
+  /// la vista previa ni los no leídos del chat.
+  Future<void> importMessages(List<Message> list) async {
+    await _db.transaction((tx) async {
+      final batch = tx.batch();
+      for (final m in list) {
+        batch.insert('messages', m.toRow(), conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
   Future<Message?> message(String id) async {
     final r = await _db.query('messages', where: 'id = ?', whereArgs: [id], limit: 1);
     return r.isEmpty ? null : Message.fromRow(r.first);

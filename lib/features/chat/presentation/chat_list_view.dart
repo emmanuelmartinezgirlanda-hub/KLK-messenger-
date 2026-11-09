@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -142,10 +144,12 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.only(bottom: 24 + MediaQuery.paddingOf(context).bottom),
       // Al final de la lista: «Invita a tu gente» (si no se está buscando)
-      itemCount: top.length + (chats.isEmpty ? 1 : chats.length) + (q.isEmpty ? 1 : 0),
+      itemCount: top.length + (chats.isEmpty ? 1 : chats.length) + 1,
       itemBuilder: (context, i) {
         if (i < top.length) return top[i];
-        if (q.isEmpty && i == top.length + (chats.isEmpty ? 1 : chats.length)) return const InviteCard();
+        if (i == top.length + (chats.isEmpty ? 1 : chats.length)) {
+          return q.isEmpty ? const InviteCard() : _MessageResults(query: _search.text.trim());
+        }
         if (chats.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(40),
@@ -526,5 +530,112 @@ class _ChatTile extends ConsumerWidget {
       ),
       ),
     );
+  }
+}
+
+/// «Buscar en todos los chats»: mensajes, fotos, enlaces y documentos.
+class _MessageResults extends ConsumerStatefulWidget {
+  const _MessageResults({required this.query});
+  final String query;
+
+  @override
+  ConsumerState<_MessageResults> createState() => _MessageResultsState();
+}
+
+class _MessageResultsState extends ConsumerState<_MessageResults> {
+  String? _kind; // null = mensajes, 'image', 'link', 'file'
+  List<Message> _results = const [];
+  String _for = '';
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  @override
+  void didUpdateWidget(_MessageResults old) {
+    super.didUpdateWidget(old);
+    if (old.query != widget.query) {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 250), _run);
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _run() async {
+    final q = widget.query;
+    final key = '$q|$_kind';
+    if (q.length < 2 && _kind == null) {
+      setState(() => _results = const []);
+      return;
+    }
+    final r = await ref.read(appProvider).searchAll(q, kind: _kind);
+    if (!mounted) return;
+    setState(() {
+      _results = r;
+      _for = key;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final app = ref.watch(appProvider);
+    Widget chip(String label, String? kind) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            label: Text(label),
+            selected: _kind == kind,
+            onSelected: (_) {
+              setState(() => _kind = kind);
+              _run();
+            },
+          ),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+        child: Text(tr('En todos los chats'),
+            style: TextStyle(color: cs.primary, fontWeight: FontWeight.w800, fontSize: 13)),
+      ),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(children: [
+          chip(tr('Mensajes'), null),
+          chip('📷 ${tr('Fotos')}', 'image'),
+          chip('🔗 ${tr('Enlaces')}', 'link'),
+          chip('📄 ${tr('Documentos')}', 'file'),
+        ]),
+      ),
+      if (_results.isEmpty && _for.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(tr('Nada encontrado'), style: TextStyle(color: cs.onSurfaceVariant)),
+        ),
+      for (final m in _results)
+        Builder(builder: (context) {
+          final chat = app.chatById(m.chatId);
+          final who = m.kind == MessageKind.outgoing ? tr('Tú') : (m.sender.isNotEmpty ? m.sender : chat?.title ?? '');
+          final text = m.body.isNotEmpty ? m.body : (m.media?.label ?? '');
+          return ListTile(
+            leading: ChatAvatar(id: m.chatId, title: chat?.title ?? '?', photoPath: chat?.avatarPath, radius: 20),
+            title: Text(chat?.title ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text('$who: $text', maxLines: 2, overflow: TextOverflow.ellipsis),
+            trailing: Text(DateFormat.yMd('es').format(m.createdAt),
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ChatScreen(chatId: m.chatId, initialSearch: _kind == null ? widget.query : null))),
+          );
+        }),
+      const SizedBox(height: 24),
+    ]);
   }
 }

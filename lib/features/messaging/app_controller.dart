@@ -2608,6 +2608,22 @@ class AppController extends ChangeNotifier {
     await _refresh();
   }
 
+  /// Busca en todos mis chats (los ocultos no salen).
+  Future<List<Message>> searchAll(String query, {String? kind}) async =>
+      await _db?.searchAll(query, kind: kind) ?? const [];
+
+  /// Mete en un chat los mensajes traídos de WhatsApp (solo en este móvil;
+  /// no se envían a nadie) y deja un aviso en el chat.
+  Future<void> importIntoChat(String chatId, List<Message> list, {required String note}) async {
+    final db = _db;
+    if (db == null) return;
+    for (var i = 0; i < list.length; i += 500) {
+      await db.importMessages(list.sublist(i, i + 500 > list.length ? list.length : i + 500));
+    }
+    await _system(chatId, note);
+    await _refresh();
+  }
+
   Future<void> _system(String chatId, String text) async {
     final db = _db;
     if (db == null || await db.chat(chatId) == null) return;
