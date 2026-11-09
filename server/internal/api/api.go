@@ -149,7 +149,6 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /c/{digits}", s.contactPage)
 	mux.HandleFunc("GET /k/{id}", s.channelPage)
 	mux.HandleFunc("GET /i/{code}", s.invitePage)
-	mux.HandleFunc("GET /u/{user}", s.profilePage)
 
 	s.businessRoutes(mux)
 	s.genteRoutes(mux)
