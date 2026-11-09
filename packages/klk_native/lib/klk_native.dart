@@ -126,6 +126,25 @@ class KlkNative {
   }
 
   /// Iconos alternativos de la app (solo iPhone por ahora).
+  /// Modo belleza en videollamadas (detecta la cara y suaviza la piel antes de enviar
+  /// el vídeo). [level] de 0 (apagado) a 1. Devuelve false si no se pudo aplicar.
+  static bool get supportsBeauty => supported;
+  static Future<bool> setBeauty(String trackId, double level) async {
+    if (!supportsBeauty) return false;
+    try {
+      return await _channel.invokeMethod<bool>('setBeauty', {'track': trackId, 'level': level}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> removeBeauty(String trackId) async {
+    if (!supportsBeauty) return;
+    try {
+      await _channel.invokeMethod('removeBeauty', {'track': trackId});
+    } catch (_) {}
+  }
+
   static bool get supportsAppIcons => supported;
 
   /// Cambia el icono de la app. null = el normal.

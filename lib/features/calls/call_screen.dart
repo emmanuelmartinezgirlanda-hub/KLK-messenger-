@@ -290,6 +290,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             const SizedBox(height: 4),
             Text(tr('La otra persona te ve con el mismo efecto.'), style: const TextStyle(color: Colors.white60)),
             const SizedBox(height: 14),
+            Consumer(builder: (_, ref, __) => _BeautyControl(call: ref.watch(callProvider))),
             Consumer(builder: (_, ref, __) => _FilterStrip(call: ref.watch(callProvider))),
           ]),
         ),
@@ -620,6 +621,55 @@ class _RoundButton extends StatelessWidget {
         Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, shadows: [Shadow(blurRadius: 6, color: Colors.black54)])),
       ],
     ]);
+  }
+}
+
+/// Modo belleza: detecta tu cara y suaviza la piel, con luz y tono favorecedor.
+class _BeautyControl extends StatelessWidget {
+  final CallController call;
+  const _BeautyControl({required this.call});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!call.beautySupported) return const SizedBox.shrink();
+    final on = call.beauty > 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(children: [
+        ChoiceChip(
+          avatar: Text(on ? '✨' : '🙂'),
+          label: Text(tr('Belleza')),
+          selected: on,
+          onSelected: (_) {
+            HapticFeedback.selectionClick();
+            call.setBeauty(on ? 0 : 0.6);
+          },
+          labelStyle: TextStyle(color: on ? const Color(0xFF0B1320) : Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+          selectedColor: Colors.white,
+          backgroundColor: Colors.white24,
+          side: BorderSide.none,
+          showCheckmark: false,
+        ),
+        Expanded(
+          child: AnimatedOpacity(
+            opacity: on ? 1 : 0.35,
+            duration: const Duration(milliseconds: 200),
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: Colors.white,
+                inactiveTrackColor: Colors.white24,
+                thumbColor: Colors.white,
+                overlayColor: Colors.white24,
+              ),
+              child: Slider(
+                value: call.beauty,
+                onChanged: (v) => call.setBeauty(v < 0.05 ? 0 : v),
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
   }
 }
 

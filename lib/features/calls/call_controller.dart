@@ -53,6 +53,12 @@ class CallController extends ChangeNotifier {
   /// Filtro de color de mi cámara y el que eligió el otro (índices de videoFilters).
   int myFilter = 0;
   int remoteFilter = 0;
+
+  /// Modo belleza (0 = apagado, 1 = máximo). Se aplica en mi móvil antes de enviar
+  /// el vídeo, así que el otro me ve ya con la piel suavizada. Se recuerda entre llamadas.
+  static double _lastBeauty = 0;
+  double beauty = _lastBeauty;
+  bool get beautySupported => KlkNative.supportsBeauty;
   DateTime? startedAt;
   String status = '';
 
@@ -211,6 +217,22 @@ class CallController extends ChangeNotifier {
     try {
       await _signal({'a': 'filter', 'f': index});
     } catch (_) {}
+  }
+
+  /// Ajusta el modo belleza de mi cámara.
+  Future<void> setBeauty(double level) async {
+    beauty = level.clamp(0.0, 1.0);
+    _lastBeauty = beauty;
+    notifyListeners();
+    await _applyBeauty();
+  }
+
+  Future<void> _applyBeauty() async {
+    if (!beautySupported) return;
+    for (final t in _local?.getVideoTracks() ?? <MediaStreamTrack>[]) {
+      final id = t.id;
+      if (id != null) await KlkNative.setBeauty(id, beauty);
+    }
   }
 
   /// Activa o quita los subtítulos de lo que dice la otra persona.
@@ -438,6 +460,7 @@ class CallController extends ChangeNotifier {
       'video': video ? {'facingMode': 'user'} : false,
     });
     localRenderer.srcObject = _local;
+    if (video && beauty > 0) await _applyBeauty();
     try {
       await Helper.setSpeakerphoneOn(speaker);
     } catch (_) {}
@@ -610,6 +633,9 @@ class CallController extends ChangeNotifier {
     _tick?.cancel();
     _stopRinging();
 
+    for (final t in _local?.getVideoTracks() ?? <MediaStreamTrack>[]) {
+      if (beautySupported && t.id != null) await KlkNative.removeBeauty(t.id!);
+    }
     for (final t in _local?.getTracks() ?? <MediaStreamTrack>[]) {
       await t.stop();
     }

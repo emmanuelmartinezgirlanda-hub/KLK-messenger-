@@ -67,6 +67,15 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     case "stopLiveCaptions":
       captions.stop()
       result(nil)
+    case "setBeauty":
+      let args = call.arguments as? [String: Any] ?? [:]
+      let track = args["track"] as? String ?? ""
+      let level = args["level"] as? Double ?? 0
+      result(KLKBeauty.setTrack(track, level: level))
+    case "removeBeauty":
+      let args = call.arguments as? [String: Any] ?? [:]
+      KLKBeauty.removeTrack(args["track"] as? String ?? "")
+      result(nil)
     case "isTestFlight":
       // Las versiones de TestFlight llevan un recibo de "sandbox".
       let r = Bundle.main.appStoreReceiptURL?.lastPathComponent ?? ""

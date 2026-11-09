@@ -9,8 +9,10 @@ Pod::Spec.new do |s|
   s.source           = { :path => '.' }
   s.source_files     = 'Classes/**/*'
   s.dependency 'Flutter'
+  # Modo belleza: procesa los fotogramas de la cámara de las videollamadas.
+  s.dependency 'flutter_webrtc'
   s.platform         = :ios, '13.0'
-  s.frameworks       = 'Speech', 'AVFoundation', 'Vision', 'CoreImage', 'UserNotifications', 'StoreKit', 'WatchConnectivity'
+  s.frameworks       = 'Speech', 'AVFoundation', 'Vision', 'CoreImage', 'UserNotifications', 'StoreKit', 'WatchConnectivity', 'Metal'
   s.swift_version    = '5.0'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
 end
