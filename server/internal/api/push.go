@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"regexp"
 	"strings"
@@ -54,6 +55,32 @@ func (s *Server) setPushToken(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deletePushToken(w http.ResponseWriter, r *http.Request) {
 	dev := deviceFrom(r)
 	if err := s.store.DeletePushToken(r.Context(), dev.AccountID, dev.DeviceID); err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// PUT /v1/voip-token: token de PushKit del iPhone para que las llamadas suenen
+// con el móvil bloqueado (pantalla de llamada de Apple).
+func (s *Server) setVoIPToken(w http.ResponseWriter, r *http.Request) {
+	dev := deviceFrom(r)
+	var req struct {
+		Token string `json:"token"`
+	}
+	if !readJSON(w, r, &req) {
+		return
+	}
+	if req.Token != "" && !apnsTokenRe.MatchString(req.Token) {
+		writeErr(w, http.StatusBadRequest, "bad_token", "token de llamadas inválido")
+		return
+	}
+	err := s.store.SetVoIPToken(r.Context(), dev.AccountID, dev.DeviceID, strings.ToLower(req.Token))
+	if errors.Is(err, store.ErrNotFound) {
+		writeErr(w, http.StatusConflict, "no_push_token", "primero hace falta el token de avisos")
+		return
+	}
+	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return
 	}

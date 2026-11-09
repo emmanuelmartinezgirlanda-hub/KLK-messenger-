@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
 )
 
@@ -100,6 +101,44 @@ func parseP8(s string) (*ecdsa.PrivateKey, error) {
 	return ec, nil
 }
 
+// NotifyCall despierta al iPhone con una llamada entrante (PushKit/VoIP): la app
+// enseña la pantalla de llamada de Apple aunque el móvil esté bloqueado.
+// Solo lleva el id de la llamada, quién llama y su nombre visible.
+func (a *APNs) NotifyCall(_ context.Context, accountID string, deviceID int, from string, hint relay.CallHint) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		t, err := a.tokens.GetPushToken(ctx, accountID, deviceID)
+		if err != nil || t.Platform != "apns" || t.VoIP == "" {
+			return
+		}
+		a.mu.Lock()
+		key := "call:" + t.VoIP + ":" + hint.ID
+		_, dup := a.last[key]
+		a.last[key] = a.now()
+		a.mu.Unlock()
+		if dup {
+			return // ya se avisó de esta llamada a este móvil
+		}
+		name := []rune(strings.TrimSpace(hint.Name))
+		if len(name) > 60 {
+			name = name[:60]
+		}
+		body, _ := json.Marshal(map[string]any{
+			"aps": map[string]any{},
+			"klk": map[string]any{"id": hint.ID, "from": from, "v": hint.Video, "n": string(name), "g": hint.Group},
+		})
+		gone, err := a.post(ctx, t.VoIP, body, "voip", a.cfg.Topic+".voip", 0)
+		if gone {
+			_ = a.tokens.SetVoIPToken(ctx, accountID, deviceID, "")
+			return
+		}
+		if err != nil {
+			slog.Warn("aviso de llamada", "err", err)
+		}
+	}()
+}
+
 // Notify avisa (en segundo plano) al dispositivo, si tiene token.
 func (a *APNs) Notify(_ context.Context, accountID string, deviceID int) {
 	go func() {
@@ -166,6 +205,11 @@ func (a *APNs) send(ctx context.Context, token, text string) (gone bool, err err
 			"thread-id": "klk",
 		},
 	})
+	return a.post(ctx, token, body, "alert", a.cfg.Topic, 24*time.Hour)
+}
+
+// post manda un aviso a APNs. expire=0: si el móvil no está, se descarta (llamadas).
+func (a *APNs) post(ctx context.Context, token string, body []byte, pushType, topic string, expire time.Duration) (gone bool, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.host+"/3/device/"+token, bytes.NewReader(body))
 	if err != nil {
 		return false, err
@@ -175,11 +219,17 @@ func (a *APNs) send(ctx context.Context, token, text string) (gone bool, err err
 		return false, err
 	}
 	req.Header.Set("authorization", "bearer "+jwt)
-	req.Header.Set("apns-topic", a.cfg.Topic)
-	req.Header.Set("apns-push-type", "alert")
+	req.Header.Set("apns-topic", topic)
+	req.Header.Set("apns-push-type", pushType)
 	req.Header.Set("apns-priority", "10")
-	req.Header.Set("apns-collapse-id", "klk-new")
-	req.Header.Set("apns-expiration", fmt.Sprint(a.now().Add(24*time.Hour).Unix()))
+	if pushType == "alert" {
+		req.Header.Set("apns-collapse-id", "klk-new")
+	}
+	if expire > 0 {
+		req.Header.Set("apns-expiration", fmt.Sprint(a.now().Add(expire).Unix()))
+	} else {
+		req.Header.Set("apns-expiration", "0")
+	}
 	res, err := a.client.Do(req)
 	if err != nil {
 		return false, err

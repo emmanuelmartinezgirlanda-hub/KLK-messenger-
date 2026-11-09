@@ -45,7 +45,7 @@ if command -v plutil >/dev/null; then
   addkey NSFaceIDUsageDescription "KLK usa Face ID para que solo tú puedas abrir tus chats."
   addkey NSSpeechRecognitionUsageDescription "KLK pasa a texto las notas de voz dentro de tu iPhone, sin enviarlas a ningún servidor."
   # Que la llamada siga sonando si sales un momento de KLK
-  plutil -replace UIBackgroundModes -json '["audio"]' "$PLIST"
+  plutil -replace UIBackgroundModes -json '["audio","voip"]' "$PLIST"
   # Cifrado: solo algoritmos estándar (exento) y sin Francia. Así App Store
   # Connect no vuelve a preguntar «Falta información de exportación».
   plutil -replace ITSAppUsesNonExemptEncryption -bool NO "$PLIST"

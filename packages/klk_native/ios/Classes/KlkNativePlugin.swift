@@ -35,6 +35,10 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     let watch = FlutterEventChannel(name: "klk/watch", binaryMessenger: registrar.messenger())
     watch.setStreamHandler(WatchBridge.shared)
     WatchBridge.shared.activate()
+    // Llamadas con el móvil bloqueado (PushKit + pantalla de llamada de Apple).
+    let callkit = FlutterEventChannel(name: "klk/callkit", binaryMessenger: registrar.messenger())
+    callkit.setStreamHandler(CallKitBridge.shared)
+    CallKitBridge.shared.start()
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -66,6 +70,16 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       captions.start(locale: locale, result: result)
     case "stopLiveCaptions":
       captions.stop()
+      result(nil)
+    case "voipToken":
+      result(CallKitBridge.shared.voipToken)
+    case "callkitEnd":
+      let args = call.arguments as? [String: Any] ?? [:]
+      CallKitBridge.shared.end(callId: args["id"] as? String ?? "")
+      result(nil)
+    case "callkitConnected":
+      let args = call.arguments as? [String: Any] ?? [:]
+      CallKitBridge.shared.connected(callId: args["id"] as? String ?? "")
       result(nil)
     case "setBeauty":
       let args = call.arguments as? [String: Any] ?? [:]
