@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/klk-app/klk-server/internal/relay"
 	"github.com/klk-app/klk-server/internal/store"
 )
 
@@ -290,14 +289,5 @@ type Multi []interface {
 func (m Multi) Notify(ctx context.Context, accountID string, deviceID int) {
 	for _, p := range m {
 		p.Notify(ctx, accountID, deviceID)
-	}
-}
-
-// NotifyCall pasa el aviso de llamada a los servicios que saben darlo (APNs VoIP).
-func (m Multi) NotifyCall(ctx context.Context, accountID string, deviceID int, from string, hint relay.CallHint) {
-	for _, p := range m {
-		if cp, ok := p.(relay.CallPusher); ok {
-			cp.NotifyCall(ctx, accountID, deviceID, from, hint)
-		}
 	}
 }

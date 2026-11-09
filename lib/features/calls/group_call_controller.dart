@@ -103,9 +103,7 @@ class GroupCallController extends ChangeNotifier {
     _openScreen();
     try {
       await _prepareMedia();
-      final g = chat?.title ?? '';
-      await _send({'a': 'gring', 'v': video},
-          wake: {'id': callId, 'v': video, 'n': g.isEmpty ? _app.callerName : '${_app.callerName} · $g', 'g': groupId});
+      await _send({'a': 'gring', 'v': video});
       // Si nadie se une en 60 s, se cuelga sola.
       _ringTimeout = Timer(const Duration(seconds: 60), () {
         if (peers.isEmpty) _finish('Nadie contestó');
@@ -118,7 +116,6 @@ class GroupCallController extends ChangeNotifier {
 
   Future<void> accept({bool withVideo = true}) async {
     if (phase != GroupPhase.incoming) return;
-    _openScreen();
     _single.stopRingingExternal();
     _ringTimeout?.cancel();
     video = video && withVideo;
@@ -135,22 +132,6 @@ class GroupCallController extends ChangeNotifier {
       debugPrint('Unirse a llamada de grupo: $e');
       await _finish('No se pudo usar el micrófono o la cámara');
     }
-  }
-
-  /// Me despertó el aviso de llamada de Apple (la pantalla de Apple ya suena).
-  Future<void> onCallKitIncoming({required String id, required String from, required bool video, required String group}) async {
-    if (busy || _single.busy) {
-      if (callId != id) await KlkNative.callKitEnd(id);
-      return;
-    }
-    groupId = group;
-    callId = id;
-    this.video = video;
-    inviter = from;
-    phase = GroupPhase.incoming;
-    status = video ? 'Videollamada en el grupo' : 'Llamada en el grupo';
-    notifyListeners();
-    _ringTimeout = Timer(const Duration(seconds: 45), () => _finish('Llamada perdida'));
   }
 
   Future<void> reject() async {
@@ -286,11 +267,11 @@ class GroupCallController extends ChangeNotifier {
 
   // ---------- Internos ----------
 
-  Future<void> _send(Map<String, dynamic> s, {String? to, Map<String, dynamic>? wake}) async {
+  Future<void> _send(Map<String, dynamic> s, {String? to}) async {
     final g = groupId;
     if (g == null) return;
     try {
-      await _app.sendGroupCallSignal(g, {...s, 'id': callId, 'gid': g, if (to != null) 'to': to}, to: to, wake: wake);
+      await _app.sendGroupCallSignal(g, {...s, 'id': callId, 'gid': g, if (to != null) 'to': to}, to: to);
     } catch (e) {
       debugPrint('Señal de grupo: $e');
     }
@@ -405,7 +386,6 @@ class GroupCallController extends ChangeNotifier {
     final missed = phase == GroupPhase.incoming;
     final talked = startedAt == null ? null : elapsed;
     final g = groupId;
-    if (callId != null) unawaited(KlkNative.callKitEnd(callId!));
     phase = GroupPhase.ended;
     status = reason;
     notifyListeners();

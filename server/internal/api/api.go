@@ -117,7 +117,6 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/plus/google", s.limited(s.authed(s.plusGoogle)))
 	mux.HandleFunc("PUT /v1/push-token", s.limited(s.authed(s.setPushToken)))
 	mux.HandleFunc("DELETE /v1/push-token", s.authed(s.deletePushToken))
-	mux.HandleFunc("PUT /v1/voip-token", s.limited(s.authed(s.setVoIPToken)))
 	mux.HandleFunc("GET /v1/turn", s.limited(s.authed(s.turnServers)))
 	mux.HandleFunc("GET /privacidad", s.privacyPage)
 	mux.HandleFunc("GET /privacy", s.privacyPage)

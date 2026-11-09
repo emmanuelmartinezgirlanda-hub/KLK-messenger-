@@ -36,90 +36,6 @@ class CallController extends ChangeNotifier {
   CallController(this._ref) {
     _app.onCallSignal = _onSignal;
     GroupCallController.ensure(_ref);
-    _ckSub = KlkNative.callKitEvents.listen(_onCallKit);
-  }
-
-  // ---------- Pantalla de llamada de Apple (móvil bloqueado) ----------
-  StreamSubscription<Map<String, dynamic>>? _ckSub;
-
-  /// Llamadas que entraron por el aviso de Apple (CallKit ya está sonando).
-  final Set<String> _ckCalls = {};
-  bool _ckAnswered = false;
-  Timer? _ckWait;
-  String? _lastOfferSdp;
-
-  Future<void> _onCallKit(Map<String, dynamic> e) async {
-    final type = e['type'] as String?;
-    final id = e['id'] as String? ?? '';
-    switch (type) {
-      case 'token':
-        await _app.registerVoipToken(e['token'] as String? ?? '');
-      case 'incoming':
-        final group = e['group'] as String? ?? '';
-        if (group.isNotEmpty) {
-          await GroupCallController.instance?.onCallKitIncoming(
-              id: id, from: e['from'] as String? ?? '', video: e['video'] == true, group: group);
-          return;
-        }
-        if (busy && callId == id) {
-          _ckCalls.add(id); // ya me había llegado la oferta: la pantalla de Apple sustituye al tono
-          _stopRinging();
-          return;
-        }
-        if (busy || (GroupCallController.instance?.busy ?? false)) {
-          await KlkNative.callKitEnd(id);
-          return;
-        }
-        final from = e['from'] as String? ?? '';
-        _ckCalls.add(id);
-        _ckAnswered = false;
-        chatId = from;
-        callId = id;
-        video = e['video'] == true;
-        incoming = true;
-        _pendingOffer = null;
-        _remoteSet = false;
-        _pendingIce.clear();
-        _setPhase(CallPhase.incoming, video ? 'Videollamada entrante' : 'Llamada entrante');
-        _servers = _app.callServers();
-        // El que llama vuelve a mandar la oferta ahora que estoy despierto.
-        await _app.sendCallSignal(from, {'a': 'wake', 'id': id});
-        _ckWait?.cancel();
-        _ckWait = Timer(const Duration(seconds: 20), () {
-          if (_pendingOffer == null && phase == CallPhase.incoming) _finish('Llamada perdida', missed: true);
-        });
-      case 'answer':
-        if (GroupCallController.instance?.callId == id) {
-          await GroupCallController.instance?.accept();
-          return;
-        }
-        if (id != callId) return;
-        _openScreen();
-        if (_pendingOffer != null) {
-          await accept();
-        } else {
-          _ckAnswered = true;
-          _setPhase(CallPhase.incoming, 'Conectando…');
-        }
-      case 'end':
-        if (GroupCallController.instance?.callId == id) {
-          final g = GroupCallController.instance!;
-          if (g.phase == GroupPhase.incoming) {
-            await g.reject();
-          } else {
-            await g.hangUp();
-          }
-          return;
-        }
-        if (id != callId) return;
-        if (phase == CallPhase.incoming) {
-          await reject();
-        } else {
-          await hangUp();
-        }
-      case 'mute':
-        if (id == callId && (e['muted'] == true) != muted) toggleMute();
-    }
   }
 
   /// Tono de llamada para las llamadas de grupo (mismo tono y vibración).
@@ -240,9 +156,7 @@ class CallController extends ChangeNotifier {
       await _createPeer();
       final offer = await _pc!.createOffer({'offerToReceiveAudio': true, 'offerToReceiveVideo': video});
       await _pc!.setLocalDescription(offer);
-      _lastOfferSdp = offer.sdp;
-      await _signal({'a': 'offer', 'sdp': offer.sdp, 'v': video},
-          wake: {'id': callId, 'v': video, 'n': _app.callerName});
+      await _signal({'a': 'offer', 'sdp': offer.sdp, 'v': video});
       _setPhase(CallPhase.outgoing, 'Sonando…');
       _ringTimeout = Timer(const Duration(seconds: 45), () => _finish('Sin respuesta', notifyPeer: true, missed: true));
     } catch (e) {
@@ -454,26 +368,6 @@ class CallController extends ChangeNotifier {
       return;
     }
 
-    if (action == 'offer' && busy && id == callId && from == chatId && phase == CallPhase.incoming && _pendingOffer == null) {
-      // Llegó la oferta de una llamada que ya sonaba con la pantalla de Apple.
-      _pendingOffer = s;
-      _ckWait?.cancel();
-      _ringTimeout?.cancel();
-      _ringTimeout = Timer(const Duration(seconds: 45), () => _finish('Llamada perdida', missed: true));
-      if (_ckAnswered) await accept();
-      return;
-    }
-
-    if (action == 'wake') {
-      // El otro móvil se despertó con el aviso de llamada: le repito la oferta.
-      if (from == chatId && id == callId && phase == CallPhase.outgoing && _lastOfferSdp != null) {
-        await _signal({'a': 'offer', 'sdp': _lastOfferSdp, 'v': video});
-      } else if (id != null) {
-        await _app.sendCallSignal(from, {'a': 'end', 'id': id});
-      }
-      return;
-    }
-
     if (action == 'offer') {
       if (busy || (GroupCallController.instance?.busy ?? false)) {
         // Ya estoy en otra llamada: aviso de que estoy ocupado.
@@ -489,7 +383,7 @@ class CallController extends ChangeNotifier {
       _pendingIce.clear();
       _setPhase(CallPhase.incoming, video ? 'Videollamada entrante' : 'Llamada entrante');
       _servers = _app.callServers();
-      if (!_ckCalls.contains(id)) _startRinging();
+      _startRinging();
       _openScreen();
       _ringTimeout = Timer(const Duration(seconds: 45), () => _finish('Llamada perdida', missed: true));
       return;
@@ -684,11 +578,11 @@ class CallController extends ChangeNotifier {
     _pendingIce.clear();
   }
 
-  Future<void> _signal(Map<String, dynamic> s, {Map<String, dynamic>? wake}) async {
+  Future<void> _signal(Map<String, dynamic> s) async {
     final id = chatId;
     if (id == null) return;
     try {
-      await _app.sendCallSignal(id, {...s, 'id': callId}, wake: wake);
+      await _app.sendCallSignal(id, {...s, 'id': callId});
     } catch (e) {
       debugPrint('Señal de llamada: $e');
     }
@@ -747,15 +641,6 @@ class CallController extends ChangeNotifier {
     _servers = null;
     final talked = startedAt == null ? null : elapsed;
     final id = chatId;
-    // Quita la pantalla de llamada de Apple si la había.
-    final cid = callId;
-    if (cid != null) {
-      _ckCalls.remove(cid);
-      unawaited(KlkNative.callKitEnd(cid));
-    }
-    _ckWait?.cancel();
-    _ckAnswered = false;
-    _lastOfferSdp = null;
     _ringTimeout?.cancel();
     _tick?.cancel();
     _stopRinging();

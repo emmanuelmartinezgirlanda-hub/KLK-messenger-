@@ -145,39 +145,6 @@ class KlkNative {
     } catch (_) {}
   }
 
-  // ---------- Llamadas con el móvil bloqueado (iPhone: PushKit + CallKit) ----------
-
-  static const _callkit = EventChannel('klk/callkit');
-
-  /// Eventos: {type: token|incoming|answer|end|mute, id, from, video, group, name, token}.
-  static Stream<Map<String, dynamic>> get callKitEvents => supported
-      ? _callkit.receiveBroadcastStream().map((e) => Map<String, dynamic>.from(e as Map))
-      : const Stream.empty();
-
-  static Future<String?> voipToken() async {
-    if (!supported) return null;
-    try {
-      return await _channel.invokeMethod<String>('voipToken');
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Quita la pantalla de llamada de Apple (la llamada terminó en KLK).
-  static Future<void> callKitEnd(String callId) async {
-    if (!supported) return;
-    try {
-      await _channel.invokeMethod('callkitEnd', {'id': callId});
-    } catch (_) {}
-  }
-
-  static Future<void> callKitConnected(String callId) async {
-    if (!supported) return;
-    try {
-      await _channel.invokeMethod('callkitConnected', {'id': callId});
-    } catch (_) {}
-  }
-
   static bool get supportsAppIcons => supported;
 
   /// Cambia el icono de la app. null = el normal.

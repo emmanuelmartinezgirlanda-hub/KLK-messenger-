@@ -13,9 +13,6 @@ type PushToken struct {
 	Platform string
 	Token    string
 	Lang     string
-	// VoIP: token de PushKit (solo iPhone) para que las llamadas suenen con el
-	// móvil bloqueado, con la pantalla de llamada de Apple (CallKit).
-	VoIP string
 }
 
 // PushStore guarda los tokens de avisos push de cada dispositivo.
@@ -25,9 +22,6 @@ type PushStore interface {
 	SetPushToken(ctx context.Context, accountID string, deviceID int, t PushToken) error
 	GetPushToken(ctx context.Context, accountID string, deviceID int) (PushToken, error)
 	DeletePushToken(ctx context.Context, accountID string, deviceID int) error
-	// SetVoIPToken guarda el token de llamadas (PushKit). Hace falta que el
-	// dispositivo ya tenga su token normal de avisos (si no, ErrNotFound).
-	SetVoIPToken(ctx context.Context, accountID string, deviceID int, token string) error
 }
 
 // ---------- Memoria ----------
@@ -47,26 +41,6 @@ func (m *Memory) SetPushToken(_ context.Context, acc string, dev int, t PushToke
 			delete(m.push, other)
 		}
 	}
-	t.VoIP = m.push[k].VoIP
-	m.push[k] = t
-	return nil
-}
-
-func (m *Memory) SetVoIPToken(_ context.Context, acc string, dev int, token string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	k := devKey{acc, dev}
-	t, ok := m.push[k]
-	if !ok {
-		return ErrNotFound
-	}
-	for other, pt := range m.push {
-		if other != k && token != "" && pt.VoIP == token {
-			pt.VoIP = ""
-			m.push[other] = pt
-		}
-	}
-	t.VoIP = token
 	m.push[k] = t
 	return nil
 }
@@ -116,8 +90,8 @@ func (p *Postgres) SetPushToken(ctx context.Context, acc string, dev int, t Push
 
 func (p *Postgres) GetPushToken(ctx context.Context, acc string, dev int) (PushToken, error) {
 	var t PushToken
-	err := p.pool.QueryRow(ctx, `SELECT platform, token, lang, voip FROM push_tokens WHERE account_id = $1 AND device_id = $2`,
-		acc, dev).Scan(&t.Platform, &t.Token, &t.Lang, &t.VoIP)
+	err := p.pool.QueryRow(ctx, `SELECT platform, token, lang FROM push_tokens WHERE account_id = $1 AND device_id = $2`,
+		acc, dev).Scan(&t.Platform, &t.Token, &t.Lang)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PushToken{}, ErrNotFound
 	}
@@ -127,22 +101,4 @@ func (p *Postgres) GetPushToken(ctx context.Context, acc string, dev int) (PushT
 func (p *Postgres) DeletePushToken(ctx context.Context, acc string, dev int) error {
 	_, err := p.pool.Exec(ctx, `DELETE FROM push_tokens WHERE account_id = $1 AND device_id = $2`, acc, dev)
 	return err
-}
-
-func (p *Postgres) SetVoIPToken(ctx context.Context, acc string, dev int, token string) error {
-	if token != "" {
-		if _, err := p.pool.Exec(ctx, `UPDATE push_tokens SET voip = '' WHERE voip = $1 AND NOT (account_id = $2 AND device_id = $3)`,
-			token, acc, dev); err != nil {
-			return err
-		}
-	}
-	tag, err := p.pool.Exec(ctx, `UPDATE push_tokens SET voip = $3, updated_at = now() WHERE account_id = $1 AND device_id = $2`,
-		acc, dev, token)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
 }

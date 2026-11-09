@@ -931,7 +931,7 @@ class AppController extends ChangeNotifier {
       debugPrint('No se pudo procesar un mensaje: $e');
     } finally {
       // Confirmar siempre: un sobre que no se puede descifrar no debe repetirse sin fin.
-      if (!ephemeral || f['ack'] == true) _ws?.sink.add(jsonEncode({'t': 'ack', 'id': f['id']}));
+      if (!ephemeral) _ws?.sink.add(jsonEncode({'t': 'ack', 'id': f['id']}));
     }
     await _refresh();
   }
@@ -1259,16 +1259,16 @@ class AppController extends ChangeNotifier {
   // ---------- Envío ----------
 
   Future<void> _sendEncrypted(String chatId, Payload p,
-      {required String ref, DateTime? deliverAt, bool ephemeral = false, Map<String, dynamic>? callHint}) async {
+      {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
     if (isNotesChat(chatId)) return; // las notas nunca salen del móvil
     final chat = await _db!.chat(chatId);
     final key = chat?.identityKey;
     if (key == null) throw StateError('Sin clave del contacto');
-    await _sendTo(chatId, key, p, ref: ref, deliverAt: deliverAt, ephemeral: ephemeral, callHint: callHint);
+    await _sendTo(chatId, key, p, ref: ref, deliverAt: deliverAt, ephemeral: ephemeral);
   }
 
   Future<void> _sendTo(String accountId, String identityKey, Payload p,
-      {required String ref, DateTime? deliverAt, bool ephemeral = false, Map<String, dynamic>? callHint}) async {
+      {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
     final sealed = await _seal(accountId, identityKey, p.encode());
     final frame = jsonEncode({
       't': 'send',
@@ -1281,9 +1281,6 @@ class AppController extends ChangeNotifier {
       if (ephemeral) 'ephemeral': true,
       // Solo los mensajes de verdad piden aviso push (no las confirmaciones de lectura…)
       if (!ephemeral && p.kind == 'text') 'push': 'msg',
-      // Llamada nueva: si el otro móvil duerme, el servidor lo despierta con la
-      // pantalla de llamada (id, si es vídeo y mi nombre; lo demás va cifrado).
-      if (callHint != null) ...{'push': 'call', 'call': callHint},
     });
     if (!ephemeral) _outbox[ref] = frame;
     _ws?.sink.add(frame);
@@ -1291,12 +1288,12 @@ class AppController extends ChangeNotifier {
 
   /// Envía a un chat individual o a cada miembro de un grupo.
   Future<void> _sendToChat(String chatId, Payload p,
-      {required String ref, DateTime? deliverAt, bool ephemeral = false, Map<String, dynamic>? callHint}) async {
+      {required String ref, DateTime? deliverAt, bool ephemeral = false}) async {
     if (isNotesChat(chatId)) return; // las notas nunca salen del móvil
     var chat = await _db!.chat(chatId);
     if (chat == null) throw StateError('Chat no encontrado');
     if (!chat.isGroup) {
-      return _sendEncrypted(chatId, p, ref: ref, deliverAt: deliverAt, ephemeral: ephemeral, callHint: callHint);
+      return _sendEncrypted(chatId, p, ref: ref, deliverAt: deliverAt, ephemeral: ephemeral);
     }
     final community = isCommunityChat(chat.id);
     if (community && !ephemeral) {
@@ -1326,7 +1323,7 @@ class AppController extends ChangeNotifier {
     for (final m in members) {
       if (m.identityKey == null) continue;
       await _sendTo(m.id, m.identityKey!, withGroup,
-          ref: ephemeral ? 'x-${p.kind}' : '$ref|${m.id}', deliverAt: deliverAt, ephemeral: ephemeral, callHint: callHint);
+          ref: ephemeral ? 'x-${p.kind}' : '$ref|${m.id}', deliverAt: deliverAt, ephemeral: ephemeral);
     }
   }
 
@@ -3003,10 +3000,6 @@ class AppController extends ChangeNotifier {
       final token = await KlkNative.registerPush(android: android ? KlkConfig.firebase : null);
       if (token == null || token.isEmpty) return;
       await _api!.setPushToken(android ? 'fcm' : 'apns', token, currentLanguageCode());
-      if (Platform.isIOS) {
-        final voip = await KlkNative.voipToken();
-        if (voip != null) await registerVoipToken(voip);
-      }
     } catch (e) {
       _pushRegistered = false; // se reintenta en la próxima conexión
       debugPrint('Avisos push: $e');
@@ -3082,34 +3075,14 @@ class AppController extends ChangeNotifier {
 
   /// Envía una señal de llamada cifrada. Es efímera: si el otro no está
   /// conectado no se guarda (una llamada no debe sonar horas después).
-  Future<void> sendCallSignal(String chatId, Map<String, dynamic> signal, {Map<String, dynamic>? wake}) =>
-      _sendEncrypted(chatId, Payload(kind: 'call', call: signal), ref: 'x-call', ephemeral: true, callHint: wake);
-
-  /// Nombre que ve el otro en la pantalla de llamada si su móvil está bloqueado.
-  String get callerName {
-    final n = profile.name.trim();
-    if (n.isNotEmpty) return n;
-    return myPhone ?? 'KLK';
-  }
-
-  /// Token de llamadas (PushKit) del iPhone: para sonar con el móvil bloqueado.
-  String? _voipSent;
-  Future<void> registerVoipToken(String token) async {
-    if (isDemo || _api == null || token.isEmpty || token == _voipSent) return;
-    try {
-      await _api!.setVoipToken(token);
-      _voipSent = token;
-    } catch (e) {
-      debugPrint('Token de llamadas: $e');
-    }
-  }
+  Future<void> sendCallSignal(String chatId, Map<String, dynamic> signal) =>
+      _sendEncrypted(chatId, Payload(kind: 'call', call: signal), ref: 'x-call', ephemeral: true);
 
   /// Señal de una llamada en grupo: a todo el grupo, o solo a un miembro ([to]).
-  Future<void> sendGroupCallSignal(String groupId, Map<String, dynamic> signal,
-      {String? to, Map<String, dynamic>? wake}) async {
+  Future<void> sendGroupCallSignal(String groupId, Map<String, dynamic> signal, {String? to}) async {
     final p = Payload(kind: 'call', call: signal);
     if (to == null) {
-      return _sendToChat(groupId, p, ref: 'x-call', ephemeral: true, callHint: wake);
+      return _sendToChat(groupId, p, ref: 'x-call', ephemeral: true);
     }
     final chat = await _db!.chat(groupId);
     if (chat == null) return;

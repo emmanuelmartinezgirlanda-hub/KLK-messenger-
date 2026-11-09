@@ -59,21 +59,6 @@ type NoopPusher struct{}
 
 func (NoopPusher) Notify(context.Context, string, int) {}
 
-// CallHint: lo poco que el servidor necesita para despertar al móvil con una
-// llamada (pantalla de llamada de Apple). Lo pone quien llama; la llamada en sí
-// (oferta, claves…) sigue cifrada de punta a punta.
-type CallHint struct {
-	ID    string `json:"id"`
-	Video bool   `json:"v,omitempty"`
-	Name  string `json:"n,omitempty"` // nombre que se ve en la pantalla de llamada
-	Group string `json:"g,omitempty"` // id del grupo si es llamada de grupo
-}
-
-// CallPusher despierta a un móvil dormido con una llamada entrante (VoIP).
-type CallPusher interface {
-	NotifyCall(ctx context.Context, accountID string, deviceID int, from string, hint CallHint)
-}
-
 type devKey struct {
 	acc string
 	dev int
@@ -171,7 +156,6 @@ type inFrame struct {
 	Ephemeral bool       `json:"ephemeral,omitempty"`
 	Push      string     `json:"push,omitempty"`
 	ID        string     `json:"id,omitempty"`
-	Call      *CallHint  `json:"call,omitempty"`
 }
 
 type msgFrame struct {
@@ -183,9 +167,6 @@ type msgFrame struct {
 	Content    []byte    `json:"content"`
 	TS         time.Time `json:"ts"`
 	Ephemeral  bool      `json:"ephemeral,omitempty"`
-	// Ack: aunque sea efímero, pide confirmación (llamadas: si el móvil está
-	// dormido y no confirma, se le despierta con un aviso de llamada).
-	Ack bool `json:"ack,omitempty"`
 }
 
 type sentFrame struct {
@@ -214,11 +195,6 @@ func mustJSON(v any) []byte {
 func envelopeFrame(e store.Envelope, ephemeral bool) []byte {
 	return mustJSON(msgFrame{T: "msg", ID: e.ID, From: e.FromAccount, FromDevice: e.FromDevice,
 		Type: e.Type, Content: e.Content, TS: e.DeliverAt, Ephemeral: ephemeral})
-}
-
-func callFrame(e store.Envelope) []byte {
-	return mustJSON(msgFrame{T: "msg", ID: e.ID, From: e.FromAccount, FromDevice: e.FromDevice,
-		Type: e.Type, Content: e.Content, TS: e.DeliverAt, Ephemeral: true, Ack: true})
 }
 
 // ---------- Conexión ----------
@@ -362,12 +338,7 @@ func (h *Hub) handleSend(ctx context.Context, from store.Device, f inFrame) []by
 
 	if f.Ephemeral {
 		// Escribiendo/grabando: solo a quien esté conectado. Nunca se guarda.
-		// Llamadas (push "call"): si el móvil está dormido, se le despierta.
 		for _, e := range envs {
-			if f.Push == "call" && f.Call != nil && f.Call.ID != "" {
-				h.notifyCall(e, h.deliverFrame(e, callFrame(e)), *f.Call)
-				continue
-			}
 			h.deliver(e, true)
 		}
 		return mustJSON(sentFrame{T: "sent", Ref: f.Ref, TS: now})
@@ -395,49 +366,14 @@ func (h *Hub) handleSend(ctx context.Context, from store.Device, f inFrame) []by
 
 // deliver envía al dispositivo si está conectado. Devuelve false si no lo está.
 func (h *Hub) deliver(e store.Envelope, ephemeral bool) bool {
-	return h.deliverFrame(e, envelopeFrame(e, ephemeral))
-}
-
-func (h *Hub) deliverFrame(e store.Envelope, frame []byte) bool {
 	h.mu.RLock()
 	c, ok := h.conns[devKey{e.ToAccount, e.ToDevice}]
 	h.mu.RUnlock()
 	if !ok {
 		return false
 	}
-	c.enqueue(frame)
+	c.enqueue(envelopeFrame(e, ephemeral))
 	return true
-}
-
-// notifyCall: aviso de llamada (VoIP) al momento si el móvil no está conectado;
-// si lo está, solo si no confirma la señal en unos segundos (app dormida).
-func (h *Hub) notifyCall(e store.Envelope, delivered bool, hint CallHint) {
-	cp, ok := h.pusher.(CallPusher)
-	if !ok {
-		return
-	}
-	if !delivered {
-		cp.NotifyCall(context.Background(), e.ToAccount, e.ToDevice, e.FromAccount, hint)
-		return
-	}
-	h.pmu.Lock()
-	defer h.pmu.Unlock()
-	if _, ok := h.waiting[e.ID]; ok {
-		return
-	}
-	wait := h.ackWait
-	if wait > 3*time.Second {
-		wait = 3 * time.Second
-	}
-	h.waiting[e.ID] = time.AfterFunc(wait, func() {
-		h.pmu.Lock()
-		_, still := h.waiting[e.ID]
-		delete(h.waiting, e.ID)
-		h.pmu.Unlock()
-		if still {
-			cp.NotifyCall(context.Background(), e.ToAccount, e.ToDevice, e.FromAccount, hint)
-		}
-	})
 }
 
 // RunScheduler entrega los mensajes programados cuando vencen.
