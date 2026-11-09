@@ -12,11 +12,19 @@ const kInviteUrl = 'https://klkmessenger.com/';
 /// Mi código de invitación (se guarda al abrir «Invita y gana Plus»).
 String? myInviteCode;
 
+/// Enlace de mi invitación (página con vista previa bonita en WhatsApp).
+String? myInviteLink;
+
 String inviteMessage() {
   final base = '${tr('¡Klk! Estoy usando KLK messenger, la app de los dominicanos en el mundo: '
       'privada, gratis y con llamadas cifradas. Descárgala y escríbeme')} 🇩🇴\n$kInviteUrl';
   final code = myInviteCode;
   if (code == null) return base;
+  final link = myInviteLink;
+  if (link != null) {
+    return '${tr('¡Klk! Te invito a KLK messenger, la app de los dominicanos en el mundo')} 🇩🇴 '
+        '${tr('Con mi código te llevas 7 días de KLK Plus gratis')} 🎁\n$link';
+  }
   return '$base\n\n${tr('Pon mi código al entrar y te llevas 7 días de KLK Plus gratis')}: $code';
 }
 

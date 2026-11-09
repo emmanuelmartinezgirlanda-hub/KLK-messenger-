@@ -515,8 +515,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     if (api == null) return;
     switch (v) {
       case 'share':
-        await shareText(context,
-            '${tr('Sigue mi canal')} «${_c.name}» ${tr('en KLK messenger')} ${_c.emoji}\n${tr('Búscalo en Estados → Canales')}.\nhttps://klkmessenger.com/');
+        final link = api.base.replace(path: '/k/${_c.id}').toString();
+        await shareText(context, '${_c.emoji} ${tr('Sigue el canal')} «${_c.name}» ${tr('en KLK messenger')}\n$link');
       case 'edit':
         final c = await Navigator.of(context)
             .push<KChannel>(MaterialPageRoute(builder: (_) => CreateChannelScreen(edit: _c)));

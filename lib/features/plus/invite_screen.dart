@@ -38,7 +38,11 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
 
   Future<void> _load() async {
     final v = await ref.read(appProvider).inviteStatus();
-    if (v != null) myInviteCode = v['code'] as String?;
+    if (v != null) {
+      myInviteCode = v['code'] as String?;
+      final api = ref.read(appProvider).serverApi;
+      if (api != null && myInviteCode != null) myInviteLink = api.base.replace(path: '/i/$myInviteCode').toString();
+    }
     if (mounted) {
       setState(() {
         _v = v;
