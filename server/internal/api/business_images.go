@@ -187,7 +187,8 @@ var businessTmpl = template.Must(template.New("n").Parse(`<!doctype html>
 <meta property="og:title" content="{{.Name}}">
 <meta property="og:description" content="{{.Description}}">
 <meta property="og:url" content="{{.URL}}">
-{{if .Logo}}<meta property="og:image" content="{{.Logo}}">{{end}}
+<meta property="og:image" content="{{if .Logo}}{{.Logo}}{{else}}https://klkmessenger.com/img/og.png{{end}}">
+<meta name="apple-itunes-app" content="app-id=6823299468">
 <meta name="twitter:card" content="summary">
 <style>
 :root{--navy:#002D62;--red:#CE1126}
@@ -232,8 +233,8 @@ a.btn{display:block;text-decoration:none;font-weight:700;border-radius:999px;pad
 {{end}}{{if .More}}<p class="more">… y {{.More}} más en la app</p>{{end}}{{end}}
 <div class="cta">
 <p>Haz tu pedido por <b>KLK messenger</b>: busca «{{.Name}}» en <b>Comunidades → Negocios</b>.</p>
+<a class="btn" href="https://apps.apple.com/app/klk-messenger/id6823299468">Descargar en iPhone (App Store)</a>
 <a class="btn" href="https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/download/android/KLK-messenger.apk">Descargar para Android</a>
-<a class="btn" href="https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/latest">Descargar para Windows</a>
 </div>
 </main></body></html>`))
 
