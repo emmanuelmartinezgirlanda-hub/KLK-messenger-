@@ -3,7 +3,8 @@ on:
   push:
     branches: [mi-gente]
     paths:
-      - "marketing/anuncio/keloke/**"
+      - "marketing/anuncio/keloke/**
+      - marketing/anuncio/guion_v7.txt"
       - ".github/workflows/keloke.yml"
   workflow_dispatch:
 permissions:
@@ -24,7 +25,7 @@ jobs:
           pip install -q chatterbox-tts soundfile openai-whisper
           git clone -q --depth 1 -b marketing-keloke "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" out && rm -rf out/.git
       - name: Generar
-        run: python marketing/anuncio/keloke/final.py
+        run: python marketing/anuncio/keloke/voz_v7.py
       - name: Guardar en la rama marketing-keloke
         if: always()
         run: |
