@@ -27,6 +27,7 @@ import '../home/tabs_provider.dart';
 import 'account_id_screen.dart';
 import 'backup_screen.dart';
 import '../import/whatsapp_import_screen.dart';
+import '../plus/invite_screen.dart';
 import '../plus/plus_screen.dart';
 import '../plus/plus_state.dart';
 import '../business/business.dart';
@@ -141,10 +142,15 @@ class SettingsView extends ConsumerWidget {
           ),
         ListTile(
           leading: const Icon(Icons.person_add_alt_1_rounded),
-          title: Text(tr('Invitar a un amigo'), style: const TextStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text(tr('Manda KLK por WhatsApp, Instagram o SMS')),
-          trailing: const Icon(Icons.ios_share_rounded),
-          onTap: () => inviteFriends(context),
+          title: Text(kPlusFeatures && !app.isDemo ? tr('Invita y gana Plus') : tr('Invitar a un amigo'),
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(kPlusFeatures && !app.isDemo
+              ? tr('3 amigos = 1 mes de KLK Plus gratis')
+              : tr('Manda KLK por WhatsApp, Instagram o SMS')),
+          trailing: Icon(kPlusFeatures && !app.isDemo ? Icons.chevron_right : Icons.ios_share_rounded),
+          onTap: () => kPlusFeatures && !app.isDemo
+              ? Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InviteScreen()))
+              : inviteFriends(context),
         ),
         const Divider(),
         ListTile(

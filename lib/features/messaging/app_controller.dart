@@ -3080,6 +3080,24 @@ class AppController extends ChangeNotifier {
     return plusActive.value;
   }
 
+  /// Invita a tus amigos y gana Plus. Null en modo demo o sin conexión.
+  Future<Map<String, dynamic>?> inviteStatus() async {
+    if (_api == null) return null;
+    try {
+      return await _api!.inviteStatus();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Pone el código del amigo que me invitó (me da 7 días de Plus). Lanza ApiException si no vale.
+  Future<Map<String, dynamic>> claimInvite(String code) async {
+    if (_api == null) throw const ApiException(0, 'demo', 'Entra con tu cuenta para usar el código.');
+    final j = await _api!.claimInvite(code.trim());
+    await refreshPlus();
+    return j;
+  }
+
   /// Activa Plus con un código (solo en versiones de prueba). Lanza ApiException si no vale.
   Future<void> redeemPlus(String code) async {
     if (_api == null) throw const ApiException(0, 'demo', 'Entra con tu número para activar KLK Plus.');

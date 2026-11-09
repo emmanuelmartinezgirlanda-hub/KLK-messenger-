@@ -464,6 +464,13 @@ class ApiClient {
   Future<Map<String, dynamic>> redeemPlus(String code) async =>
       await _send('POST', '/v1/plus/redeem', {'code': code}) as Map<String, dynamic>;
 
+  /// Invita a tus amigos: mi código y cuántos se unieron.
+  Future<Map<String, dynamic>> inviteStatus() async => await _send('GET', '/v1/invite') as Map<String, dynamic>;
+
+  /// Me uní gracias al código de un amigo.
+  Future<Map<String, dynamic>> claimInvite(String code) async =>
+      await _send('POST', '/v1/invite/claim', {'code': code}) as Map<String, dynamic>;
+
   /// Compras de KLK Plus hechas con Apple (el servidor comprueba la firma).
   Future<Map<String, dynamic>> plusApple(List<String> jws) async =>
       await _send('POST', '/v1/plus/apple', {'jws': jws}) as Map<String, dynamic>;
