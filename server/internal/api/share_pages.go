@@ -181,12 +181,12 @@ func (s *Server) invitePage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9._]{3,30}$`)
+var profileNameRe = regexp.MustCompile(`^[a-zA-Z0-9._]{3,30}$`)
 
 // GET /u/{user}: el perfil de alguien.
 func (s *Server) profilePage(w http.ResponseWriter, r *http.Request) {
 	u := strings.TrimPrefix(r.PathValue("user"), "@")
-	if !usernameRe.MatchString(u) {
+	if !profileNameRe.MatchString(u) {
 		http.NotFound(w, r)
 		return
 	}
