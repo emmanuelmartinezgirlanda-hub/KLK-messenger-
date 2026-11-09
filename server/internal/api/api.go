@@ -147,6 +147,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/communities/{id}/members", s.authed(s.communityMembers))
 
 	mux.HandleFunc("GET /c/{digits}", s.contactPage)
+	mux.HandleFunc("GET /k/{id}", s.channelPage)
+	mux.HandleFunc("GET /i/{code}", s.invitePage)
 
 	s.businessRoutes(mux)
 	s.genteRoutes(mux)

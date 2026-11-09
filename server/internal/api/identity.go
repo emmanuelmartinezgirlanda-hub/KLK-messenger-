@@ -53,7 +53,7 @@ func (s *Server) identityRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/account/email/verify", s.authed(s.verifyLinkEmail))
 	mux.HandleFunc("DELETE /v1/account/email", s.authed(s.removeEmail))
 	mux.HandleFunc("GET /v1/accounts/by-username/{u}", s.authed(s.lookupUsername))
-	mux.HandleFunc("GET /u/{u}", s.usernamePage)
+	mux.HandleFunc("GET /u/{u}", s.profilePage)
 }
 
 // GET /v1/verification/methods: cómo se puede entrar (la app enseña la opción de correo solo si está).

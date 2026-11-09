@@ -17,6 +17,10 @@ var contactTmpl = template.Must(template.New("c").Parse(`<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
 <title>{{.Name}} en KLK messenger</title>
+<meta property="og:title" content="Escríbeme por KLK messenger">
+<meta property="og:description" content="{{.Name}} te espera en KLK messenger, la app de los dominicanos en el mundo 🇩🇴">
+<meta property="og:image" content="https://klkmessenger.com/img/og.png">
+<meta name="apple-itunes-app" content="app-id=6823299468">
 <style>
 :root{--navy:#002D62;--red:#C62D35}
 *{box-sizing:border-box}body{margin:0;font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--navy);color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
@@ -32,9 +36,8 @@ small{color:#6B7280}
 <h1>{{.Name}} te espera en KLK messenger</h1>
 <p>Número: <span class="phone">{{.Phone}}</span></p>
 <p>Abre KLK messenger, toca <b>⋮ → Escanear código QR</b> y apunta a este código, o escríbele a su número.</p>
-<a class="btn p" href="https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/download/android/KLK-messenger.apk">Descargar para Android</a>
-<a class="btn s" href="https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/latest">Descargar para Windows</a>
-<small>Para iPhone, pídele el enlace a quien te pasó este código.</small>
+<a class="btn p" href="https://apps.apple.com/app/klk-messenger/id6823299468">Descargar en iPhone (App Store)</a>
+<a class="btn s" href="https://github.com/emmanuelmartinezgirlanda-hub/KLK-messenger-/releases/download/android/KLK-messenger.apk">Descargar para Android</a>
 </div></body></html>`))
 
 func (s *Server) contactPage(w http.ResponseWriter, r *http.Request) {

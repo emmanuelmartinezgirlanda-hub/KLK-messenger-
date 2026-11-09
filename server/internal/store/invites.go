@@ -24,6 +24,8 @@ type InviteStore interface {
 	InviteCode(ctx context.Context, accountID string) (string, error)
 	// InviteCount: cuántas personas se unieron con el código de la cuenta.
 	InviteCount(ctx context.Context, accountID string) (int, error)
+	// InviteOwner: de quién es un código (ErrNotFound si no existe).
+	InviteOwner(ctx context.Context, code string) (string, error)
 	// InvitedBy: quién invitó a la cuenta ("" si nadie).
 	InvitedBy(ctx context.Context, accountID string) (string, error)
 	// ClaimInvite apunta que [invitee] llegó con [code]. Solo vale si la
@@ -87,6 +89,16 @@ func (m *Memory) InviteCount(_ context.Context, acc string) (int, error) {
 		}
 	}
 	return n, nil
+}
+
+func (m *Memory) InviteOwner(_ context.Context, code string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	acc, ok := m.inv().byCode[code]
+	if _, alive := m.accounts[acc]; !ok || !alive {
+		return "", ErrNotFound
+	}
+	return acc, nil
 }
 
 func (m *Memory) InvitedBy(_ context.Context, acc string) (string, error) {
@@ -157,6 +169,15 @@ func (p *Postgres) InviteCount(ctx context.Context, acc string) (int, error) {
 	var n int
 	err := p.pool.QueryRow(ctx, `SELECT count(*) FROM invites WHERE inviter_id = $1`, acc).Scan(&n)
 	return n, err
+}
+
+func (p *Postgres) InviteOwner(ctx context.Context, code string) (string, error) {
+	var acc string
+	err := p.pool.QueryRow(ctx, `SELECT account_id::text FROM invite_codes WHERE code = $1`, code).Scan(&acc)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return acc, err
 }
 
 func (p *Postgres) InvitedBy(ctx context.Context, acc string) (string, error) {
