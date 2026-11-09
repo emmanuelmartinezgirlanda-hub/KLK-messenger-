@@ -159,11 +159,7 @@ func (f *FCM) allow(token string) bool {
 
 // send devuelve gone=true si Firebase dice que el token ya no vale.
 func (f *FCM) send(ctx context.Context, token, text string) (gone bool, err error) {
-	access, err := f.accessToken(ctx)
-	if err != nil {
-		return false, err
-	}
-	body, _ := json.Marshal(map[string]any{
+	return f.post(ctx, map[string]any{
 		"message": map[string]any{
 			"token":        token,
 			"notification": map[string]string{"title": "KLK messenger", "body": text},
@@ -179,6 +175,15 @@ func (f *FCM) send(ctx context.Context, token, text string) (gone bool, err erro
 			},
 		},
 	})
+}
+
+// post manda un mensaje a Firebase. gone=true si el token ya no vale.
+func (f *FCM) post(ctx context.Context, m map[string]any) (gone bool, err error) {
+	access, err := f.accessToken(ctx)
+	if err != nil {
+		return false, err
+	}
+	body, _ := json.Marshal(m)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.sendURL, bytes.NewReader(body))
 	if err != nil {
 		return false, err
@@ -301,4 +306,50 @@ func (m Multi) Ring(ctx context.Context, accountID string, deviceID int, c store
 			r.Ring(ctx, accountID, deviceID, c)
 		}
 	}
+}
+
+// Ring hace sonar una llamada entrante en Android aunque KLK esté cerrada o
+// el móvil bloqueado: un aviso de datos de prioridad alta que la app convierte
+// en la pantalla de llamada (a pantalla completa). La llamada sigue cifrada.
+func (f *FCM) Ring(_ context.Context, accountID string, deviceID int, c store.CallInvite) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		t, err := f.tokens.GetPushToken(ctx, accountID, deviceID)
+		if err != nil || t.Platform != "fcm" || t.Token == "" {
+			return
+		}
+		handle, name := "", ""
+		if who, ok := f.tokens.(interface {
+			AccountPhone(context.Context, string) (string, error)
+			Username(context.Context, string) (string, error)
+		}); ok {
+			if ph, err := who.AccountPhone(ctx, c.From); err == nil && !strings.HasPrefix(ph, "mail:") {
+				handle = ph
+			}
+			if u, err := who.Username(ctx, c.From); err == nil && u != "" {
+				name = "@" + u
+			}
+		}
+		video := "0"
+		if c.Video {
+			video = "1"
+		}
+		gone, err := f.post(ctx, map[string]any{
+			"message": map[string]any{
+				"token": t.Token,
+				"data": map[string]string{
+					"klk": "call", "id": c.ID, "video": video, "from": c.From, "handle": handle, "name": name,
+				},
+				"android": map[string]any{"priority": "HIGH", "ttl": "40s"},
+			},
+		})
+		if gone {
+			_ = f.tokens.DeletePushToken(ctx, accountID, deviceID)
+			return
+		}
+		if err != nil {
+			slog.Warn("llamada Android", "err", err)
+		}
+	}()
 }

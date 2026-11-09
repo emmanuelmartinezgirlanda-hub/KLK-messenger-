@@ -5,6 +5,10 @@ import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.WindowManager;
 import android.content.pm.PackageManager;
 import android.os.Build;
 
@@ -14,6 +18,9 @@ import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
@@ -25,7 +32,7 @@ import io.flutter.plugin.common.PluginRegistry;
 
 /** Funciones nativas de KLK en Android: avisos push (Firebase) y KLK Plus (Google Play Billing). */
 public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware,
-        PluginRegistry.RequestPermissionsResultListener {
+        PluginRegistry.RequestPermissionsResultListener, PluginRegistry.NewIntentListener {
     private static final int PERMISSION_CODE = 7301;
     private static final String CHANNEL_ID = "klk_messages";
 
@@ -36,18 +43,133 @@ public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallH
     private Map<String, Object> pendingArgs;
     private PlusStore plusStore;
 
+    // Llamadas (pantalla de llamada de Android). Mismo canal que en iPhone.
+    private MethodChannel calls;
+    private boolean callsReady = false;
+    private final List<Object[]> pendingCallEvents = new ArrayList<>();
+    private final Handler main = new Handler(Looper.getMainLooper());
+
     @Override
     public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
         context = binding.getApplicationContext();
         plusStore = new PlusStore(context);
         channel = new MethodChannel(binding.getBinaryMessenger(), "klk/native");
         channel.setMethodCallHandler(this);
+        calls = new MethodChannel(binding.getBinaryMessenger(), "klk/calls");
+        calls.setMethodCallHandler(this::onCallsMethod);
+        KlkCallNotifier.plugin = this;
+    }
+
+    // ---------- Llamadas ----------
+
+    private void onCallsMethod(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+        String id = call.argument("id");
+        switch (call.method) {
+            case "ready":
+                callsReady = true;
+                for (Object[] e : pendingCallEvents) emitNow((String) e[0], (Map<String, Object>) e[1]);
+                pendingCallEvents.clear();
+                result.success(null);
+                break;
+            case "voipToken":
+                result.success(null); // en Android las llamadas llegan por Firebase
+                break;
+            case "has":
+                result.success(id != null && KlkCallNotifier.has(id));
+                break;
+            case "answered":
+                if (id != null) KlkCallNotifier.cancel(context, id);
+                result.success(null);
+                break;
+            case "end":
+                if (id != null) KlkCallNotifier.cancel(context, id);
+                setLockScreen(false);
+                result.success(null);
+                break;
+            default:
+                result.notImplemented();
+        }
+    }
+
+    private void emit(String method, Map<String, Object> args) {
+        main.post(() -> {
+            if (calls == null) return;
+            if (!callsReady) {
+                pendingCallEvents.add(new Object[]{method, args});
+                return;
+            }
+            emitNow(method, args);
+        });
+    }
+
+    private void emitNow(String method, Map<String, Object> args) {
+        if (calls != null) calls.invokeMethod(method, args);
+    }
+
+    private static Map<String, Object> callArgs(String id, boolean video, String from) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("id", id);
+        m.put("video", video);
+        m.put("from", from);
+        return m;
+    }
+
+    /** Llegó una llamada (KLK abierta o en segundo plano): que Dart se conecte. */
+    void callIncoming(String id, boolean video, String from) {
+        emit("incoming", callArgs(id, video, from));
+    }
+
+    /** «Rechazar» en el aviso. */
+    void callDeclined(String id) {
+        emit("end", callArgs(id, false, ""));
+    }
+
+    private void setLockScreen(boolean on) {
+        Activity a = activityBinding == null ? null : activityBinding.getActivity();
+        if (a == null) return;
+        a.runOnUiThread(() -> {
+            if (Build.VERSION.SDK_INT >= 27) {
+                a.setShowWhenLocked(on);
+                a.setTurnScreenOn(on);
+            } else if (on) {
+                a.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                        | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+            } else {
+                a.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                        | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+            }
+        });
+    }
+
+    /** KLK se abrió desde la pantalla de llamada (tocar el aviso o «Contestar»). */
+    private boolean handleCallIntent(Intent intent) {
+        if (intent == null) return false;
+        String id = intent.getStringExtra(KlkCallNotifier.EXTRA_ID);
+        if (id == null || id.isEmpty()) return false;
+        String action = intent.getStringExtra(KlkCallNotifier.EXTRA_ACTION);
+        boolean video = intent.getBooleanExtra(KlkCallNotifier.EXTRA_VIDEO, false);
+        String from = intent.getStringExtra(KlkCallNotifier.EXTRA_FROM);
+        intent.removeExtra(KlkCallNotifier.EXTRA_ID); // que no se repita al girar la pantalla
+        setLockScreen(true);
+        KlkCallNotifier.cancel(context, id); // ahora suena dentro de KLK
+        emit("incoming", callArgs(id, video, from == null ? "" : from));
+        emit("answer".equals(action) ? "answer" : "open", callArgs(id, video, from == null ? "" : from));
+        return true;
+    }
+
+    @Override
+    public boolean onNewIntent(@NonNull Intent intent) {
+        return handleCallIntent(intent);
     }
 
     @Override
     public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
         channel.setMethodCallHandler(null);
         channel = null;
+        if (calls != null) calls.setMethodCallHandler(null);
+        calls = null;
+        callsReady = false;
+        if (KlkCallNotifier.plugin == this) KlkCallNotifier.plugin = null;
     }
 
     @Override
@@ -128,6 +250,7 @@ public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallH
     private void fetchToken(Map<String, Object> args, MethodChannel.Result result) {
         try {
             createChannel();
+            KlkFirebaseInit.save(context, str(args, "apiKey"), str(args, "appId"), str(args, "projectId"), str(args, "senderId"));
             if (FirebaseApp.getApps(context).isEmpty()) {
                 FirebaseOptions options = new FirebaseOptions.Builder()
                         .setApiKey(str(args, "apiKey"))
@@ -168,6 +291,8 @@ public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallH
     public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
         activityBinding = binding;
         binding.addRequestPermissionsResultListener(this);
+        binding.addOnNewIntentListener(this);
+        handleCallIntent(binding.getActivity().getIntent());
     }
 
     @Override
@@ -182,7 +307,10 @@ public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallH
 
     @Override
     public void onDetachedFromActivity() {
-        if (activityBinding != null) activityBinding.removeRequestPermissionsResultListener(this);
+        if (activityBinding != null) {
+            activityBinding.removeRequestPermissionsResultListener(this);
+            activityBinding.removeOnNewIntentListener(this);
+        }
         activityBinding = null;
     }
 }

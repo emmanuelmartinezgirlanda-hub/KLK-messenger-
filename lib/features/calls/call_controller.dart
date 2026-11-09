@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -41,6 +42,7 @@ class CallController extends ChangeNotifier {
     KlkCalls.onIncoming = _onCallKitIncoming;
     KlkCalls.onAnswer = _onCallKitAnswer;
     KlkCalls.onEnd = _onCallKitEnd;
+    KlkCalls.onOpen = _onCallScreenOpen;
     unawaited(KlkCalls.start());
   }
 
@@ -65,6 +67,16 @@ class CallController extends ChangeNotifier {
     Timer(const Duration(seconds: 3), () {
       if (callId != id && _callKit.contains(id)) _app.wakeForCall(force: true);
     });
+  }
+
+  /// Android: abrió KLK desde la pantalla de llamada. Ya no suena el aviso,
+  /// así que suena dentro de KLK (o sonará cuando llegue la oferta).
+  void _onCallScreenOpen(String id) {
+    _callKit.remove(id);
+    if (phase == CallPhase.incoming && callId == id) {
+      _startRinging();
+      _openScreen();
+    }
   }
 
   void _onCallKitAnswer(String id) {
@@ -752,6 +764,8 @@ class CallController extends ChangeNotifier {
     _sentIce.clear();
     if (cid != null && _callKit.remove(cid)) {
       unawaited(KlkCalls.end(cid, reason: talked == null && incoming ? 'unanswered' : 'remote'));
+    } else if (cid != null && Platform.isAndroid) {
+      unawaited(KlkCalls.end(cid)); // quita el «encima de la pantalla bloqueada»
     }
     _ringTimeout?.cancel();
     _tick?.cancel();

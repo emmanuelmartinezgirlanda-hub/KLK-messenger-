@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Llamadas: la pantalla de llamada entrante encima de todo, también bloqueado -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
     <application>
         <!-- Los avisos que llegan con la app cerrada van al canal «Mensajes». -->
         <meta-data
@@ -8,5 +11,20 @@
         <!-- Firebase lo arrancamos nosotros desde Dart (no hay google-services.json). -->
         <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false"/>
         <meta-data android:name="firebase_analytics_collection_enabled" android:value="false"/>
+        <service
+            android:name="com.klkapp.klk_native.KlkCallService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
+        <receiver
+            android:name="com.klkapp.klk_native.KlkCallReceiver"
+            android:exported="false"/>
+        <provider
+            android:name="com.klkapp.klk_native.KlkFirebaseInit"
+            android:authorities="${applicationId}.klkfirebaseinit"
+            android:exported="false"
+            android:initOrder="200"/>
     </application>
 </manifest>

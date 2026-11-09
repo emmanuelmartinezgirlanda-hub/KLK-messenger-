@@ -269,7 +269,8 @@ class KlkNative {
   }
 }
 
-/// Llamadas con el iPhone bloqueado (PushKit + CallKit). En Android no hace nada.
+/// Llamadas con el móvil bloqueado: en iPhone con PushKit + CallKit; en Android
+/// con un aviso de Firebase que enseña la llamada a pantalla completa.
 ///
 /// El iPhone avisa a Dart cuando:
 /// - [onToken]: tiene el token VoIP (hay que dárselo al servidor).
@@ -282,12 +283,14 @@ class KlkCalls {
   static void Function(String id, bool video, String from)? onIncoming;
   static void Function(String id)? onAnswer;
   static void Function(String id)? onEnd;
+  /// Android: KLK se abrió tocando la pantalla de llamada (sin contestar aún).
+  static void Function(String id)? onOpen;
 
   static bool _started = false;
 
   /// Empieza a escuchar al iPhone. Los avisos que llegaron antes se entregan ahora.
   static Future<void> start() async {
-    if (!Platform.isIOS || _started) return;
+    if (!(Platform.isIOS || Platform.isAndroid) || _started) return;
     _started = true;
     _ch.setMethodCallHandler((call) async {
       final a = (call.arguments as Map?)?.cast<String, dynamic>() ?? const {};
@@ -301,6 +304,8 @@ class KlkCalls {
           onAnswer?.call(id);
         case 'end':
           onEnd?.call(id);
+        case 'open':
+          onOpen?.call(id);
       }
       return null;
     });
@@ -324,7 +329,7 @@ class KlkCalls {
       _call<void>('end', {'id': id, 'reason': reason});
 
   static Future<T?> _call<T>(String method, [Map<String, dynamic>? args]) async {
-    if (!Platform.isIOS) return null;
+    if (!(Platform.isIOS || Platform.isAndroid)) return null;
     try {
       return await _ch.invokeMethod<T>(method, args);
     } catch (_) {
