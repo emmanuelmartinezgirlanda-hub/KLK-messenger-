@@ -3,8 +3,8 @@ on:
   push:
     branches: [mi-gente]
     paths:
-      - "marketing/anuncio/keloke/**
-      - marketing/anuncio/guion_v7.txt"
+      - "marketing/anuncio/keloke/**"
+      - "marketing/anuncio/guion_*.txt"
       - ".github/workflows/keloke.yml"
   workflow_dispatch:
 permissions:
