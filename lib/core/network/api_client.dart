@@ -192,6 +192,23 @@ class ApiClient {
     return (jsonDecode(res.body) as Map<String, dynamic>)['id'] as String;
   }
 
+  /// Petición JSON genérica (canales y otras funciones públicas).
+  Future<dynamic> json(String method, String path, [Object? body]) => _send(method, path, body);
+
+  /// Descarga bytes de una ruta del servidor (p. ej. la foto de un canal).
+  Future<List<int>> bytes(String path) async {
+    http.Response res;
+    try {
+      res = await http
+          .get(_u(path), headers: {if (token != null) 'Authorization': 'Bearer $token'})
+          .timeout(const Duration(minutes: 2));
+    } on Exception {
+      throw const ApiException(0, 'network', 'No se pudo descargar.');
+    }
+    if (res.statusCode != 200) throw ApiException(res.statusCode, 'download', 'No disponible.');
+    return res.bodyBytes;
+  }
+
   /// Descarga un adjunto cifrado.
   Future<List<int>> downloadAttachment(String id) async {
     http.Response res;

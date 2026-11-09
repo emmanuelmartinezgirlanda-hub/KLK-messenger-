@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 
 import '../chat/presentation/chat_avatar.dart';
+import '../channels/channels.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
 import '../../core/l10n/l10n.dart';
@@ -114,6 +115,7 @@ class StatusesView extends ConsumerWidget {
             style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6)),
           ),
         ),
+      const ChannelsSection(),
     ]);
   }
 }
