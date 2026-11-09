@@ -20,7 +20,7 @@ jobs:
       - name: Preparar carpetas nativas
         run: bash tool/prepare_native.sh
       - name: Analizar Dart
-        run: flutter analyze lib/features/calls lib/features/chat packages/klk_native/lib --no-fatal-infos --no-fatal-warnings
+        run: flutter analyze lib packages/klk_native/lib --no-fatal-infos --no-fatal-warnings
       - name: Compilar iPhone (sin firma)
         shell: bash
         run: |
