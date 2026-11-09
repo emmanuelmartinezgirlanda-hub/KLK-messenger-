@@ -38,6 +38,7 @@ type Memory struct {
 	gent        *memGente
 	idents      *memIdentity
 	invites     *memInvites
+	channels    *memChannels
 }
 
 type memAttachment struct {

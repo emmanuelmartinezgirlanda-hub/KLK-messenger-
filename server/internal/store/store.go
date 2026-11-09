@@ -91,6 +91,7 @@ type Store interface {
 	GenteStore
 	IdentityStore
 	InviteStore
+	ChannelStore
 
 	// Registra (o re-registra) el dispositivo principal de un número.
 	// Re-registrar sustituye el dispositivo anterior y borra sus claves y cola.
