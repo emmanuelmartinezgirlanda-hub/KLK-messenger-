@@ -15,3 +15,8 @@ const bool kGenteFeatures = bool.fromEnvironment('KLK_GENTE', defaultValue: fals
 /// De momento solo en las versiones de prueba (TestFlight lleva KLK_TEST).
 const bool kWalkieFeatures =
     bool.fromEnvironment('KLK_WALKIE', defaultValue: bool.fromEnvironment('KLK_TEST'));
+
+/// Llamadas y videollamadas en grupo (hasta 4 personas). De momento solo en
+/// las versiones de prueba (TestFlight lleva KLK_TEST).
+const bool kGroupCalls =
+    bool.fromEnvironment('KLK_GROUP_CALLS', defaultValue: bool.fromEnvironment('KLK_TEST'));

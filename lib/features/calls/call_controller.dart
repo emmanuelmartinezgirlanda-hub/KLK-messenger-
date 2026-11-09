@@ -16,6 +16,7 @@ import '../../core/translate/translator.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
 import 'call_screen.dart';
+import 'group_call_controller.dart';
 
 /// Clave del navegador global, para poder abrir la pantalla de llamada
 /// desde cualquier sitio (p. ej. cuando entra una llamada).
@@ -34,7 +35,12 @@ enum CallPhase { idle, outgoing, incoming, connecting, active, ended }
 class CallController extends ChangeNotifier {
   CallController(this._ref) {
     _app.onCallSignal = _onSignal;
+    GroupCallController.ensure(_ref);
   }
+
+  /// Tono de llamada para las llamadas de grupo (mismo tono y vibración).
+  void startRingingExternal() => _startRinging();
+  void stopRingingExternal() => _stopRinging();
 
   final Ref _ref;
   static const _uuid = Uuid();
@@ -131,7 +137,7 @@ class CallController extends ChangeNotifier {
   // ---------- Llamar ----------
 
   Future<void> startCall(String chatId, {required bool video}) async {
-    if (busy) return;
+    if (busy || (GroupCallController.instance?.busy ?? false)) return;
     this.chatId = chatId;
     callId = _uuid.v4();
     this.video = video;
@@ -356,8 +362,14 @@ class CallController extends ChangeNotifier {
     final action = s['a'] as String?;
     final id = s['id'] as String?;
 
+    // Llamadas de grupo: las lleva su propio controlador.
+    if (action != null && action.startsWith('g')) {
+      await GroupCallController.instance?.onSignal(from, s);
+      return;
+    }
+
     if (action == 'offer') {
-      if (busy) {
+      if (busy || (GroupCallController.instance?.busy ?? false)) {
         // Ya estoy en otra llamada: aviso de que estoy ocupado.
         await _app.sendCallSignal(from, {'a': 'busy', 'id': id});
         return;

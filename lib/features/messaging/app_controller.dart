@@ -3078,6 +3078,22 @@ class AppController extends ChangeNotifier {
   Future<void> sendCallSignal(String chatId, Map<String, dynamic> signal) =>
       _sendEncrypted(chatId, Payload(kind: 'call', call: signal), ref: 'x-call', ephemeral: true);
 
+  /// Señal de una llamada en grupo: a todo el grupo, o solo a un miembro ([to]).
+  Future<void> sendGroupCallSignal(String groupId, Map<String, dynamic> signal, {String? to}) async {
+    final p = Payload(kind: 'call', call: signal);
+    if (to == null) {
+      return _sendToChat(groupId, p, ref: 'x-call', ephemeral: true);
+    }
+    final chat = await _db!.chat(groupId);
+    if (chat == null) return;
+    final members = await _membersWithKeys(chat);
+    for (final m in members) {
+      if (m.id == to && m.identityKey != null) {
+        return _sendTo(m.id, m.identityKey!, p, ref: 'x-call', ephemeral: true);
+      }
+    }
+  }
+
   /// Anota la llamada en el chat ("Llamada de voz · 2:31", "Llamada perdida"…).
   Future<void> logCall(String chatId, String text,
       {bool incoming = false, bool video = false, bool missed = false, int durationMs = 0}) async {

@@ -18,6 +18,7 @@ import '../../../core/media/media_store.dart';
 import '../../../core/translate/translator.dart';
 import '../../../core/util/phone.dart';
 import '../../calls/call_controller.dart';
+import '../../calls/group_call_controller.dart';
 import '../../topup/recharge_sheet.dart';
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
@@ -1311,6 +1312,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           : AppBar(
         titleSpacing: 0,
         actions: [
+          if (kGroupCalls && (chat?.isGroup ?? false) && !isCommunityChat(widget.chatId)) ...[
+            IconButton(
+              tooltip: tr('Videollamada de grupo'),
+              icon: const Icon(Icons.videocam_outlined),
+              onPressed: () => ref.read(groupCallProvider).start(widget.chatId, video: true),
+            ),
+            IconButton(
+              tooltip: tr('Llamada de grupo'),
+              icon: const Icon(Icons.call_outlined),
+              onPressed: () => ref.read(groupCallProvider).start(widget.chatId, video: false),
+            ),
+          ],
           if (!(chat?.isGroup ?? false) && !blocked && !(chat?.isNotes ?? false)) ...[
             if (kWalkieFeatures)
               IconButton(
