@@ -15,6 +15,7 @@ import '../../core/l10n/l10n.dart';
 import '../../core/translate/translator.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
+import 'call_quality.dart';
 import 'call_screen.dart';
 import 'group_call_controller.dart';
 
@@ -551,7 +552,7 @@ class CallController extends ChangeNotifier {
     _local = await navigator.mediaDevices.getUserMedia({
       // Quita eco y ruido de fondo (calle, guagua, televisión…).
       'audio': {'echoCancellation': true, 'noiseSuppression': true, 'autoGainControl': true},
-      'video': video ? {'facingMode': 'user'} : false,
+      'video': video ? cameraConstraints() : false,
     });
     localRenderer.srcObject = _local;
     if (video && beauty > 0) await _applyBeauty();
@@ -567,6 +568,7 @@ class CallController extends ChangeNotifier {
     for (final t in _local!.getTracks()) {
       await pc.addTrack(t, _local!);
     }
+    if (video) await preferH264(pc);
     pc.onIceCandidate = (c) {
       if (c.candidate == null) return;
       final m = <String, dynamic>{'a': 'ice', 'c': c.candidate, 'm': c.sdpMid, 'i': c.sdpMLineIndex};
@@ -581,6 +583,7 @@ class CallController extends ChangeNotifier {
     };
     pc.onConnectionState = (st) {
       if (st == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        if (video) unawaited(boostVideoBitrate(pc));
         if (reconnecting) _reconnected();
         if (phase != CallPhase.active) {
           _ringTimeout?.cancel();

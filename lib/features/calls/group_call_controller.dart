@@ -10,6 +10,7 @@ import '../../core/config.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
 import 'call_controller.dart';
+import 'call_quality.dart';
 import 'group_call_screen.dart';
 
 final groupCallProvider = ChangeNotifierProvider<GroupCallController>((ref) => GroupCallController.ensure(ref));
@@ -284,7 +285,7 @@ class GroupCallController extends ChangeNotifier {
     }
     _local = await navigator.mediaDevices.getUserMedia({
       'audio': {'echoCancellation': true, 'noiseSuppression': true, 'autoGainControl': true},
-      'video': video ? {'facingMode': 'user', 'width': 640, 'height': 480} : false,
+      'video': video ? cameraConstraints(group: true) : false,
     });
     localRenderer.srcObject = _local;
     if (video && _single.beauty > 0) await _applyBeauty();
@@ -324,6 +325,7 @@ class GroupCallController extends ChangeNotifier {
     for (final t in _local?.getTracks() ?? <MediaStreamTrack>[]) {
       await pc.addTrack(t, _local!);
     }
+    if (video) await preferH264(pc);
     pc.onIceCandidate = (c) {
       if (c.candidate == null) return;
       _send({'a': 'gice', 'c': c.candidate, 'm': c.sdpMid, 'i': c.sdpMLineIndex}, to: id);
@@ -336,6 +338,7 @@ class GroupCallController extends ChangeNotifier {
     };
     pc.onConnectionState = (st) {
       if (st == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        if (video && !p.connected) unawaited(boostVideoBitrate(pc, group: true));
         p.connected = true;
         _ringTimeout?.cancel();
         _aloneTimer?.cancel();
