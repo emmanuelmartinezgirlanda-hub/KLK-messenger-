@@ -50,6 +50,9 @@ if command -v plutil >/dev/null; then
   # Cifrado: solo algoritmos estándar (exento) y sin Francia. Así App Store
   # Connect no vuelve a preguntar «Falta información de exportación».
   plutil -replace ITSAppUsesNonExemptEncryption -bool NO "$PLIST"
+  # Copia automática visible en Archivos → En mi iPhone → KLK
+  plutil -replace UIFileSharingEnabled -bool YES "$PLIST"
+  plutil -replace LSSupportsOpeningDocumentsInPlace -bool YES "$PLIST"
 fi
 # iOS 15.5 mínimo: lo exige el traductor de Google ML Kit
 sed -i.bak "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 15.5;/g" ios/Runner.xcodeproj/project.pbxproj

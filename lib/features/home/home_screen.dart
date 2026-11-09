@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/features.dart';
 import '../../core/notify/alerts.dart';
 import '../../core/ui/native_glass.dart';
+import '../broadcast/broadcast_screen.dart';
 import '../calls/calls_view.dart';
 import '../chat/presentation/archived_screen.dart';
 import '../chat/presentation/chat_avatar.dart';
@@ -83,6 +84,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     switch (action) {
       case 'group':
         nav.push(MaterialPageRoute(builder: (_) => const CreateGroupScreen()));
+      case 'broadcast':
+        nav.push(MaterialPageRoute(builder: (_) => const BroadcastListsScreen()));
       case 'hidden':
         nav.push(MaterialPageRoute(builder: (_) => const HiddenChatsScreen()));
       case 'qr':
@@ -187,6 +190,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onSelected: _menu,
             itemBuilder: (_) => [
               PopupMenuItem(value: 'group', child: Text(tr('Nuevo grupo'))),
+              PopupMenuItem(value: 'broadcast', child: Text(tr('Listas de difusión'))),
               PopupMenuItem(value: 'qr', child: Text(tr('Mi código QR'))),
               PopupMenuItem(value: 'scan', child: Text(tr('Escanear código QR'))),
               PopupMenuItem(value: 'notes', child: Text(tr('Notas para mí'))),

@@ -5,6 +5,7 @@ import '../../core/security/secure_store.dart';
 import '../../core/util/phone.dart';
 import '../chat/presentation/chat_avatar.dart';
 import '../chat/presentation/chat_screen.dart';
+import '../broadcast/broadcast_screen.dart';
 import '../groups/create_group_screen.dart';
 import '../messaging/app_controller.dart';
 import 'device_contacts.dart';
@@ -202,6 +203,13 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen> {
               title: 'Nuevo grupo',
               subtitle: 'Con tus contactos de KLK',
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateGroupScreen())),
+            ),
+            _Action(
+              icon: Icons.campaign,
+              color: const Color(0xFFE07A00),
+              title: 'Lista de difusión',
+              subtitle: 'Un mensaje a muchos a la vez',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BroadcastListsScreen())),
             ),
             _Action(
               icon: Icons.location_city,

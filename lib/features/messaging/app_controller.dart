@@ -466,6 +466,8 @@ class AppController extends ChangeNotifier {
   void onResume() {
     _foreground = true;
     unawaited(runSanAutoReminders());
+    // Copia automática: unos segundos después de abrir, para no frenar la app.
+    Future.delayed(const Duration(seconds: 20), () => unawaited(maybeAutoBackup()));
     if (phase == AppPhase.ready && !isDemo && !online) {
       _backoff = 1;
       unawaited(_connect());
@@ -2405,6 +2407,72 @@ class AppController extends ChangeNotifier {
     final out = File(pth.join((await getTemporaryDirectory()).path, name));
     await out.writeAsBytes(sealed, flush: true);
     return (file: out, media: included, skipped: skipped);
+  }
+
+  // ---------- Copia automática ----------
+  static const _autoBackupKey = 'klk.backup.auto'; // {"pass":..,"every":1|7,"last":iso}
+  bool _autoBackupRunning = false;
+
+  /// Configuración de la copia automática (null = apagada).
+  Future<({int every, DateTime? last})?> autoBackupSettings() async {
+    try {
+      final raw = await _store.read(_autoBackupKey);
+      if (raw == null) return null;
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      return (every: (j['every'] as num?)?.toInt() ?? 1, last: DateTime.tryParse(j['last'] as String? ?? ''));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> setAutoBackup({required String? password, int every = 1}) async {
+    if (password == null) {
+      await _store.delete(_autoBackupKey);
+      return;
+    }
+    await _store.write(_autoBackupKey, jsonEncode({'pass': password, 'every': every}));
+  }
+
+  Future<void> setAutoBackupEvery(int every) async {
+    final raw = await _store.read(_autoBackupKey);
+    if (raw == null) return;
+    final j = jsonDecode(raw) as Map<String, dynamic>..['every'] = every;
+    await _store.write(_autoBackupKey, jsonEncode(j));
+  }
+
+  /// Donde vive la copia automática: en «Documentos» de KLK. En iPhone se ve en
+  /// Archivos → En mi iPhone → KLK y entra en la copia de iCloud del iPhone.
+  static Future<File> autoBackupFile() async =>
+      File(pth.join((await getApplicationDocumentsDirectory()).path, 'KLK-copia-automatica.klk'));
+
+  /// Hace la copia si toca (cada día o cada semana). [force] la hace ya.
+  Future<bool> maybeAutoBackup({bool force = false}) async {
+    if (_autoBackupRunning || isDemo || phase != AppPhase.ready || _db == null) return false;
+    try {
+      final raw = await _store.read(_autoBackupKey);
+      if (raw == null) return false;
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      final every = (j['every'] as num?)?.toInt() ?? 1;
+      final last = DateTime.tryParse(j['last'] as String? ?? '');
+      if (!force && last != null && DateTime.now().difference(last) < Duration(hours: every * 24 - 2)) return false;
+      _autoBackupRunning = true;
+      final r = await exportBackup(j['pass'] as String);
+      final dest = await autoBackupFile();
+      final tmp = File('${dest.path}.nueva');
+      await r.file.copy(tmp.path);
+      await tmp.rename(dest.path);
+      try {
+        await r.file.delete();
+      } catch (_) {}
+      j['last'] = DateTime.now().toIso8601String();
+      await _store.write(_autoBackupKey, jsonEncode(j));
+      return true;
+    } catch (e) {
+      debugPrint('Copia automática: $e');
+      return false;
+    } finally {
+      _autoBackupRunning = false;
+    }
   }
 
   /// Restaura una copia: sustituye los chats de este móvil por los de la copia.
