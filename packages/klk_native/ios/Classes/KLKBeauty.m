@@ -3,23 +3,25 @@
 #import <Vision/Vision.h>
 #import <Metal/Metal.h>
 
-#if __has_include(<flutter_webrtc/FlutterWebRTCPlugin.h>)
-#import <flutter_webrtc/FlutterWebRTCPlugin.h>
-#import <flutter_webrtc/LocalVideoTrack.h>
+#import <objc/message.h>
+
+// flutter_webrtc puede venir por CocoaPods o por Swift Package Manager, así que no lo
+// enlazamos: buscamos sus clases (y las de WebRTC) en tiempo de ejecución.
 #define KLK_HAS_WEBRTC 1
-#elif __has_include("FlutterWebRTCPlugin.h")
-#import "FlutterWebRTCPlugin.h"
-#import "LocalVideoTrack.h"
-#define KLK_HAS_WEBRTC 1
-#else
-#define KLK_HAS_WEBRTC 0
-#endif
+
+typedef id (*KLKInitBuf)(id, SEL, CVPixelBufferRef);
+typedef id (*KLKInitFrame)(id, SEL, id, NSInteger, int64_t);
+typedef void (*KLKAddProc)(id, SEL, id);
+
+static NSInteger KLKInt(id obj, NSString *key) {
+  @try { return [[obj valueForKey:key] integerValue]; } @catch (__unused id e) { return 0; }
+}
 
 #if KLK_HAS_WEBRTC
 
 /// Procesa cada fotograma de la cámara: busca la cara cada pocos fotogramas y
 /// aplica el suavizado solo sobre ella (con bordes difuminados para que no se note).
-@interface KLKBeautyProcessor : NSObject <ExternalVideoProcessingDelegate>
+@interface KLKBeautyProcessor : NSObject
 @property(atomic) double level;
 @end
 
@@ -46,11 +48,11 @@
   if (_pool) CVPixelBufferPoolRelease(_pool);
 }
 
-static CGImagePropertyOrientation KLKOrientation(RTCVideoRotation r) {
+static CGImagePropertyOrientation KLKOrientation(NSInteger r) {
   switch (r) {
-    case RTCVideoRotation_90: return kCGImagePropertyOrientationRight;
-    case RTCVideoRotation_180: return kCGImagePropertyOrientationDown;
-    case RTCVideoRotation_270: return kCGImagePropertyOrientationLeft;
+    case 90: return kCGImagePropertyOrientationRight;
+    case 180: return kCGImagePropertyOrientationDown;
+    case 270: return kCGImagePropertyOrientationLeft;
     default: return kCGImagePropertyOrientationUp;
   }
 }
@@ -115,15 +117,21 @@ static CGImagePropertyOrientation KLKOrientation(RTCVideoRotation r) {
   return mask;
 }
 
-- (RTCVideoFrame *)onFrame:(RTCVideoFrame *)frame {
+/// Lo llama flutter_webrtc (VideoProcessingAdapter) con cada RTCVideoFrame de la cámara.
+- (id)onFrame:(id)frame {
   double level = self.level;
-  if (level <= 0.01) return frame;
-  if (![frame.buffer isKindOfClass:[RTCCVPixelBuffer class]]) return frame;
-  CVPixelBufferRef src = ((RTCCVPixelBuffer *)frame.buffer).pixelBuffer;
+  if (level <= 0.01 || !frame) return frame;
+  Class cvBufClass = NSClassFromString(@"RTCCVPixelBuffer");
+  Class frameClass = NSClassFromString(@"RTCVideoFrame");
+  id buffer = [frame valueForKey:@"buffer"];
+  if (!cvBufClass || !frameClass || ![buffer isKindOfClass:cvBufClass]) return frame;
+  CVPixelBufferRef src = ((CVPixelBufferRef (*)(id, SEL))objc_msgSend)(buffer, NSSelectorFromString(@"pixelBuffer"));
   if (!src) return frame;
+  NSInteger rotation = KLKInt(frame, @"rotation");
+  int64_t ts = [[frame valueForKey:@"timeStampNs"] longLongValue];
   @autoreleasepool {
     CIImage *img = [CIImage imageWithCVPixelBuffer:src];
-    CGImagePropertyOrientation o = KLKOrientation(frame.rotation);
+    CGImagePropertyOrientation o = KLKOrientation(rotation);
     CGAffineTransform t = [img imageTransformForCGOrientation:o];
     CIImage *up = [img imageByApplyingTransform:t];
     CGRect ext = up.extent;
@@ -174,9 +182,11 @@ static CGImagePropertyOrientation KLKOrientation(RTCVideoRotation r) {
     if (!out) return frame;
     back = [back imageByApplyingTransform:CGAffineTransformMakeTranslation(-back.extent.origin.x, -back.extent.origin.y)];
     [_ctx render:back toCVPixelBuffer:out bounds:CGRectMake(0, 0, w, h) colorSpace:nil];
-    RTCCVPixelBuffer *rb = [[RTCCVPixelBuffer alloc] initWithPixelBuffer:out];
+    id rb = ((KLKInitBuf)objc_msgSend)([cvBufClass alloc], NSSelectorFromString(@"initWithPixelBuffer:"), out);
     CVPixelBufferRelease(out);
-    return [[RTCVideoFrame alloc] initWithBuffer:rb rotation:frame.rotation timeStampNs:frame.timeStampNs];
+    if (!rb) return frame;
+    id nf = ((KLKInitFrame)objc_msgSend)([frameClass alloc], NSSelectorFromString(@"initWithBuffer:rotation:timeStampNs:"), rb, rotation, ts);
+    return nf ?: frame;
   }
 }
 
@@ -193,17 +203,30 @@ static NSMutableDictionary<NSString *, KLKBeautyProcessor *> *KLKProcs(void) {
 
 @implementation KLKBeauty
 
++ (nullable id)localTrack:(NSString *)trackId {
+  Class plugin = NSClassFromString(@"FlutterWebRTCPlugin");
+  SEL shared = NSSelectorFromString(@"sharedSingleton");
+  if (!plugin || ![plugin respondsToSelector:shared]) return nil;
+  id inst = ((id (*)(id, SEL))objc_msgSend)(plugin, shared);
+  if (!inst) return nil;
+  @try {
+    NSDictionary *tracks = [inst valueForKey:@"localTracks"];
+    return [tracks isKindOfClass:[NSDictionary class]] ? tracks[trackId] : nil;
+  } @catch (__unused id e) {
+    return nil;
+  }
+}
+
 + (BOOL)setTrack:(NSString *)trackId level:(double)level {
 #if KLK_HAS_WEBRTC
-  FlutterWebRTCPlugin *plugin = [FlutterWebRTCPlugin sharedSingleton];
-  id track = plugin.localTracks[trackId];
-  if (![track isKindOfClass:[LocalVideoTrack class]]) return NO;
+  id track = [self localTrack:trackId];
+  if (!track || ![track respondsToSelector:NSSelectorFromString(@"addProcessing:")]) return NO;
   @synchronized(KLKProcs()) {
     KLKBeautyProcessor *p = KLKProcs()[trackId];
     if (!p) {
       p = [[KLKBeautyProcessor alloc] init];
       KLKProcs()[trackId] = p;
-      [(LocalVideoTrack *)track addProcessing:p];
+      ((KLKAddProc)objc_msgSend)(track, NSSelectorFromString(@"addProcessing:"), p);
     }
     p.level = MAX(0.0, MIN(1.0, level));
   }
@@ -219,8 +242,9 @@ static NSMutableDictionary<NSString *, KLKBeautyProcessor *> *KLKProcs(void) {
     KLKBeautyProcessor *p = KLKProcs()[trackId];
     if (!p) return;
     p.level = 0;
-    id track = [FlutterWebRTCPlugin sharedSingleton].localTracks[trackId];
-    if ([track isKindOfClass:[LocalVideoTrack class]]) [(LocalVideoTrack *)track removeProcessing:p];
+    id track = [self localTrack:trackId];
+    if ([track respondsToSelector:NSSelectorFromString(@"removeProcessing:")])
+      ((KLKAddProc)objc_msgSend)(track, NSSelectorFromString(@"removeProcessing:"), p);
     [KLKProcs() removeObjectForKey:trackId];
   }
 #endif
