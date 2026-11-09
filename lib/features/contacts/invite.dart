@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/features.dart';
+import '../plus/plus_state.dart';
 import '../../core/l10n/l10n.dart';
 import '../plus/invite_screen.dart';
 import '../../core/util/share.dart';
