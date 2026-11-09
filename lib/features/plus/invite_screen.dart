@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/l10n/l10n.dart';
 import '../../core/network/api_client.dart';
+import '../../core/security/secure_store.dart';
 import '../contacts/invite.dart';
 import '../messaging/app_controller.dart';
+import 'plus_state.dart';
 
 /// «Invita a tus amigos y gana Plus»: cada 3 amigos que entran con tu código,
 /// 1 mes de KLK Plus gratis. Ellos se llevan 7 días.
@@ -207,6 +209,122 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                   ),
               ],
             ]),
+    );
+  }
+}
+
+const _askedKey = 'klk.invite.asked';
+
+/// Justo después de registrarse: «¿Te invitó alguien?». Solo una vez y solo
+/// si la cuenta es nueva (el servidor dice si aún se puede poner un código).
+Future<void> maybeAskInviteCode(BuildContext context, WidgetRef ref) async {
+  if (!kPlusFeatures) return;
+  final app = ref.read(appProvider);
+  if (app.isDemo || app.serverApi == null) return;
+  final store = ref.read(secureStoreProvider);
+  try {
+    if (await store.read(_askedKey) == '1') return;
+  } catch (_) {
+    return;
+  }
+  final v = await app.inviteStatus();
+  if (v == null) return; // sin internet: se pregunta la próxima vez
+  try {
+    await store.write(_askedKey, '1');
+  } catch (_) {}
+  if (v['canClaim'] != true || !context.mounted) return;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) => const _InviteCodeSheet(),
+  );
+}
+
+class _InviteCodeSheet extends ConsumerStatefulWidget {
+  const _InviteCodeSheet();
+
+  @override
+  ConsumerState<_InviteCodeSheet> createState() => _InviteCodeSheetState();
+}
+
+class _InviteCodeSheetState extends ConsumerState<_InviteCodeSheet> {
+  final _code = TextEditingController();
+  bool _busy = false;
+  String? _error;
+  bool _done = false;
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _use() async {
+    if (_code.text.trim().isEmpty) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(appProvider).claimInvite(_code.text);
+      setState(() => _done = true);
+    } on ApiException catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = tr('No se pudo. Revisa tu internet.'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(22, 0, 22, 22 + MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(_done ? '🎉' : '🎁', style: const TextStyle(fontSize: 52)),
+          const SizedBox(height: 6),
+          Text(_done ? tr('¡Listo! 7 días de KLK Plus para ti') : tr('¿Te invitó alguien a KLK?'),
+              textAlign: TextAlign.center, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 6),
+          Text(
+            _done
+                ? tr('Disfruta los temas, iconos y stickers de Plus. Y tu amigo suma un invitado 🙌')
+                : tr('Pon el código de tu amigo y te llevas 7 días de KLK Plus gratis.'),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 18),
+          if (!_done) ...[
+            TextField(
+              controller: _code,
+              autofocus: true,
+              textAlign: TextAlign.center,
+              textCapitalization: TextCapitalization.characters,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 2),
+              decoration: InputDecoration(hintText: 'KLK…', errorText: _error),
+              onSubmitted: (_) => _use(),
+            ),
+            const SizedBox(height: 14),
+            FilledButton(
+              onPressed: _busy ? null : _use,
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+              child: _busy
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(tr('Usar código')),
+            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('No me invitó nadie'))),
+          ] else
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+              child: Text(tr('¡Vamos!')),
+            ),
+        ]),
+      ),
     );
   }
 }

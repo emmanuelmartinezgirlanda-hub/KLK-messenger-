@@ -26,6 +26,8 @@ type InviteStore interface {
 	InviteCount(ctx context.Context, accountID string) (int, error)
 	// InviteOwner: de quién es un código (ErrNotFound si no existe).
 	InviteOwner(ctx context.Context, code string) (string, error)
+	// AccountCreated: cuándo se creó la cuenta.
+	AccountCreated(ctx context.Context, accountID string) (time.Time, error)
 	// InvitedBy: quién invitó a la cuenta ("" si nadie).
 	InvitedBy(ctx context.Context, accountID string) (string, error)
 	// ClaimInvite apunta que [invitee] llegó con [code]. Solo vale si la
@@ -99,6 +101,16 @@ func (m *Memory) InviteOwner(_ context.Context, code string) (string, error) {
 		return "", ErrNotFound
 	}
 	return acc, nil
+}
+
+func (m *Memory) AccountCreated(_ context.Context, acc string) (time.Time, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	a, ok := m.accounts[acc]
+	if !ok {
+		return time.Time{}, ErrNotFound
+	}
+	return a.CreatedAt, nil
 }
 
 func (m *Memory) InvitedBy(_ context.Context, acc string) (string, error) {
@@ -178,6 +190,15 @@ func (p *Postgres) InviteOwner(ctx context.Context, code string) (string, error)
 		return "", ErrNotFound
 	}
 	return acc, err
+}
+
+func (p *Postgres) AccountCreated(ctx context.Context, acc string) (time.Time, error) {
+	var t time.Time
+	err := p.pool.QueryRow(ctx, `SELECT created_at FROM accounts WHERE id = $1`, acc).Scan(&t)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return t, ErrNotFound
+	}
+	return t, err
 }
 
 func (p *Postgres) InvitedBy(ctx context.Context, acc string) (string, error) {

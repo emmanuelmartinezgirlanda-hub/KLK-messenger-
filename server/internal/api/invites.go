@@ -43,10 +43,14 @@ func (s *Server) inviteOf(r *http.Request, acc string) (inviteView, error) {
 	if err != nil {
 		return inviteView{}, err
 	}
+	created, err := s.store.AccountCreated(ctx, acc)
+	if err != nil {
+		return inviteView{}, err
+	}
 	return inviteView{
 		Code: code, Count: n, PerReward: invitesPerReward,
 		Months: n / invitesPerReward, Next: invitesPerReward - n%invitesPerReward,
-		InvitedBy: by != "", CanClaim: by == "",
+		InvitedBy: by != "", CanClaim: by == "" && time.Since(created) < inviteMaxAge,
 	}, nil
 }
 

@@ -20,6 +20,7 @@ import '../contacts/my_qr_screen.dart';
 import '../gente/gente_view.dart';
 import '../groups/create_group_screen.dart';
 import '../hidden/hidden_chats_screen.dart';
+import '../plus/invite_screen.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
 import '../settings/settings_view.dart';
@@ -52,6 +53,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!mounted) return;
       Navigator.of(context).popUntil((r) => r.isFirst);
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: chatId)));
+    });
+    // Cuenta nueva: «¿Te invitó alguien?» (una sola vez).
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) maybeAskInviteCode(context, ref);
     });
   }
 
