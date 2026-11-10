@@ -18,10 +18,10 @@ import '../../core/util/share.dart';
 /// Si lo abre alguien sin KLK, la página le explica cómo descargarla.
 String contactLink(String server, String phone, String name, {String username = ''}) {
   final base = server.isEmpty ? KlkConfig.officialServer : server;
-  // Con @usuario el enlace va por el usuario (se ve bonito en WhatsApp y no
-  // enseña el número). Quien entró con correo no tiene número.
-  if (username.isNotEmpty) return Uri.parse(base).replace(path: '/u/$username').toString();
-  if (phone.startsWith('mail:')) return '';
+  // Quien entró con correo no tiene número: su enlace va por su @usuario.
+  if (phone.startsWith('mail:')) {
+    return username.isEmpty ? '' : Uri.parse(base).replace(path: '/u/$username').toString();
+  }
   final digits = phone.replaceAll(RegExp(r'\D'), '');
   final n = name.trim();
   return Uri.parse(base)
