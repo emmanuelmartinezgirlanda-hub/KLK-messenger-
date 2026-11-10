@@ -57,3 +57,17 @@ jobs:
         if: failure()
         shell: bash
         run: grep -h -E "error:|\.java:[0-9]+|What went wrong|FAILURE" -A3 build.log 2>/dev/null | head -80 || true
+  flutter-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Preparar carpetas nativas
+        run: bash tool/prepare_native.sh
+      - name: Tests de la app
+        run: set -o pipefail; flutter test 2>&1 | tail -120
+        shell: bash
