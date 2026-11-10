@@ -53,3 +53,24 @@ func TestAdminPlusGifts(t *testing.T) {
 		t.Fatalf("sin Plus después de quitarlo: %d %+v", s, v)
 	}
 }
+
+func TestAdminDarPlus(t *testing.T) {
+	e := newAdminEnv(t)
+	hija := e.register("+353896100001", 1)
+	var v struct {
+		Active bool `json:"active"`
+	}
+	if s := e.do("POST", "/admin/api/plus/grant", hija.token, map[string]any{"who": "+353 89 610 0001", "days": 365}, nil); s != 401 {
+		t.Fatalf("solo el dueño da Plus: %d", s)
+	}
+	if s := e.do("POST", "/admin/api/plus/grant", adminTok, map[string]any{"who": "+353 89 610 0001", "days": 365}, nil); s != 200 {
+		t.Fatalf("dar Plus: %d", s)
+	}
+	e.do("GET", "/v1/plus", hija.token, nil, &v)
+	if !v.Active {
+		t.Fatal("la cuenta debería tener Plus")
+	}
+	if s := e.do("POST", "/admin/api/plus/grant", adminTok, map[string]any{"who": "+10000000000", "days": 30}, nil); s != 404 {
+		t.Fatalf("cuenta que no existe: %d", s)
+	}
+}

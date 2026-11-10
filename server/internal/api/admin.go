@@ -74,6 +74,7 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /admin/api/business/{id}/unverify", s.admin(s.adminVerifyBusiness))
 	mux.HandleFunc("GET /admin/api/plus", s.admin(s.adminPlus))
 	mux.HandleFunc("POST /admin/api/plus/codes", s.admin(s.adminNewGiftCode))
+	mux.HandleFunc("POST /admin/api/plus/grant", s.admin(s.adminGrantPlus))
 	mux.HandleFunc("POST /admin/api/accounts/{id}/plus/remove", s.admin(s.adminRemovePlus))
 }
 

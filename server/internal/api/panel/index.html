@@ -425,10 +425,17 @@ function renderPlus(){
   const accs=data.plus.accounts||[], codes=data.plus.codes||[];
   const day=v=>v?new Date(v).toLocaleDateString("es",{day:"numeric",month:"short",year:"numeric"}):"—";
   return `<div class="card">
+    <label for="gw">Dar KLK Plus a una cuenta (sin código)</label>
+    <input id="gw" placeholder="+353… , correo@… o @usuario" autocomplete="off">
+    <select id="gwd"><option value="30">1 mes</option><option value="90">3 meses</option><option value="180">6 meses</option><option value="365" selected>1 año</option><option value="3650">Para siempre (10 años)</option></select>
+    <div class="actions"><button class="btn" id="grantPlus" style="flex:1">Dar Plus</button></div>
+    <p class="muted small">Le llega solo: la persona solo tiene que cerrar y abrir KLK. Vale para la versión de la App Store.</p>
+  </div>
+  <div class="card">
     <label for="gd">Regalar KLK Plus: crea un código de un solo uso</label>
     <select id="gd"><option value="30">1 mes</option><option value="90" selected>3 meses</option><option value="180">6 meses</option><option value="365">1 año</option></select>
     <div class="actions"><button class="btn" id="newGift" style="flex:1">Crear código</button></div>
-    <p class="muted small">La persona lo escribe en la app (KLK Plus → código). Cuando lo usa, el código ya no vale para nadie más.</p>
+    <p class="muted small">La persona lo escribe en la app (KLK Plus → código). Ojo: la casilla del código solo sale en las versiones de prueba (TestFlight); en la App Store usa «Dar Plus» de arriba.</p>
   </div>
   <h2>Códigos de regalo (${codes.length})</h2>
   <div class="card list">${codes.length?codes.map(c=>`<div class="item"><div><b style="font-family:ui-monospace,monospace">${esc(c.code)}</b><div class="muted small">${c.days} días · ${c.usedAt?`usado por ${esc(c.usedBy||"cuenta borrada")} el ${day(c.usedAt)}`:"sin usar"}</div></div>${c.usedAt?"":`<button class="btn" data-copy="${esc(c.code)}">Copiar</button>`}</div>`).join(""):`<div class="empty">Todavía no has creado códigos.</div>`}</div>
@@ -625,6 +632,10 @@ document.addEventListener("click",e=>{
     if(!confirm(`¿Quitarle KLK Plus a ${t.dataset.phone}?`))return;
     act(()=>api(`accounts/${t.dataset.unplus}/plus/remove`,{method:"POST"}),"Plus quitado");return}
   if(t.dataset.copy){navigator.clipboard.writeText(t.dataset.copy).then(()=>toast("Código copiado"),()=>toast(t.dataset.copy));return}
+  if(t.id==="grantPlus"){
+    const who=$("#gw").value.trim(),days=+$("#gwd").value;
+    if(!who){toast("Escribe el número, correo o @usuario");return}
+    act(()=>api("plus/grant",{method:"POST",body:JSON.stringify({who,days})}),"Plus dado ✓");return}
   if(t.id==="newGift"){
     const days=+$("#gd").value;
     act(async()=>{const r=await api("plus/codes",{method:"POST",body:JSON.stringify({days})});try{await navigator.clipboard.writeText(r.code)}catch(e){}},"Código creado y copiado 🎁");return}
