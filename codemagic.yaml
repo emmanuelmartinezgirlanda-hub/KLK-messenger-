@@ -165,6 +165,7 @@ workflows:
           flutter build ipa --release \
             --build-number=$((PROJECT_BUILD_NUMBER + 10)) \
             --dart-define=KLK_PLUS=true \
+            --dart-define=KLK_GROUP_CALLS=true \
             --dart-define=KLK_BUSINESS=true \
             --dart-define=KLK_GENTE=true \
             --export-options-plist=/Users/builder/export_options.plist
@@ -177,6 +178,7 @@ workflows:
         # Se manda sola a revisión de Apple con las novedades de release_notes.json
         # y sale en la App Store en cuanto Apple la apruebe.
         submit_to_app_store: true
+        cancel_previous_submissions: true
         release_type: AFTER_APPROVAL
         copyright: 2026 KLK Messenger
 
