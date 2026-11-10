@@ -9,6 +9,19 @@ final class WatchBridge: NSObject, WCSessionDelegate, FlutterStreamHandler {
   static let shared = WatchBridge()
   private var sink: FlutterEventSink?
   private var pending: [[String: Any]] = []  // llegaron antes de que Dart escuchara
+  // applicationContext se sustituye entero: guardo las dos partes.
+  private static var ctxContacts: [[String: String]] = []
+  private static var ctxChats: [[String: Any]] = []
+
+  private static func pushContext() -> Bool {
+    guard WCSession.isSupported(), WCSession.default.activationState == .activated else { return false }
+    do {
+      try WCSession.default.updateApplicationContext(["contacts": ctxContacts, "chats": ctxChats])
+      return true
+    } catch {
+      return false
+    }
+  }
 
   func activate() {
     guard WCSession.isSupported() else { return }
@@ -21,14 +34,12 @@ final class WatchBridge: NSObject, WCSessionDelegate, FlutterStreamHandler {
     let args = call.arguments as? [String: Any] ?? [:]
     switch call.method {
     case "watchContacts":
-      guard WCSession.isSupported(), WCSession.default.activationState == .activated else { result(false); return true }
-      let list = args["contacts"] as? [[String: String]] ?? []
-      do {
-        try WCSession.default.updateApplicationContext(["contacts": list])
-        result(true)
-      } catch {
-        result(false)
-      }
+      ctxContacts = args["contacts"] as? [[String: String]] ?? []
+      result(pushContext())
+      return true
+    case "watchChats":
+      ctxChats = args["chats"] as? [[String: Any]] ?? []
+      result(pushContext())
       return true
     case "watchPlay":
       guard WCSession.isSupported(), WCSession.default.activationState == .activated,
@@ -73,6 +84,12 @@ final class WatchBridge: NSObject, WCSessionDelegate, FlutterStreamHandler {
   func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {}
   func sessionDidBecomeInactive(_ session: WCSession) {}
   func sessionDidDeactivate(_ session: WCSession) { WCSession.default.activate() }
+
+  /// Respuestas de texto del reloj.
+  func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+    guard let chatId = userInfo["chatId"] as? String, let text = userInfo["text"] as? String else { return }
+    emit(["type": "text", "chatId": chatId, "text": text])
+  }
 
   func session(_ session: WCSession, didReceive file: WCSessionFile) {
     // El sistema borra el archivo al salir de aquí: lo copio a Documentos.

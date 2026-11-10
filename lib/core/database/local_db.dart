@@ -211,6 +211,13 @@ class LocalDb {
     return rows.map(Message.fromRow).toList();
   }
 
+  /// Los últimos [limit] mensajes de un chat, del más viejo al más nuevo.
+  Future<List<Message>> recentMessages(String chatId, int limit) async {
+    final rows = await _db.query('messages',
+        where: 'chat_id = ?', whereArgs: [chatId], orderBy: 'created_at DESC', limit: limit);
+    return rows.map(Message.fromRow).toList().reversed.toList();
+  }
+
   Future<bool> hasMessage(String id) async {
     final r = await _db.query('messages', columns: ['id'], where: 'id = ?', whereArgs: [id], limit: 1);
     return r.isNotEmpty;

@@ -2956,14 +2956,28 @@ class AppController extends ChangeNotifier {
     _watchStarted = true;
     KlkNative.watchEvents.listen((e) async {
       final chatId = e['chatId'] as String? ?? '';
+      if (chatId.isEmpty || chatById(chatId) == null) return;
+      // Respuesta de texto desde el reloj.
+      if (e['type'] == 'text') {
+        final text = (e['text'] as String? ?? '').trim();
+        if (text.isNotEmpty) {
+          try {
+            await sendText(chatId, text);
+          } catch (err) {
+            debugPrint('Texto del reloj: $err');
+          }
+        }
+        return;
+      }
       final path = e['path'] as String? ?? '';
-      if (chatId.isEmpty || path.isEmpty || chatById(chatId) == null) return;
+      if (path.isEmpty) return;
       try {
         await sendMedia(chatId, MessageMedia(
           type: MediaType.audio,
           localPath: path,
           mime: 'audio/mp4',
-          name: walkieAudioName,
+          // Del chat del reloj: nota de voz normal. Del walkie: walkie.
+          name: e['type'] == 'voice' ? null : walkieAudioName,
           durationMs: (e['ms'] as num?)?.toInt() ?? 0,
           size: await File(path).length(),
         ));
@@ -2977,6 +2991,7 @@ class AppController extends ChangeNotifier {
   /// Le pasa al reloj los chats de persona a persona (los primeros 25).
   void _syncWatchContacts() {
     if (!_watchStarted) return;
+    _syncWatchChats();
     final list = [
       for (final c in chats.where((c) => !c.isGroup && !c.hidden && !c.isNotes).take(25))
         {'id': c.id, 'title': c.title},
@@ -2985,6 +3000,52 @@ class AppController extends ChangeNotifier {
     if (sig == _watchSig) return;
     _watchSig = sig;
     unawaited(KlkNative.watchContacts(list));
+  }
+
+  Timer? _watchChatsTimer;
+  String _watchChatsSig = '';
+
+  /// Le pasa al reloj los chats recientes con sus últimos mensajes (cada vez
+  /// que algo cambia, como mucho una vez cada 2 segundos).
+  void _syncWatchChats() {
+    if (!_watchStarted) return;
+    _watchChatsTimer?.cancel();
+    _watchChatsTimer = Timer(const Duration(seconds: 2), () async {
+      final db = _db;
+      if (db == null) return;
+      final recent = chats
+          .where((c) => !c.hidden && !c.archived && !c.blocked && !c.isNotes)
+          .toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      String cut(String t, int n) => t.length <= n ? t : '${t.substring(0, n)}…';
+      final out = <Map<String, Object>>[];
+      for (final c in recent.take(15)) {
+        final msgs = out.length < 8 ? await db.recentMessages(c.id, 12) : const <Message>[];
+        out.add({
+          'id': c.id,
+          'title': c.title,
+          'group': c.isGroup,
+          'unread': c.unread,
+          'last': cut(c.lastText, 120),
+          'at': c.updatedAt.millisecondsSinceEpoch,
+          'messages': [
+            for (final m in msgs)
+              if (m.kind != MessageKind.system)
+                {
+                  'id': m.id,
+                  'mine': m.isMine,
+                  'from': m.sender,
+                  'text': cut(m.summary, 300),
+                  'at': m.createdAt.millisecondsSinceEpoch,
+                },
+          ],
+        });
+      }
+      final sig = out.map((c) => '${c['id']}|${c['unread']}|${c['at']}|${(c['messages'] as List).length}').join(';');
+      if (sig == _watchChatsSig) return;
+      _watchChatsSig = sig;
+      await KlkNative.watchChats(out);
+    });
   }
 
   Future<void> _downloadMedia(Message msg) async {

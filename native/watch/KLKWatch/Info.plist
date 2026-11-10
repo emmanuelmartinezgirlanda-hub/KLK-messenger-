@@ -13,6 +13,6 @@
   <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
   <key>WKApplication</key><true/>
   <key>WKCompanionAppBundleIdentifier</key><string>com.klkapp.klk</string>
-  <key>NSMicrophoneUsageDescription</key><string>KLK usa el micrófono del reloj para el walkie-talkie.</string>
+  <key>NSMicrophoneUsageDescription</key><string>KLK usa el micrófono del reloj para mandar notas de voz y para el walkie-talkie.</string>
 </dict>
 </plist>

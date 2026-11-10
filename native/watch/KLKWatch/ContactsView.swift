@@ -19,7 +19,7 @@ struct ContactsView: View {
         }
       }
     }
-    .navigationTitle("📻 Walkie")
+    .navigationTitle("Walkie")
     .navigationDestination(for: WatchContact.self) { c in
       WalkieView(contact: c)
     }

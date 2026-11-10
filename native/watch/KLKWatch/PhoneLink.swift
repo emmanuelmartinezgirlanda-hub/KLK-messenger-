@@ -9,13 +9,15 @@ struct WatchContact: Identifiable, Hashable {
 }
 
 /// Conexión con el iPhone (WatchConnectivity).
-/// - El iPhone manda la lista de contactos (applicationContext).
+/// - El iPhone manda la lista de contactos y los chats con sus últimos mensajes (applicationContext).
+/// - El reloj manda notas de voz y respuestas de texto; el iPhone las cifra y las envía.
 /// - El reloj manda sus grabaciones al iPhone (transferFile) y el iPhone las envía cifradas.
 /// - El iPhone le pasa al reloj lo que te mandan por walkie, y suena solo.
 final class PhoneLink: NSObject, ObservableObject, WCSessionDelegate, AVAudioPlayerDelegate {
   static let shared = PhoneLink()
 
   @Published var contacts: [WatchContact] = []
+  @Published var chats: [WatchChat] = []
   @Published var reachable = false
   @Published var playingFrom: String?  // quién está sonando ahora
 
@@ -27,6 +29,9 @@ final class PhoneLink: NSObject, ObservableObject, WCSessionDelegate, AVAudioPla
     if WCSession.isSupported() {
       WCSession.default.delegate = self
       WCSession.default.activate()
+    }
+    if let saved = UserDefaults.standard.array(forKey: "klk.chats") as? [[String: Any]] {
+      chats = saved.compactMap(WatchChat.init)
     }
     if let saved = UserDefaults.standard.array(forKey: "klk.contacts") as? [[String: String]] {
       contacts = saved.compactMap { d in
@@ -41,6 +46,34 @@ final class PhoneLink: NSObject, ObservableObject, WCSessionDelegate, AVAudioPla
   func send(file: URL, to contact: WatchContact, durationMs: Int) {
     guard WCSession.default.activationState == .activated else { return }
     WCSession.default.transferFile(file, metadata: ["type": "walkie", "chatId": contact.id, "ms": durationMs])
+  }
+
+  /// Nota de voz normal (no walkie) para un chat.
+  func sendVoice(file: URL, chatId: String, durationMs: Int) {
+    guard WCSession.default.activationState == .activated else { return }
+    WCSession.default.transferFile(file, metadata: ["type": "voice", "chatId": chatId, "ms": durationMs])
+    appendMine(chatId: chatId, text: "🎤 Nota de voz")
+  }
+
+  /// Respuesta de texto (dictada, escrita o rápida).
+  func sendText(_ text: String, chatId: String) {
+    let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !t.isEmpty, WCSession.default.activationState == .activated else { return }
+    WCSession.default.transferUserInfo(["type": "text", "chatId": chatId, "text": t])
+    appendMine(chatId: chatId, text: t)
+  }
+
+  /// Lo enseño ya en el reloj; el iPhone mandará la lista buena enseguida.
+  private func appendMine(chatId: String, text: String) {
+    guard let i = chats.firstIndex(where: { $0.id == chatId }) else { return }
+    chats[i].messages.append(
+      WatchMessage(id: UUID().uuidString, mine: true, from: "", text: text, at: Date()))
+  }
+
+  /// Al abrir un chat en el reloj: quito el número de no leídos (en el reloj).
+  func markSeen(_ chatId: String) {
+    guard let i = chats.firstIndex(where: { $0.id == chatId }) else { return }
+    chats[i].unread = 0
   }
 
   // MARK: WCSessionDelegate
@@ -61,6 +94,10 @@ final class PhoneLink: NSObject, ObservableObject, WCSessionDelegate, AVAudioPla
   }
 
   private func apply(_ ctx: [String: Any]) {
+    if let list = ctx["chats"] as? [[String: Any]] {
+      UserDefaults.standard.set(list, forKey: "klk.chats")
+      chats = list.compactMap(WatchChat.init)
+    }
     guard let list = ctx["contacts"] as? [[String: String]] else { return }
     UserDefaults.standard.set(list, forKey: "klk.contacts")
     contacts = list.compactMap { d in

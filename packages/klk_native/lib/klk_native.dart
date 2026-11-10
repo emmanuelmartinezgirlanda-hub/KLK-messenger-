@@ -207,6 +207,14 @@ class KlkNative {
     } catch (_) {}
   }
 
+  /// Pasa al reloj los chats con sus últimos mensajes (para leer y responder).
+  static Future<void> watchChats(List<Map<String, Object>> chats) async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod('watchChats', {'chats': chats});
+    } catch (_) {}
+  }
+
   /// Hace sonar en el reloj un audio de walkie que acaba de llegar.
   static Future<void> watchPlay(String path, {required String chatId, required String from}) async {
     if (!supported) return;
