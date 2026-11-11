@@ -25,7 +25,7 @@ jobs:
           pip install -q chatterbox-tts soundfile openai-whisper
           git clone -q --depth 1 -b marketing-keloke "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" out && rm -rf out/.git
       - name: Generar
-        run: GUION=marketing/anuncio/guion_corto.txt PRE=corto python marketing/anuncio/keloke/voz_v7.py
+        run: GUION=marketing/anuncio/guion_novedades.txt PRE=nov python marketing/anuncio/keloke/voz_v7.py
       - name: Guardar en la rama marketing-keloke
         if: always()
         run: |
