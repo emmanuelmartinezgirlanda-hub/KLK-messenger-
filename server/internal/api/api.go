@@ -141,6 +141,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/channels/{id}/posts", s.authed(s.addChannelPost))
 	mux.HandleFunc("DELETE /v1/channels/{id}/posts/{pid}", s.authed(s.deleteChannelPost))
 	mux.HandleFunc("GET /v1/channels/{id}/posts/{pid}/image", s.authed(s.channelPostImage))
+	mux.HandleFunc("PUT /v1/channels/{id}/logo", s.authed(s.setChannelLogo))
+	mux.HandleFunc("DELETE /v1/channels/{id}/logo", s.authed(s.setChannelLogo))
+	mux.HandleFunc("GET /v1/channels/{id}/logo", s.channelLogo) // público: sale en la vista previa de WhatsApp
 	mux.HandleFunc("GET /v1/communities", s.authed(s.listCommunities))
 	mux.HandleFunc("POST /v1/communities/{id}", s.authed(s.joinCommunity))
 	mux.HandleFunc("DELETE /v1/communities/{id}", s.authed(s.joinCommunity))

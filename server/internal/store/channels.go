@@ -18,6 +18,7 @@ type Channel struct {
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
 	Emoji       string     `json:"emoji"`
+	LogoV       int        `json:"logoV"` // 0 = sin logo (sale el emoji)
 	CreatedAt   time.Time  `json:"createdAt"`
 	Followers   int        `json:"followers"`
 	Following   bool       `json:"following"`
@@ -54,6 +55,9 @@ type ChannelStore interface {
 	// ChanPosts devuelve las publicaciones más nuevas antes de [before] (cero = ahora).
 	ChanPosts(ctx context.Context, channelID string, before time.Time, limit int) ([]ChanPost, error)
 	ChanPostImage(ctx context.Context, channelID, postID string) ([]byte, error)
+	// SetChannelLogo pone (o quita, con nil) el logo del canal.
+	SetChannelLogo(ctx context.Context, id string, img []byte) (int, error)
+	ChannelLogo(ctx context.Context, id string) ([]byte, error)
 }
 
 // ---------- Memoria ----------
@@ -62,11 +66,12 @@ type memChannels struct {
 	chans     map[string]Channel
 	followers map[string]map[string]bool // canal -> cuentas
 	posts     map[string][]ChanPost      // canal -> publicaciones (viejas primero)
+	logos     map[string][]byte
 }
 
 func (m *Memory) ch() *memChannels {
 	if m.channels == nil {
-		m.channels = &memChannels{chans: map[string]Channel{}, followers: map[string]map[string]bool{}, posts: map[string][]ChanPost{}}
+		m.channels = &memChannels{chans: map[string]Channel{}, followers: map[string]map[string]bool{}, posts: map[string][]ChanPost{}, logos: map[string][]byte{}}
 	}
 	return m.channels
 }
@@ -128,7 +133,41 @@ func (m *Memory) DeleteChannel(_ context.Context, id string) error {
 	delete(cs.chans, id)
 	delete(cs.followers, id)
 	delete(cs.posts, id)
+	delete(cs.logos, id)
 	return nil
+}
+
+func (m *Memory) SetChannelLogo(_ context.Context, id string, img []byte) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cs := m.ch()
+	c, ok := cs.chans[id]
+	if !ok {
+		return 0, ErrNotFound
+	}
+	if len(img) == 0 {
+		delete(cs.logos, id)
+		c.LogoV = 0
+	} else {
+		cs.logos[id] = img
+		v := c.LogoV
+		if v < 0 {
+			v = -v
+		}
+		c.LogoV = v + 1
+	}
+	cs.chans[id] = c
+	return c.LogoV, nil
+}
+
+func (m *Memory) ChannelLogo(_ context.Context, id string) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	img, ok := m.ch().logos[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return img, nil
 }
 
 func (m *Memory) Channel(_ context.Context, id, viewer string) (Channel, error) {
@@ -281,7 +320,7 @@ func (m *Memory) ChanPostImage(_ context.Context, channelID, postID string) ([]b
 
 // ---------- Postgres ----------
 
-const chanCols = `c.id::text, c.owner_id::text, c.name, c.description, c.emoji, c.created_at,
+const chanCols = `c.id::text, c.owner_id::text, c.name, c.description, c.emoji, c.logo_v, c.created_at,
 	(SELECT count(*) FROM channel_followers f WHERE f.channel_id = c.id),
 	EXISTS (SELECT 1 FROM channel_followers f WHERE f.channel_id = c.id AND f.account_id = $1),
 	lp.id::text, lp.body, lp.has_image, lp.created_at`
@@ -298,7 +337,7 @@ func scanChannels(rows pgx.Rows, viewer string) ([]Channel, error) {
 		var pid, pbody *string
 		var pimg *bool
 		var pat *time.Time
-		if err := rows.Scan(&c.ID, &c.OwnerID, &c.Name, &c.Description, &c.Emoji, &c.CreatedAt,
+		if err := rows.Scan(&c.ID, &c.OwnerID, &c.Name, &c.Description, &c.Emoji, &c.LogoV, &c.CreatedAt,
 			&c.Followers, &c.Following, &pid, &pbody, &pimg, &pat); err != nil {
 			return nil, err
 		}
@@ -356,7 +395,7 @@ func (p *Postgres) Channels(ctx context.Context, q, viewer string, limit int) ([
 	q = strings.TrimSpace(q)
 	rows, err := p.pool.Query(ctx, `SELECT `+chanCols+chanFrom+`
 		WHERE ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')
-		ORDER BY 7 DESC, c.created_at DESC LIMIT $3`, viewer, q, limit)
+		ORDER BY 8 DESC, c.created_at DESC LIMIT $3`, viewer, q, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -449,6 +488,35 @@ func (p *Postgres) ChanPostImage(ctx context.Context, channelID, postID string) 
 	var img []byte
 	err := p.pool.QueryRow(ctx, `SELECT image FROM channel_posts WHERE id = $1 AND channel_id = $2 AND image IS NOT NULL`,
 		postID, channelID).Scan(&img)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return img, err
+}
+
+func (p *Postgres) SetChannelLogo(ctx context.Context, id string, img []byte) (int, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return 0, ErrNotFound
+	}
+	var v int
+	var err error
+	if len(img) == 0 {
+		err = p.pool.QueryRow(ctx, `UPDATE channels SET logo = NULL, logo_v = 0 WHERE id = $1 RETURNING logo_v`, id).Scan(&v)
+	} else {
+		err = p.pool.QueryRow(ctx, `UPDATE channels SET logo = $2, logo_v = abs(logo_v) + 1 WHERE id = $1 RETURNING logo_v`, id, img).Scan(&v)
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return v, err
+}
+
+func (p *Postgres) ChannelLogo(ctx context.Context, id string) ([]byte, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, ErrNotFound
+	}
+	var img []byte
+	err := p.pool.QueryRow(ctx, `SELECT logo FROM channels WHERE id = $1 AND logo IS NOT NULL`, id).Scan(&img)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}

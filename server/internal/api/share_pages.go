@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/klk-app/klk-server/internal/store"
 )
 
 // Páginas para compartir por WhatsApp, Instagram o SMS: se ven con foto,
@@ -123,6 +125,7 @@ func (s *Server) channelPage(w http.ResponseWriter, r *http.Request) {
 		Description: truncate(desc, 200),
 		URL:         origin(r) + "/k/" + c.ID,
 		Emoji:       c.Emoji,
+		Image:       chanLogoURL(r, c),
 		Heading:     c.Name,
 		Sub:         "Canal · " + followersLabel(c.Followers),
 		Body:        truncate(c.Description, 300),
@@ -208,3 +211,10 @@ func (s *Server) profilePage(w http.ResponseWriter, r *http.Request) {
 }
 
 var zeroTime time.Time
+
+func chanLogoURL(r *http.Request, c store.Channel) string {
+	if c.LogoV <= 0 {
+		return ""
+	}
+	return origin(r) + "/v1/channels/" + c.ID + "/logo?v=" + strconv.Itoa(c.LogoV)
+}

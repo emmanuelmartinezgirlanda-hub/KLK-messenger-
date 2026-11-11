@@ -69,6 +69,25 @@ func TestCanales(t *testing.T) {
 	if s := e.do("GET", "/v1/channels/"+id+"/posts", luis.token, nil, &posts); s != 200 || len(posts.Posts) != 2 || !posts.Posts[0].HasImage {
 		t.Fatalf("publicaciones: %d %+v", s, posts)
 	}
+	var lg struct {
+		LogoV int `json:"logoV"`
+	}
+	if s := e.do("PUT", "/v1/channels/"+id+"/logo", luis.token, map[string]any{"image": []byte("\x89PNGlogo")}, nil); s != 403 {
+		t.Fatalf("solo el dueño pone logo: %d", s)
+	}
+	if s := e.do("PUT", "/v1/channels/"+id+"/logo", ana.token, map[string]any{"image": []byte("\x89PNGlogo")}, &lg); s != 200 || lg.LogoV != 1 {
+		t.Fatalf("poner logo: %d %+v", s, lg)
+	}
+	var cv struct {
+		LogoV int `json:"logoV"`
+	}
+	e.do("GET", "/v1/channels/"+id, luis.token, nil, &cv)
+	if cv.LogoV != 1 {
+		t.Fatalf("logoV en el canal: %+v", cv)
+	}
+	if s := e.do("GET", "/v1/channels/"+id+"/logo", luis.token, nil, nil); s != 200 {
+		t.Fatalf("ver logo: %d", s)
+	}
 	if s := e.do("DELETE", "/v1/channels/"+id+"/posts/"+p.ID, ana.token, nil, nil); s != 204 {
 		t.Fatalf("borrar publicación: %d", s)
 	}
