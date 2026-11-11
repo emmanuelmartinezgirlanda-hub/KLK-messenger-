@@ -326,3 +326,76 @@ func (s *Server) channelLogo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, max-age=86400")
 	_, _ = w.Write(img)
 }
+
+// ---------- Panel del dueño: canales oficiales ----------
+
+// GET /admin/api/channels?q=: buscar canales (para marcar el oficial).
+func (s *Server) adminChannels(w http.ResponseWriter, r *http.Request) {
+	out, err := s.store.Channels(r.Context(), r.URL.Query().Get("q"), "00000000-0000-0000-0000-000000000000", 50)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channels": out})
+}
+
+// POST /admin/api/channels/{id}/official {"official":true}
+func (s *Server) adminSetOfficial(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Official bool `json:"official"`
+	}
+	if !readJSON(w, r, &req) {
+		return
+	}
+	err := s.store.SetChannelOfficial(r.Context(), r.PathValue("id"), req.Official)
+	if errors.Is(err, store.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, "not_found", "ese canal no existe")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	// Al hacerlo oficial, lo siguen todos los que ya están en KLK.
+	if req.Official {
+		if err := s.store.FollowChannelAll(r.Context(), r.PathValue("id")); err != nil {
+			slog.Warn("canal oficial: seguir todos", "err", err)
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// PUT /admin/api/channels/{id}/logo {"image": base64}: el dueño de KLK pone el logo.
+func (s *Server) adminChannelLogo(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Image []byte `json:"image"`
+	}
+	if !readJSON(w, r, &req) {
+		return
+	}
+	if len(req.Image) == 0 || len(req.Image) > maxChanImage || !validJPEGorPNG(req.Image) {
+		writeErr(w, http.StatusBadRequest, "bad_image", "ese logo no vale (JPEG o PNG, hasta 400 KB)")
+		return
+	}
+	v, err := s.store.SetChannelLogo(r.Context(), r.PathValue("id"), req.Image)
+	if errors.Is(err, store.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, "not_found", "ese canal no existe")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"logoV": v})
+}
+
+// followOfficial: las cuentas nuevas siguen los canales oficiales.
+func (s *Server) followOfficial(r *http.Request, acc string) {
+	ids, err := s.store.OfficialChannels(r.Context())
+	if err != nil {
+		return
+	}
+	for _, id := range ids {
+		_ = s.store.FollowChannel(r.Context(), id, acc, true)
+	}
+}

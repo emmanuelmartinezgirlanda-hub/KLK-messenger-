@@ -19,6 +19,7 @@ type Channel struct {
 	Description string     `json:"description"`
 	Emoji       string     `json:"emoji"`
 	LogoV       int        `json:"logoV"` // 0 = sin logo (sale el emoji)
+	Official    bool       `json:"official,omitempty"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	Followers   int        `json:"followers"`
 	Following   bool       `json:"following"`
@@ -58,6 +59,12 @@ type ChannelStore interface {
 	// SetChannelLogo pone (o quita, con nil) el logo del canal.
 	SetChannelLogo(ctx context.Context, id string, img []byte) (int, error)
 	ChannelLogo(ctx context.Context, id string) ([]byte, error)
+	// SetChannelOfficial marca (o desmarca) un canal como oficial de KLK.
+	SetChannelOfficial(ctx context.Context, id string, official bool) error
+	// FollowChannelAll hace que todas las cuentas sigan el canal.
+	FollowChannelAll(ctx context.Context, id string) error
+	// OfficialChannels: ids de los canales oficiales.
+	OfficialChannels(ctx context.Context) ([]string, error)
 }
 
 // ---------- Memoria ----------
@@ -160,6 +167,30 @@ func (m *Memory) SetChannelLogo(_ context.Context, id string, img []byte) (int, 
 	return c.LogoV, nil
 }
 
+func (m *Memory) SetChannelOfficial(_ context.Context, id string, official bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c, ok := m.ch().chans[id]
+	if !ok {
+		return ErrNotFound
+	}
+	c.Official = official
+	m.ch().chans[id] = c
+	return nil
+}
+
+func (m *Memory) OfficialChannels(_ context.Context) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []string{}
+	for id, c := range m.ch().chans {
+		if c.Official && m.chanAliveLocked(c) {
+			out = append(out, id)
+		}
+	}
+	return out, nil
+}
+
 func (m *Memory) ChannelLogo(_ context.Context, id string) ([]byte, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -195,6 +226,9 @@ func (m *Memory) Channels(_ context.Context, q, viewer string, limit int) ([]Cha
 		out = append(out, m.chanViewLocked(c, viewer))
 	}
 	sort.Slice(out, func(i, j int) bool {
+		if out[i].Official != out[j].Official {
+			return out[i].Official
+		}
 		if out[i].Followers != out[j].Followers {
 			return out[i].Followers > out[j].Followers
 		}
@@ -323,7 +357,7 @@ func (m *Memory) ChanPostImage(_ context.Context, channelID, postID string) ([]b
 const chanCols = `c.id::text, c.owner_id::text, c.name, c.description, c.emoji, c.logo_v, c.created_at,
 	(SELECT count(*) FROM channel_followers f WHERE f.channel_id = c.id),
 	EXISTS (SELECT 1 FROM channel_followers f WHERE f.channel_id = c.id AND f.account_id = $1),
-	lp.id::text, lp.body, lp.has_image, lp.created_at`
+	lp.id::text, lp.body, lp.has_image, lp.created_at, c.official`
 
 const chanFrom = ` FROM channels c LEFT JOIN LATERAL (
 	SELECT p.id, p.body, p.image IS NOT NULL AS has_image, p.created_at FROM channel_posts p WHERE p.channel_id = c.id
@@ -338,7 +372,7 @@ func scanChannels(rows pgx.Rows, viewer string) ([]Channel, error) {
 		var pimg *bool
 		var pat *time.Time
 		if err := rows.Scan(&c.ID, &c.OwnerID, &c.Name, &c.Description, &c.Emoji, &c.LogoV, &c.CreatedAt,
-			&c.Followers, &c.Following, &pid, &pbody, &pimg, &pat); err != nil {
+			&c.Followers, &c.Following, &pid, &pbody, &pimg, &pat, &c.Official); err != nil {
 			return nil, err
 		}
 		c.Mine = c.OwnerID == viewer
@@ -395,7 +429,7 @@ func (p *Postgres) Channels(ctx context.Context, q, viewer string, limit int) ([
 	q = strings.TrimSpace(q)
 	rows, err := p.pool.Query(ctx, `SELECT `+chanCols+chanFrom+`
 		WHERE ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')
-		ORDER BY 8 DESC, c.created_at DESC LIMIT $3`, viewer, q, limit)
+		ORDER BY c.official DESC, 8 DESC, c.created_at DESC LIMIT $3`, viewer, q, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -521,4 +555,57 @@ func (p *Postgres) ChannelLogo(ctx context.Context, id string) ([]byte, error) {
 		return nil, ErrNotFound
 	}
 	return img, err
+}
+
+func (p *Postgres) SetChannelOfficial(ctx context.Context, id string, official bool) error {
+	if _, err := uuid.Parse(id); err != nil {
+		return ErrNotFound
+	}
+	tag, err := p.pool.Exec(ctx, `UPDATE channels SET official = $2 WHERE id = $1`, id, official)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+func (p *Postgres) OfficialChannels(ctx context.Context) ([]string, error) {
+	rows, err := p.pool.Query(ctx, `SELECT id::text FROM channels WHERE official`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+func (m *Memory) FollowChannelAll(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cs := m.ch()
+	if _, ok := cs.chans[id]; !ok {
+		return ErrNotFound
+	}
+	if cs.followers[id] == nil {
+		cs.followers[id] = map[string]bool{}
+	}
+	for acc := range m.accounts {
+		cs.followers[id][acc] = true
+	}
+	return nil
+}
+
+func (p *Postgres) FollowChannelAll(ctx context.Context, id string) error {
+	if _, err := uuid.Parse(id); err != nil {
+		return ErrNotFound
+	}
+	_, err := p.pool.Exec(ctx, `INSERT INTO channel_followers (channel_id, account_id)
+		SELECT $1, id FROM accounts ON CONFLICT DO NOTHING`, id)
+	return err
 }

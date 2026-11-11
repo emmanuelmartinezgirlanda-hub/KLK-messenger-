@@ -366,6 +366,10 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request, identity strin
 	}
 	s.touch(r.Context(), dev.AccountID)
 	s.grantFounder(r.Context(), dev.AccountID)
+	// Cuenta recién creada: sigue el canal oficial de KLK.
+	if created, err := s.store.AccountCreated(r.Context(), dev.AccountID); err == nil && time.Since(created) < 2*time.Minute {
+		s.followOfficial(r, dev.AccountID)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"accountId": dev.AccountID, "deviceId": dev.DeviceID, "token": token,
 	})
