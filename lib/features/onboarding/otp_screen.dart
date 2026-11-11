@@ -54,6 +54,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     var info = first;
     while (mounted) {
       final left = (info.data['attemptsLeft'] as num?)?.toInt();
+      if (!mounted) return;
       final pin = await showDialog<String>(
         context: context,
         barrierDismissible: false,

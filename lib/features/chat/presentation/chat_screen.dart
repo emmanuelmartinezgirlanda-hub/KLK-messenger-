@@ -468,6 +468,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (id != null && id.startsWith('file:')) {
               await _sendCustomSticker(id.substring(5));
             } else if (id != null && id.startsWith('rec:')) {
+              if (!mounted) return;
               final voice = await recordVoiceSticker(context, id.substring(4));
               if (voice != null) {
                 await _sendMedia(MessageMedia(
@@ -592,6 +593,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (zone != null) {
       final there = nowIn(zone.zone);
       if (there.hour >= 23 || there.hour < 7) {
+        if (!mounted) return;
         final ok = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(

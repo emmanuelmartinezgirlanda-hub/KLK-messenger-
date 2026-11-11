@@ -842,7 +842,7 @@ class _StatusViewerState extends ConsumerState<StatusViewer> {
                       onPressed: () async {
                         _pause();
                         final done = await confirmDeleteStatus(context, ref, post);
-                        if (!mounted) return;
+                        if (!mounted || !context.mounted) return;
                         if (done) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Estado borrado'))));
                           Navigator.of(context).pop();
