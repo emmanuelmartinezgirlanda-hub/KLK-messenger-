@@ -33,7 +33,7 @@ class WaChat {
 }
 
 // Marcas invisibles que mete WhatsApp (dirección de texto, espacios finos…).
-final _invisible = RegExp('[‎‏‪-‮⁦-⁩﻿]');
+final _invisible = RegExp(r'[\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]');
 
 final _line = RegExp(
   r'^\[?(\d{1,4})[./-](\d{1,2})[./-](\d{1,4}),?\s+(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?\s*([aApP]\.?\s?[mM]\.?)?\]?\s*(?:[-–]\s*)?([^:]{1,80}?):\s?(.*)$',
