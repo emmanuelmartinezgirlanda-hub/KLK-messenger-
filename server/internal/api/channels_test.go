@@ -104,3 +104,51 @@ func TestCanales(t *testing.T) {
 		t.Fatalf("ya no existe: %d", s)
 	}
 }
+
+func TestCanalOficial(t *testing.T) {
+	e := newAdminEnv(t)
+	dueno := e.register("+18095550701", 1)
+	ya := e.register("+18095550702", 1)
+	var c struct {
+		ID string `json:"id"`
+	}
+	e.do("POST", "/v1/channels", dueno.token, map[string]string{"name": "KLK MESSENGER", "emoji": "🇩🇴"}, &c)
+	e.do("POST", "/v1/channels", ya.token, map[string]string{"name": "Otro canal"}, nil)
+	if s := e.do("POST", "/admin/api/channels/"+c.ID+"/official", ya.token, map[string]bool{"official": true}, nil); s != 401 {
+		t.Fatalf("solo el panel: %d", s)
+	}
+	if s := e.do("POST", "/admin/api/channels/"+c.ID+"/official", adminTok, map[string]bool{"official": true}, nil); s != 204 {
+		t.Fatalf("hacer oficial: %d", s)
+	}
+	nuevo := e.register("+18095550703", 1)
+	for _, u := range []string{ya.token, nuevo.token} {
+		var list struct {
+			Channels []struct {
+				ID       string `json:"id"`
+				Official bool   `json:"official"`
+			} `json:"channels"`
+		}
+		e.do("GET", "/v1/channels?mine=1", u, nil, &list)
+		found := false
+		for _, ch := range list.Channels {
+			if ch.ID == c.ID && ch.Official {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("debe seguir el canal oficial: %+v", list)
+		}
+	}
+	var all struct {
+		Channels []struct {
+			ID string `json:"id"`
+		} `json:"channels"`
+	}
+	e.do("GET", "/v1/channels", nuevo.token, nil, &all)
+	if len(all.Channels) < 2 || all.Channels[0].ID != c.ID {
+		t.Fatalf("el oficial sale primero: %+v", all)
+	}
+	if s := e.do("PUT", "/admin/api/channels/"+c.ID+"/logo", adminTok, map[string]any{"image": []byte("\x89PNGx")}, nil); s != 200 {
+		t.Fatalf("logo desde el panel: %d", s)
+	}
+}

@@ -22,6 +22,7 @@ class KChannel {
   String get description => j['description'] as String? ?? '';
   String get emoji => j['emoji'] as String? ?? '📢';
   int get logoV => (j['logoV'] as num?)?.toInt() ?? 0;
+  bool get official => j['official'] == true;
   int get followers => (j['followers'] as num?)?.toInt() ?? 0;
   bool get following => j['following'] == true;
   bool get mine => j['mine'] == true;
@@ -57,6 +58,19 @@ ApiClient? _api(WidgetRef ref) => ref.read(appProvider).serverApi;
 String _err(Object e) => e is ApiException ? e.message : tr('No hay conexión. Inténtalo otra vez.');
 
 Widget _emojiAvatar(KChannel c, {double radius = 24}) => _ChannelAvatar(c: c, radius: radius);
+
+/// Nombre del canal con la insignia azul si es el oficial de KLK.
+Widget _chanName(KChannel c, {TextStyle? style, double badge = 16, bool center = false}) => Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: center ? MainAxisAlignment.center : MainAxisAlignment.start,
+      children: [
+        Flexible(child: Text(c.name, style: style, overflow: TextOverflow.ellipsis)),
+        if (c.official) ...[
+          const SizedBox(width: 4),
+          Icon(Icons.verified, size: badge, color: const Color(0xFF2E7BE0)),
+        ],
+      ],
+    );
 
 final _logoCache = <String, Uint8List>{};
 
@@ -215,7 +229,7 @@ class _ChannelsSectionState extends ConsumerState<ChannelsSection> {
         for (final c in mine)
           ListTile(
             leading: _emojiAvatar(c),
-            title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+            title: _chanName(c, style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text(
               c.lastPost == null
                   ? _followers(c.followers)
@@ -343,7 +357,7 @@ class _ChannelsDirectoryScreenState extends ConsumerState<ChannelsDirectoryScree
                             final c = list[i];
                             return ListTile(
                               leading: _emojiAvatar(c),
-                              title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              title: _chanName(c, style: const TextStyle(fontWeight: FontWeight.w600)),
                               subtitle: Text(
                                   c.description.isEmpty ? _followers(c.followers) : '${_followers(c.followers)} · ${c.description}',
                                   maxLines: 2,
@@ -680,7 +694,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_c.name, overflow: TextOverflow.ellipsis),
+              _chanName(_c, badge: 18),
               Text(_followers(_c.followers), style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
             ]),
           ),
@@ -728,9 +742,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                               child: Column(children: [
                                 _emojiAvatar(_c, radius: 36),
                                 const SizedBox(height: 8),
-                                Text(_c.name,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                                _chanName(_c,
+                                    center: true, badge: 22, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
                                 if (_c.description.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
