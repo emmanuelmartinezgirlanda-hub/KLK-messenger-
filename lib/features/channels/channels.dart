@@ -21,6 +21,7 @@ class KChannel {
   String get name => j['name'] as String? ?? '';
   String get description => j['description'] as String? ?? '';
   String get emoji => j['emoji'] as String? ?? '📢';
+  int get logoV => (j['logoV'] as num?)?.toInt() ?? 0;
   int get followers => (j['followers'] as num?)?.toInt() ?? 0;
   bool get following => j['following'] == true;
   bool get mine => j['mine'] == true;
@@ -55,11 +56,88 @@ ApiClient? _api(WidgetRef ref) => ref.read(appProvider).serverApi;
 
 String _err(Object e) => e is ApiException ? e.message : tr('No hay conexión. Inténtalo otra vez.');
 
-Widget _emojiAvatar(KChannel c, {double radius = 24}) => CircleAvatar(
-      radius: radius,
+Widget _emojiAvatar(KChannel c, {double radius = 24}) => _ChannelAvatar(c: c, radius: radius);
+
+final _logoCache = <String, Uint8List>{};
+
+/// La foto del canal: su logo si tiene; si no, su emoji.
+class _ChannelAvatar extends ConsumerStatefulWidget {
+  const _ChannelAvatar({required this.c, required this.radius, this.local});
+  final KChannel c;
+  final double radius;
+  final Uint8List? local; // logo recién elegido (aún sin subir)
+
+  @override
+  ConsumerState<_ChannelAvatar> createState() => _ChannelAvatarState();
+}
+
+class _ChannelAvatarState extends ConsumerState<_ChannelAvatar> {
+  Uint8List? _img;
+  String get _key => '${widget.c.id}@${widget.c.logoV}';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_ChannelAvatar old) {
+    super.didUpdateWidget(old);
+    if (old.c.id != widget.c.id || old.c.logoV != widget.c.logoV) _load();
+  }
+
+  Future<void> _load() async {
+    if (widget.c.logoV <= 0) {
+      if (mounted) setState(() => _img = null);
+      return;
+    }
+    final cached = _logoCache[_key];
+    if (cached != null) {
+      setState(() => _img = cached);
+      return;
+    }
+    final api = _api(ref);
+    if (api == null) return;
+    try {
+      final b = Uint8List.fromList(await api.bytes('/v1/channels/${widget.c.id}/logo?v=${widget.c.logoV}'));
+      _logoCache[_key] = b;
+      if (mounted) setState(() => _img = b);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final img = widget.local ?? _img;
+    return CircleAvatar(
+      radius: widget.radius,
       backgroundColor: const Color(0xFF002D62).withValues(alpha: 0.12),
-      child: Text(c.emoji, style: TextStyle(fontSize: radius * 0.95)),
+      backgroundImage: img != null ? MemoryImage(img) : null,
+      child: img != null ? null : Text(widget.c.emoji, style: TextStyle(fontSize: widget.radius * 0.95)),
     );
+  }
+}
+
+/// Elige una foto de la galería, cuadrada y pequeña, para el logo.
+Future<Uint8List?> _pickLogo(BuildContext context) async {
+  try {
+    var x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 512, maxHeight: 512, imageQuality: 82);
+    if (x == null) return null;
+    var b = await x.readAsBytes();
+    if (b.length > 390 * 1024) {
+      x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 320, maxHeight: 320, imageQuality: 65);
+      if (x == null) return null;
+      b = await x.readAsBytes();
+    }
+    return b.length > 390 * 1024 ? null : b;
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr('KLK no tiene permiso para tus fotos. Actívalo en Ajustes → KLK.'))));
+    }
+    return null;
+  }
+}
 
 /// Sección «Canales» para la pestaña de Estados (como en WhatsApp «Novedades»).
 class ChannelsSection extends ConsumerStatefulWidget {
@@ -302,6 +380,8 @@ class _CreateChannelScreenState extends ConsumerState<CreateChannelScreen> {
   late final _name = TextEditingController(text: widget.edit?.name ?? '');
   late final _desc = TextEditingController(text: widget.edit?.description ?? '');
   late String _emoji = widget.edit?.emoji ?? '📢';
+  Uint8List? _logo; // nuevo logo elegido
+  bool _removeLogo = false;
   bool _busy = false;
   String? _error;
 
@@ -326,8 +406,17 @@ class _CreateChannelScreenState extends ConsumerState<CreateChannelScreen> {
       final j = widget.edit == null
           ? await api.json('POST', '/v1/channels', body) as Map<String, dynamic>
           : await api.json('PUT', '/v1/channels/${widget.edit!.id}', body) as Map<String, dynamic>;
-      if (!mounted) return;
       final c = KChannel(j);
+      // Logo: subir el nuevo o quitar el que había.
+      if (_logo != null) {
+        final r = await api.json('PUT', '/v1/channels/${c.id}/logo', {'image': base64Encode(_logo!)}) as Map<String, dynamic>;
+        c.j['logoV'] = r['logoV'];
+        _logoCache['${c.id}@${r['logoV']}'] = _logo!;
+      } else if (_removeLogo && (widget.edit?.logoV ?? 0) > 0) {
+        await api.json('DELETE', '/v1/channels/${c.id}/logo');
+        c.j['logoV'] = 0;
+      }
+      if (!mounted) return;
       if (widget.edit == null) {
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ChannelScreen(channel: c)));
       } else {
@@ -346,7 +435,43 @@ class _CreateChannelScreenState extends ConsumerState<CreateChannelScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(widget.edit == null ? tr('Crear canal') : tr('Editar canal'))),
       body: ListView(padding: const EdgeInsets.all(20), children: [
-        Center(child: Text(_emoji, style: const TextStyle(fontSize: 64))),
+        Center(
+          child: _logo != null || (!_removeLogo && (widget.edit?.logoV ?? 0) > 0)
+              ? _ChannelAvatar(c: widget.edit ?? KChannel({'id': '', 'emoji': _emoji}), radius: 52, local: _logo)
+              : Text(_emoji, style: const TextStyle(fontSize: 64)),
+        ),
+        const SizedBox(height: 8),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          TextButton.icon(
+            onPressed: _busy
+                ? null
+                : () async {
+                    final b = await _pickLogo(context);
+                    if (b != null) {
+                      setState(() {
+                        _logo = b;
+                        _removeLogo = false;
+                      });
+                    }
+                  },
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            label: Text(_logo != null || (!_removeLogo && (widget.edit?.logoV ?? 0) > 0) ? tr('Cambiar logo') : tr('Poner mi logo')),
+          ),
+          if (_logo != null || (!_removeLogo && (widget.edit?.logoV ?? 0) > 0))
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () => setState(() {
+                        _logo = null;
+                        _removeLogo = true;
+                      }),
+              child: Text(tr('Quitar')),
+            ),
+        ]),
+        Center(
+          child: Text(tr('Sin logo, el canal sale con el emoji que elijas abajo.'),
+              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ),
         const SizedBox(height: 10),
         Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: [
           for (final e in _emojis)

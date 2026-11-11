@@ -277,3 +277,52 @@ func (s *Server) channelPostImage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	_, _ = w.Write(img)
 }
+
+// PUT /v1/channels/{id}/logo {"image": base64}: poner el logo (solo el dueño).
+// DELETE /v1/channels/{id}/logo: quitarlo (vuelve el emoji).
+func (s *Server) setChannelLogo(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.ownChannel(w, r)
+	if !ok {
+		return
+	}
+	var img []byte
+	if r.Method != http.MethodDelete {
+		var req struct {
+			Image []byte `json:"image"`
+		}
+		if !readJSON(w, r, &req) {
+			return
+		}
+		if len(req.Image) == 0 || len(req.Image) > maxChanImage || !validJPEGorPNG(req.Image) {
+			writeErr(w, http.StatusBadRequest, "bad_image", "ese logo no vale (JPEG o PNG, hasta 400 KB)")
+			return
+		}
+		img = req.Image
+	}
+	v, err := s.store.SetChannelLogo(r.Context(), c.ID, img)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"logoV": v})
+}
+
+// GET /v1/channels/{id}/logo
+func (s *Server) channelLogo(w http.ResponseWriter, r *http.Request) {
+	img, err := s.store.ChannelLogo(r.Context(), r.PathValue("id"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, "not_found", "sin logo")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	ct := "image/jpeg"
+	if bytes.HasPrefix(img, []byte("\x89PNG")) {
+		ct = "image/png"
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	_, _ = w.Write(img)
+}
