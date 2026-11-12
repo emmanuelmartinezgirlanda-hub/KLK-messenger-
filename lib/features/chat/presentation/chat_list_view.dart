@@ -6,6 +6,8 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../home/ads_carousel.dart';
+
 import '../../messaging/app_controller.dart';
 import '../../messaging/models.dart';
 import 'chat_avatar.dart';
@@ -17,6 +19,7 @@ import '../../contacts/contact_actions.dart';
 import 'new_chat_sheet.dart';
 import '../../contacts/invite.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../status/status_views.dart';
 
 
 String chatTime(DateTime t) {
@@ -106,6 +109,7 @@ class _ChatListViewState extends ConsumerState<ChatListView> {
               style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700)),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ArchivedScreen())),
         ),
+      if (q.isEmpty && _filter == _Filter.all) const AdsCarousel(),
       if (news != null && q.isEmpty)
         _AnnouncementCard(
           news: news,
@@ -378,12 +382,24 @@ class _ChatTile extends ConsumerWidget {
       minVerticalPadding: 10,
       leading: GestureDetector(
         onTap: () async {
+          // Si tiene un estado puesto, tocar su foto lo abre (como en WhatsApp).
+          final posts = ref.read(appProvider).statusesOf(chat.id);
+          if (posts.isNotEmpty) {
+            Navigator.of(context).push(MaterialPageRoute(
+                fullscreenDialog: true, builder: (_) => StatusViewer(posts: posts, title: chat.title)));
+            return;
+          }
           final action = await showAvatarQuickView(context, chat);
           if (action == null || !context.mounted) return;
           Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => ChatScreen(chatId: chat.id, startAction: action == 'chat' ? null : action)));
         },
-        child: ChatAvatar(id: chat.id, title: chat.title, photoPath: chat.avatarPath, radius: 27),
+        child: AvatarDecor(
+          radius: 27,
+          ring: ref.watch(appProvider).statusRingOf(chat.id),
+          timer: chat.disappearSec != null && chat.disappearSec! > 0,
+          child: ChatAvatar(id: chat.id, title: chat.title, photoPath: chat.avatarPath, radius: 27),
+        ),
       ),
       title: Row(children: [
         Expanded(

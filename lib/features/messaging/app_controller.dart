@@ -70,6 +70,30 @@ class AppController extends ChangeNotifier {
   static const _newsKey = 'klk.news.dismissed';
   static const _plusKey = 'klk.plus.until';
 
+  /// Aro del estado en la foto de un contacto: 0 = no tiene, 1 = nuevo, 2 = ya visto.
+  int statusRingOf(String chatId) {
+    var any = false;
+    for (final s in statuses) {
+      if (s.ownerId != chatId) continue;
+      if (!s.viewed) return 1;
+      any = true;
+    }
+    return any ? 2 : 0;
+  }
+
+  /// Los estados de un contacto (para abrirlos tocando su foto).
+  List<StatusPost> statusesOf(String chatId) => statuses.where((s) => s.ownerId == chatId).toList();
+
+  /// Anuncios de negocios (los pone el dueño desde el panel).
+  List<KlkAd> ads = [];
+
+  String? adImageUrl(KlkAd a) => a.hasImage && _api != null ? _api!.adImageUrl(a.id, a.imageV) : null;
+
+  void adClicked(String id) {
+    final api = _api;
+    if (api != null && !isDemo) unawaited(api.adClick(id).catchError((_) {}));
+  }
+
   /// El dueño de KLK bloqueó esta cuenta.
   bool banned = false;
   DateTime _bannedCheckedAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -96,6 +120,10 @@ class AppController extends ChangeNotifier {
           createdAt: DateTime.now(),
         ),
       ];
+      ads = const [
+        KlkAd(id: 'demo-1', title: 'Colmado La Esquina', body: 'Pide por KLK y te lo llevamos en 20 minutos', cta: 'Pedir', color: 'navy'),
+        KlkAd(id: 'demo-2', title: 'Barbería El Flow', body: 'Corte y barba: reserva tu turno por chat', cta: 'Reservar', color: 'black'),
+      ];
       notifyListeners();
       return;
     }
@@ -106,6 +134,10 @@ class AppController extends ChangeNotifier {
       announcements = list.map(KlkAnnouncement.fromJson).toList();
       if (banned) banned = false;
       notifyListeners();
+      try {
+        ads = (await api.ads()).map(KlkAd.fromJson).toList();
+        notifyListeners();
+      } catch (_) {}
     } on ApiException catch (e) {
       _checkBanned(e);
     } catch (_) {}

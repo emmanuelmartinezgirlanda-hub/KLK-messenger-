@@ -566,16 +566,29 @@ Future<int?> pickDisappearing(BuildContext context, int? current) => showModalBo
             subtitle: Text(tr('Los mensajes nuevos de este chat se borrarán solos para todos pasado este tiempo.')),
           ),
           for (final (label, sec) in const [
-            ('Desactivados', 0),
+            ('Desactivados (siempre)', 0),
             ('24 horas', 86400),
             ('7 días', 604800),
             ('90 días', 7776000),
+            ('1 año', 31536000),
           ])
             ListTile(
               leading: Icon((current ?? 0) == sec ? Icons.radio_button_checked : Icons.radio_button_off),
-              title: Text(label),
+              title: Text(tr(label)),
+              subtitle: sec == 0 ? Text(tr('Los mensajes se quedan para siempre')) : null,
               onTap: () => Navigator.pop(ctx, sec),
             ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Row(children: [
+              const Icon(Icons.timer_rounded, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(tr('Con mensajes temporales sale un relojito en la foto del chat, para que se sepa.'),
+                    style: const TextStyle(fontSize: 12.5)),
+              ),
+            ]),
+          ),
         ]),
       ),
     );

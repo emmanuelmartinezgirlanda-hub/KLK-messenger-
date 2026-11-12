@@ -36,6 +36,7 @@ type Server struct {
 	ipLimits    sync.Map // ip -> *rate.Limiter
 	adminLimits sync.Map // ip -> *rate.Limiter (panel)
 	touched     sync.Map // accountID -> time.Time (última vez que se apuntó last_seen)
+	adsMu       sync.Mutex
 
 	// SMS son los límites antifraude de los códigos por SMS (nil = sin límites).
 	SMS *SMSGuard
@@ -107,6 +108,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/reports", s.authed(s.report))
 	mux.HandleFunc("POST /v1/blocks/{id}", s.authed(s.blockNotice))
 	mux.HandleFunc("GET /v1/announcements", s.authed(s.announcements))
+	mux.HandleFunc("GET /v1/ads", s.authed(s.ads))
+	mux.HandleFunc("GET /v1/ads/{id}/image", s.adImage) // público, como los logos
+	mux.HandleFunc("POST /v1/ads/{id}/click", s.authed(s.adClick))
 	mux.HandleFunc("GET /v1/account/pin", s.authed(s.pinStatus))
 	mux.HandleFunc("PUT /v1/account/pin", s.limited(s.authed(s.setPin)))
 	mux.HandleFunc("DELETE /v1/account/pin", s.authed(s.clearPin))

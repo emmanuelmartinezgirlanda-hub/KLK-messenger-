@@ -26,6 +26,8 @@ import '../../messaging/models.dart';
 import '../../privacy/presentation/privacy_provider.dart';
 import '../../theming/domain/klk_theme.dart';
 import '../../theming/wallpapers.dart';
+import '../../theming/presentation/chat_style_screen.dart';
+import 'trash_anim.dart';
 import 'chat_avatar.dart';
 import 'chat_sheets.dart';
 import 'sound_sticker.dart';
@@ -87,6 +89,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Nota de voz
   final _recorder = AudioRecorder();
   bool _recording = false;
+  /// Animación del zafacón al borrar una nota de voz.
+  bool _trashing = false;
   String? _voicePreview; // nota de voz grabada, para escucharla antes de enviarla
   int _voicePreviewMs = 0;
   DateTime? _recStart;
@@ -777,7 +781,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget _voicePreviewBar(ColorScheme cs) => Row(children: [
         IconButton(
           tooltip: tr('Borrar nota de voz'),
-          onPressed: () => _finishVoicePreview(send: false),
+          onPressed: () {
+            setState(() => _trashing = true);
+            _finishVoicePreview(send: false);
+          },
           icon: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A), size: 28),
         ),
         Expanded(
@@ -1104,7 +1111,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             chat.muted ? tr('Activar sonido') : tr('Silenciar')),
         _menuItem('timer', Icons.timer_outlined, '${tr('Mensajes temporales')} · ${disappearLabel(chat.disappearSec)}'),
       ],
-      _menuItem('wallpaper', Icons.wallpaper_outlined, tr('Fondo de pantalla')),
+      _menuItem('wallpaper', Icons.brush_outlined, tr('Estilo del chat')),
       _menuItem('importwa', Icons.download_outlined, tr('Importar de WhatsApp')),
       gap,
       if (isContact) _menuItem('safety', Icons.verified_user_outlined, tr('Código de seguridad')),
@@ -1226,7 +1233,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  Future<void> _pickWallpaper() => showWallpaperPicker(context);
+  Future<void> _pickWallpaper() =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatStyleScreen()));
 
   void _scrollToEndIfNew(int count) {
     if (count == _lastCount) return;
@@ -1388,7 +1396,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           child: Row(children: [
           Hero(
             tag: 'avatar-${widget.chatId}',
-            child: ChatAvatar(id: widget.chatId, title: title, photoPath: chat?.avatarPath, radius: 19),
+            child: AvatarDecor(
+              radius: 19,
+              ring: ref.watch(appProvider).statusRingOf(widget.chatId),
+              timer: (chat?.disappearSec ?? 0) > 0,
+              child: ChatAvatar(id: widget.chatId, title: title, photoPath: chat?.avatarPath, radius: 19),
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1490,9 +1503,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     if (_mentionQuery != null && !_recording) _mentionBar(cs),
                     if (_replyTo != null && !_recording) _replyBar(cs),
                     if (!_recording && _voicePreview == null && !(chat?.isGroup ?? true)) _quickReplies(),
-                    _recording
-                        ? _recordingBar(cs)
-                        : (_voicePreview != null ? _voicePreviewBar(cs) : _composer()),
+                    _trashing
+                        ? TrashAnimation(onDone: () {
+                            if (mounted) setState(() => _trashing = false);
+                          })
+                        : _recording
+                            ? _recordingBar(cs)
+                            : (_voicePreview != null ? _voicePreviewBar(cs) : _composer()),
                     if (_emoji && !_recording) _emojiPanel(),
                   ]),
           ),
@@ -1722,8 +1739,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final elapsed = DateTime.now().difference(_recStart ?? DateTime.now());
     return Row(children: [
       IconButton(
-        tooltip: tr('Cancelar'),
-        onPressed: () => _stopRecording(send: false),
+        tooltip: tr('Borrar nota de voz'),
+        onPressed: () {
+          setState(() => _trashing = true);
+          _stopRecording(send: false);
+        },
         icon: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A), size: 28),
       ),
       const SizedBox(width: 4),

@@ -419,6 +419,16 @@ class ApiClient {
     return (j['announcements'] as List? ?? const []).cast<Map<String, dynamic>>();
   }
 
+  /// Anuncios de negocios que pasan arriba de los chats.
+  Future<List<Map<String, dynamic>>> ads() async {
+    final j = await _send('GET', '/v1/ads') as Map<String, dynamic>;
+    return (j['ads'] as List? ?? const []).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> adClick(String id) async => _send('POST', '/v1/ads/$id/click');
+
+  String adImageUrl(String id, int v) => '${_u('/v1/ads/$id/image')}?v=$v';
+
   // ---------- Cifrado Signal ----------
 
   /// Sube mi signed prekey y/o claves de un solo uso.

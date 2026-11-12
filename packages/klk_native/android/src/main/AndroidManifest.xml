@@ -3,6 +3,7 @@
     <!-- Llamadas: la pantalla de llamada entrante encima de todo, también bloqueado -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application>
         <!-- Los avisos que llegan con la app cerrada van al canal «Mensajes». -->
         <meta-data

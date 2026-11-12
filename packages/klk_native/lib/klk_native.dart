@@ -138,6 +138,35 @@ class KlkNative {
     }
   }
 
+  /// Cara de animal (emoji) encima de la cara en la videollamada (como en FaceTime).
+  /// null = quitarla. La otra persona también la ve.
+  static Future<bool> setFaceMask(String trackId, String? emoji) async {
+    if (!supportsBeauty) return false;
+    try {
+      return await _channel.invokeMethod<bool>('setFaceMask', {'track': trackId, 'mask': emoji}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Mejora de imagen (más luz y nitidez) en la videollamada.
+  static Future<bool> setEnhance(String trackId, bool on) async {
+    if (!supportsBeauty) return false;
+    try {
+      return await _channel.invokeMethod<bool>('setEnhance', {'track': trackId, 'on': on}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Sensor de proximidad: con el móvil en la oreja se apaga la pantalla (llamadas de voz).
+  static Future<void> setProximity(bool on) async {
+    if (!Platform.isIOS && !Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('setProximity', {'on': on});
+    } catch (_) {}
+  }
+
   static Future<void> removeBeauty(String trackId) async {
     if (!supportsBeauty) return;
     try {

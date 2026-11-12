@@ -20,6 +20,7 @@ import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
 import '../privacy/presentation/privacy_screen.dart';
 import '../theming/presentation/theme_picker_screen.dart';
+import '../theming/presentation/chat_style_screen.dart';
 import '../theming/presentation/theme_provider.dart';
 import '../theming/wallpapers.dart';
 import '../../core/security/secure_store.dart';
@@ -191,6 +192,13 @@ class SettingsView extends ConsumerWidget {
           subtitle: Text('${theme.name} · colores, burbujas y fuente'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ThemePickerScreen())),
+        ),
+        ListTile(
+          leading: const Icon(Icons.brush_outlined),
+          title: Text(tr('Estilo del chat')),
+          subtitle: Text(tr('Fondo y color de tus burbujas, listos para poner')),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatStyleScreen())),
         ),
         ListTile(
           leading: const Icon(Icons.wallpaper_outlined),

@@ -623,12 +623,23 @@ def make(sid, lines, color, face_kind=None, icon=None, pill=False):
             sparkle(art, C / 2 + math.cos(ang) * 430, C / 2 + math.sin(ang) * 330, rnd.uniform(34, 52))
     # inclinación ligera para darle vida
     art = art.rotate(rnd.uniform(-7, 7), resample=Image.BICUBIC, center=(C / 2, C / 2))
+    small = finish(art)
+    # 256 colores con transparencia: pesa ~3 veces menos y no se nota
+    small.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE).save(
+        os.path.join(OUT, sid + ".png"), optimize=True)
+
+
+def finish(art, fit_scale=None):
+    """Borde blanco troquelado + sombra; devuelve la imagen final (512)."""
     # que quepa con margen para el borde blanco
     bb = art.getbbox()
     w, h = bb[2] - bb[0], bb[3] - bb[1]
-    s = min(1.0, (C - 150) / max(w, h))
+    s = fit_scale if fit_scale else min(1.0, (C - 150) / max(w, h))
     fitted = Image.new("RGBA", (C, C), (0, 0, 0, 0))
-    place(art, fitted, C / 2, C / 2, s)
+    if fit_scale:
+        fitted.alpha_composite(art.resize((int(C * s), int(C * s)), Image.LANCZOS), (int(C * (1 - s) / 2), int(C * (1 - s) / 2)))
+    else:
+        place(art, fitted, C / 2, C / 2, s)
     alpha = fitted.split()[3]
     cut = _dilate(alpha, 26)
     shadow = cut.filter(ImageFilter.GaussianBlur(14)).point(lambda v: int(v * 0.32))
@@ -637,9 +648,119 @@ def make(sid, lines, color, face_kind=None, icon=None, pill=False):
                                         ImageChops.offset(shadow, 0, 12)))
     out.alpha_composite(Image.composite(Image.new("RGBA", (C, C), WHITE), Image.new("RGBA", (C, C), (0, 0, 0, 0)), cut))
     out.alpha_composite(fitted)
-    small = out.resize((FINAL, FINAL), Image.LANCZOS)
-    # 256 colores con transparencia: pesa ~3 veces menos y no se nota
-    small.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE).save(
+    return out.resize((FINAL, FINAL), Image.LANCZOS)
+
+
+# ---------- Stickers con movimiento (KLK Plus) ----------
+
+ANIM_OUT = os.path.join(OUT, "anim")
+FRAMES = 12
+
+
+ANIM_SIZE = 384
+
+
+def finish_small(art, s, n=ANIM_SIZE):
+    """Como finish() pero hecho ya en pequeño (para los fotogramas: mucho más rápido)."""
+    k = n / C
+    fitted = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+    side = int(n * s)
+    fitted.alpha_composite(art.resize((side, side), Image.BILINEAR), ((n - side) // 2, (n - side) // 2))
+    alpha = fitted.split()[3]
+    cut = _dilate(alpha, max(4, int(26 * k)))
+    shadow = cut.filter(ImageFilter.GaussianBlur(14 * k)).point(lambda v: int(v * 0.32))
+    out = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+    clear = Image.new("RGBA", (n, n), (0, 0, 0, 0))
+    out.alpha_composite(Image.composite(Image.new("RGBA", (n, n), (10, 10, 30, 255)), clear, ImageChops.offset(shadow, 0, int(12 * k))))
+    out.alpha_composite(Image.composite(Image.new("RGBA", (n, n), WHITE), clear, cut))
+    out.alpha_composite(fitted)
+    return out
+
+
+def rotate_about(layer, deg, cx, cy):
+    return layer.rotate(deg, resample=Image.BICUBIC, center=(cx, cy))
+
+
+def make_anim(sid, lines, color, face_kind=None, icon=None, pill=False, motion="bounce"):
+    """Sticker animado (WebP): la carita o el dibujo se mueve, las letras laten y
+    brillan chispitas. Se guarda en assets/stickers/anim/<id>.webp y también una
+    imagen quieta en assets/stickers/<id>.png (para las versiones viejas)."""
+    rnd = random.Random(int(hashlib.md5(sid.encode()).hexdigest(), 16))
+    colors = PAL[color]
+    has_pic = face_kind or icon
+    text = word_art(lines, colors, 900, 520 if has_pic else 760, pill=pill)
+    tb = text.getbbox()
+    th = tb[3] - tb[1]
+    pic = None
+    if has_pic:
+        pic = Image.new("RGBA", (C, C), (0, 0, 0, 0))
+        if face_kind:
+            face(pic, C / 2, C / 2, 230, face_kind)
+        else:
+            ICONS[icon](pic, C / 2, C / 2, 230)
+        pb = pic.getbbox()
+        ph = pb[3] - pb[1]
+        target_ph = min(400, 860 - th * 0.85)
+        ps = min(1.0, target_ph / ph)
+        total = ph * ps + th - 60
+        top_y = (C - total) / 2
+        pic_xy = (C / 2, top_y + ph * ps / 2)
+        text_xy = (C / 2, top_y + ph * ps - 60 + th / 2)
+    else:
+        text_xy = (C / 2, C / 2)
+    sparks = [(rnd.uniform(0, 2 * math.pi), rnd.uniform(0.85, 1.05), rnd.uniform(0, 1)) for _ in range(5)]
+    spark = Image.new("RGBA", (C, C), (0, 0, 0, 0))
+    sparkle(spark, C / 2, C / 2, 52)  # se dibuja una vez y se pega escalada
+    frames = []
+    for i in range(FRAMES):
+        t = i / FRAMES
+        wave = math.sin(2 * math.pi * t)
+        art = Image.new("RGBA", (C, C), (0, 0, 0, 0))
+        if pic is not None:
+            dx = dy = rot = 0.0
+            sc = 1.0
+            if motion == "bounce":
+                dy = -abs(math.sin(math.pi * 2 * t)) * 70
+                sc = 1.0 + (0.06 if abs(wave) < 0.2 else 0)
+            elif motion == "wiggle":
+                rot = wave * 14
+            elif motion == "pulse":
+                sc = 1.0 + 0.12 * (0.5 + 0.5 * math.sin(4 * math.pi * t))
+            elif motion == "shake":
+                dx = math.sin(6 * math.pi * t) * 26
+                rot = math.sin(6 * math.pi * t) * 6
+            elif motion == "spin":
+                rot = -360 * t
+            elif motion == "float":
+                dy = wave * 34
+                rot = wave * 5
+            p2 = rotate_about(pic, rot, C / 2, C / 2) if rot else pic
+            place(p2, art, pic_xy[0] + dx, pic_xy[1] + dy, ps * sc)
+        # letras: laten un poquito
+        ts = 1.0 + 0.04 * math.sin(2 * math.pi * t + 1.2)
+        place(text, art, text_xy[0], text_xy[1], ts)
+        # chispitas que aparecen y desaparecen
+        for ang, dist, ph in sparks:
+            k = (math.sin(2 * math.pi * (t + ph)) + 1) / 2
+            if k > 0.25:
+                place(spark, art, C / 2 + math.cos(ang) * 420 * dist, C / 2 + math.sin(ang) * 330 * dist, (22 + 30 * k) / 52)
+        frames.append(art)
+    # mismo tamaño en todos los fotogramas (si no, el sticker «respira» raro)
+    union = None
+    for f in frames:
+        b = f.getbbox()
+        union = b if union is None else (min(union[0], b[0]), min(union[1], b[1]), max(union[2], b[2]), max(union[3], b[3]))
+    w, h = union[2] - union[0], union[3] - union[1]
+    s = min(1.0, (C - 150) / max(w, h))
+    cx, cy = (union[0] + union[2]) / 2, (union[1] + union[3]) / 2
+    finals = []
+    for f in frames:
+        centered = ImageChops.offset(f, int(C / 2 - cx), int(C / 2 - cy))
+        finals.append(finish_small(centered, s))
+    os.makedirs(ANIM_OUT, exist_ok=True)
+    finals[0].save(os.path.join(ANIM_OUT, sid + ".webp"), save_all=True, append_images=finals[1:],
+                   duration=90, loop=0, quality=55, method=4, lossless=False)
+    finish(frames[0].copy() if False else ImageChops.offset(frames[0], int(C / 2 - cx), int(C / 2 - cy)), fit_scale=s).quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE).save(
         os.path.join(OUT, sid + ".png"), optimize=True)
 
 
@@ -743,6 +864,82 @@ STICKERS = [
     ("muchos_mas", ["¡Que cumplas", "muchos más!"], "teal", "party", None, False),
     ("bizcocho", ["¡Bizcocho", "pa' ti!"], "pink", None, "cake", True),
     ("felicidades", ["¡Felicidades!"], "orange", None, "balloons", False),
+    # Más jerga dominicana
+    ("klkmiloco", ["Klk,", "mi loco"], "red", "cool", None, False),
+    ("tamoeneso", ["Tamo'", "en eso"], "green", "wink", None, True),
+    ("tatobien", ["Ta' to'", "bien"], "teal", "cool", None, False),
+    ("ytuque", ["¿Y tú", "qué?"], "orange", "think", None, False),
+    ("dique", ["¿Dique?"], "purple", "think", None, True),
+    ("esavaina", ["¡Esa", "vaina!"], "orange", "shock", None, False),
+    ("nitido", ["¡Nítido!"], "blue", "cool", None, True),
+    ("pariguayo", ["¡Pariguayo!"], "yellow", "laugh", None, False),
+    ("tigueraje", ["Puro", "tigueraje"], "red", "wink", None, False),
+    ("mijeva", ["Mi jeva"], "pink", None, "heart", False),
+    ("mijevo", ["Mi jevo"], "blue", None, "heart", True),
+    ("guagua", ["Me dejó", "la guagua"], "orange", "cry", None, False),
+    ("quechulo", ["¡Qué", "chulo!"], "pink", "love", None, False),
+    ("dejaelbulto", ["Deja el", "bulto"], "purple", "meh", None, True),
+    ("palcoro", ["Vamo'", "pa'l coro"], "green", "party", None, False),
+    ("dejatripear", ["Deja de", "tripear"], "teal", "laugh", None, False),
+    ("dameunabola", ["¿Me da'", "una bola?"], "yellow", "wink", None, True),
+    ("quechercha", ["¡Qué", "chercha!"], "orange", "laugh", None, False),
+    ("embullao", ["Toy", "embullao"], "pink", "party", None, False),
+    ("conyapa", ["¡Con", "ñapa!"], "green", None, "gift", True),
+    ("panafull", ["Pana", "full"], "blue", "cool", None, False),
+    ("manito", ["¡Manito!"], "teal", "wink", None, False),
+    ("unapila", ["Una pila", "de gente"], "purple", "shock", None, False),
+    ("palzafacon", ["Pa'l", "zafacón"], "night", "meh", None, True),
+    ("palcolmado", ["Voy pa'l", "colmado"], "yellow", None, "bottle", False),
+    ("concon", ["¡Dame el", "concón!"], "brown", None, "mangu", False),
+    ("moro", ["Moro de", "guandules"], "brown", None, "habichuela", True),
+    ("tostones", ["¡Tostones!"], "yellow", None, "mangu", False),
+    ("chimi", ["Vamo' por", "un chimi"], "orange", "love", None, False),
+    ("yaroa", ["¡Una", "yaroa!"], "yellow", "love", None, True),
+    ("inversor", ["Prende el", "inversor"], "night", None, "bulb", False),
+    ("motoconcho", ["Coge un", "motoconcho"], "green", "sweat", None, False),
+    ("quetapon", ["¡Qué", "tapón!"], "red", "angry", None, False),
+    ("yamismo", ["Ya", "mismo"], "teal", None, "clock", True),
+    ("ahoramismito", ["Ahora", "mismito"], "blue", None, "clock", False),
+    ("arrebatao", ["Tá", "arrebatao"], "pink", "party", None, False),
+    ("tapegao", ["Tá", "pegao"], "red", None, "fire", True),
+    ("jablador", ["¡Jablador!"], "purple", "laugh", None, False),
+    ("lambon", ["¡Lambón!"], "orange", "laugh", None, True),
+    ("nomefunas", ["No me", "fuña"], "red", "angry", None, False),
+    ("fucu", ["¡Fucú!"], "night", "shock", None, False),
+    ("ojopelao", ["Ojo", "pela'o"], "teal", "think", None, True),
+    ("temangue", ["¡Te", "mangué!"], "green", "laugh", None, False),
+    ("cogiendolucha", ["Cogiendo", "lucha"], "orange", "sweat", None, False),
+    ("bregando", ["Aquí,", "bregando"], "blue", "sweat", None, True),
+    ("atoloqueda", ["A to' lo", "que da"], "red", None, "fire", False),
+    ("notoyeneso", ["Yo no toy", "en eso"], "purple", "meh", None, False),
+    ("dimelomenor", ["Dímelo,", "menor"], "teal", "cool", None, False),
+    ("miloco", ["¡Mi loco!"], "yellow", "wink", None, True),
+    ("hermanazo", ["¡Hermanazo!"], "blue", "love", None, False),
+    ("biengracias", ["Bien, gracias", "a Dios"], "teal", "pray", None, False),
+    ("sidiosquiere", ["Si Dios", "quiere"], "blue", "pray", None, True),
+    ("aydiosmio", ["¡Ay, Dios", "mío!"], "pink", "shock", None, False),
+    ("llegopapa", ["¡Llegó", "papá!"], "orange", None, "crown", False),
+    ("tunove", ["¿Tú no", "ve'?"], "green", "think", None, False),
+    ("yentonce", ["¿Y", "entonce'?"], "purple", "think", None, True),
+    ("tunumero", ["Ponte pa'", "tu número"], "red", "angry", None, False),
+    ("tadificil", ["Tá", "difícil"], "night", "cry", None, False),
+    ("noesfacil", ["¡No e'", "fácil!"], "orange", "shock", None, True),
+    ("avemaria", ["¡Avemaría!"], "blue", "shock", None, False),
+    ("jesu", ["¡Jesú!"], "teal", "pray", None, False),
+    ("miramuchacho", ["Mira,", "muchacho"], "orange", "angry", None, True),
+    ("telojuro", ["Te lo", "juro"], "purple", "pray", None, False),
+    ("hablaclaro", ["Habla", "claro"], "red", "think", None, False),
+    ("quebulla", ["¡Qué", "bulla!"], "pink", "shock", None, True),
+    ("aguanta", ["¡Aguanta!"], "blue", "angry", None, False),
+    ("yatusabe", ["Ya tú", "sabe'"], "teal", "wink", None, False),
+    ("asimismoe", ["Así mismo", "e'"], "green", "cool", None, True),
+    ("bendito", ["¡Bendito!"], "pink", "pray", None, False),
+    ("buenosdias", ["¡Buenos", "días!"], "yellow", None, "sun", False),
+    ("buenasnoches", ["Buenas", "noches"], "night", "sleep", None, True),
+    ("gracias", ["¡Gracias!"], "green", "love", None, False),
+    ("deacuerdo", ["De", "acuerdo"], "blue", "wink", None, True),
+    ("felizfinde", ["¡Feliz fin", "de semana!"], "orange", "party", None, False),
+    ("diadelasmadres", ["¡Feliz día,", "mamá!"], "pink", None, "heart", False),
     # KLK Plus 💎 (solo se pueden enviar con Plus; todos los ven)
     ("p_vuelvo", ["¡Vuelvo", "pa' RD!"], "teal", None, "palm", False),
     ("p_extrano", ["Extraño", "mi tierra"], "blue", None, "flag", False),
@@ -759,6 +956,31 @@ STICKERS = [
 ]
 
 
+# Stickers con movimiento (KLK Plus): id, líneas, color, carita, icono, píldora, movimiento
+ANIMATED = [
+    ("a_wepa", ["¡Wepa!"], "pink", "party", None, False, "bounce"),
+    ("a_jajaja", ["¡Jajajá!"], "yellow", "laugh", None, False, "shake"),
+    ("a_fuego", ["¡Tá en", "fuego!"], "night", None, "fire", False, "pulse"),
+    ("a_klk", ["¡Klk!"], "red", "cool", None, False, "wiggle"),
+    ("a_dimelo", ["Dímelo"], "teal", "wink", None, True, "bounce"),
+    ("a_diache", ["¡Diache!"], "orange", "shock", None, False, "shake"),
+    ("a_tequiero", ["Te quiero", "un montón"], "pink", None, "heart", False, "pulse"),
+    ("a_besito", ["Un", "besito"], "red", "love", None, False, "float"),
+    ("a_bendiciones", ["¡Bendiciones!"], "blue", "pray", None, False, "float"),
+    ("a_tamoactivo", ["Tamo'", "activo"], "green", "cool", None, False, "bounce"),
+    ("a_aymimadre", ["Ay mi", "madre"], "purple", "shock", None, False, "shake"),
+    ("a_apagon", ["¡Se fue", "la luz!"], "night", None, "bulb_off", False, "wiggle"),
+    ("a_jonron", ["¡Jonrón!"], "blue", None, "baseball", False, "spin"),
+    ("a_merengue", ["¡Merengue!"], "red", None, "notes", False, "wiggle"),
+    ("a_cumple", ["¡Feliz", "cumple!"], "purple", None, "cake", False, "bounce"),
+    ("a_navidad", ["¡Feliz", "Navidad!"], "green", None, "tree", False, "wiggle"),
+    ("a_buenosdias", ["¡Buenos", "días!"], "yellow", None, "sun", False, "spin"),
+    ("a_buenasnoches", ["Buenas", "noches"], "night", "sleep", None, True, "float"),
+    ("a_quecalor", ["¡Qué", "calor!"], "orange", "sweat", None, False, "wiggle"),
+    ("a_toyready", ["Toy", "ready"], "teal", "cool", None, True, "bounce"),
+]
+
+
 if __name__ == "__main__":
     import sys
     only = set(sys.argv[1:])
@@ -768,3 +990,8 @@ if __name__ == "__main__":
             continue
         make(sid, lines, color, fk, ic, pill)
         print("ok", sid)
+    for sid, lines, color, fk, ic, pill, motion in ANIMATED:
+        if only and sid not in only:
+            continue
+        make_anim(sid, lines, color, fk, ic, pill, motion)
+        print("ok (animado)", sid)

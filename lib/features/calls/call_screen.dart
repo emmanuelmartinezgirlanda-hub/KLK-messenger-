@@ -29,6 +29,8 @@ class CallScreen extends ConsumerStatefulWidget {
 class _CallScreenState extends ConsumerState<CallScreen> {
   bool _controls = true;
   Timer? _hide;
+  /// Yo en grande y el otro en la ventanita (se cambia tocando la ventanita).
+  bool _swap = false;
 
   @override
   void dispose() {
@@ -88,7 +90,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         onTap: showRemoteVideo ? () => _poke(toggle: true) : null,
         child: Stack(fit: StackFit.expand, children: [
           // Fondo: vídeo del otro, o mi cámara mientras suena, o degradado
-          if (showRemoteVideo)
+          if (showRemoteVideo && showLocalVideo && _swap)
+            withVideoFilter(
+                call.myFilter,
+                RTCVideoView(call.localRenderer,
+                    mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover))
+          else if (showRemoteVideo)
             withVideoFilter(call.remoteFilter,
                 RTCVideoView(call.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover))
           else if (showLocalVideo && call.phase != CallPhase.active)
@@ -140,6 +147,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               top: pad.top + 84,
               bottom: pad.bottom + 120,
               onEffects: () => _showEffects(context),
+              showRemote: _swap && showRemoteVideo,
+              onSwap: showRemoteVideo
+                  ? () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _swap = !_swap);
+                    }
+                  : null,
             ),
 
           // Arriba: minimizar · nombre y tiempo · chat
@@ -203,6 +217,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                     _GlassBar(
                       call: call,
                       onMore: () => _showMore(context),
+                      onVideo: () {
+                        _poke();
+                        call.upgradeToVideo();
+                      },
                     ),
                 ]),
               ),
@@ -282,8 +300,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       context: context,
       backgroundColor: const Color(0xFF161B22),
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(tr('Efectos'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
@@ -291,6 +310,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             Text(tr('La otra persona te ve con el mismo efecto.'), style: const TextStyle(color: Colors.white60)),
             const SizedBox(height: 14),
             Consumer(builder: (_, ref, __) => _BeautyControl(call: ref.watch(callProvider))),
+            Consumer(builder: (_, ref, __) => _EnhanceControl(call: ref.watch(callProvider))),
+            Consumer(builder: (_, ref, __) => _MaskStrip(call: ref.watch(callProvider))),
             Consumer(builder: (_, ref, __) => _FilterStrip(call: ref.watch(callProvider))),
           ]),
         ),
@@ -339,7 +360,8 @@ class _GlassCircle extends StatelessWidget {
 class _GlassBar extends StatelessWidget {
   final CallController call;
   final VoidCallback onMore;
-  const _GlassBar({required this.call, required this.onMore});
+  final VoidCallback onVideo;
+  const _GlassBar({required this.call, required this.onMore, required this.onVideo});
 
   @override
   Widget build(BuildContext context) {
@@ -363,6 +385,13 @@ class _GlassBar extends StatelessWidget {
                 label: call.cameraOff ? tr('Encender cámara') : tr('Apagar cámara'),
                 on: !call.cameraOff,
                 onTap: ended ? null : call.toggleCamera,
+              )
+            else
+              // Llamada de voz: pasar a videollamada.
+              _BarButton(
+                icon: call.upgrading ? Icons.hourglass_top_rounded : Icons.videocam_rounded,
+                label: tr('Pasar a videollamada'),
+                onTap: ended || call.upgrading || call.phase != CallPhase.active ? null : onVideo,
               ),
             _BarButton(
               icon: call.speaker ? Icons.volume_up_rounded : Icons.volume_down_rounded,
@@ -438,7 +467,17 @@ class _SelfView extends StatefulWidget {
   final double top;
   final double bottom;
   final VoidCallback onEffects;
-  const _SelfView({required this.call, required this.top, required this.bottom, required this.onEffects});
+  /// En la ventanita va el otro (porque yo me puse en grande).
+  final bool showRemote;
+  /// Tocar la ventanita: cambiar quién sale en grande.
+  final VoidCallback? onSwap;
+  const _SelfView(
+      {required this.call,
+      required this.top,
+      required this.bottom,
+      required this.onEffects,
+      this.showRemote = false,
+      this.onSwap});
 
   @override
   State<_SelfView> createState() => _SelfViewState();
@@ -464,6 +503,7 @@ class _SelfViewState extends State<_SelfView> {
       width: _w,
       height: _h,
       child: GestureDetector(
+        onTap: widget.onSwap,
         onPanStart: (_) => setState(() => _dragging = true),
         onPanUpdate: (d) => setState(() => _pos = pos + d.delta),
         onPanEnd: (_) {
@@ -485,11 +525,16 @@ class _SelfViewState extends State<_SelfView> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(18),
-              child: withVideoFilter(
-                widget.call.myFilter,
-                RTCVideoView(widget.call.localRenderer,
-                    mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
-              ),
+              child: widget.showRemote
+                  ? withVideoFilter(
+                      widget.call.remoteFilter,
+                      RTCVideoView(widget.call.remoteRenderer,
+                          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover))
+                  : withVideoFilter(
+                      widget.call.myFilter,
+                      RTCVideoView(widget.call.localRenderer,
+                          mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+                    ),
             ),
           ),
           Positioned(
@@ -666,6 +711,80 @@ class _BeautyControl extends StatelessWidget {
                 onChanged: (v) => call.setBeauty(v < 0.05 ? 0 : v),
               ),
             ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Mejora de imagen: más luz y nitidez para sitios oscuros.
+class _EnhanceControl extends StatelessWidget {
+  final CallController call;
+  const _EnhanceControl({required this.call});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!call.beautySupported) return const SizedBox.shrink();
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      secondary: const Icon(Icons.wb_sunny_rounded, color: Colors.white),
+      title: Text(tr('Mejorar imagen'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+      subtitle: Text(tr('Más luz y nitidez si hay poca luz'), style: const TextStyle(color: Colors.white60)),
+      value: call.enhance,
+      onChanged: call.setEnhance,
+    );
+  }
+}
+
+/// Caras de animales (como en FaceTime): siguen tu cara y el otro también te ve así.
+const faceMasks = [
+  '🐵', '🐴', '🐙', '🐔', '🐶', '🐱', '🦁', '🐯', '🐷', '🐸', '🐼', '🐨', '🐰', '🦊', '🐻', '🐮', //
+  '🦄', '🐲', '🦖', '🐧', '🦉', '🐝', '🤖', '👽', '👻', '💀', '🎃', '🤡', '😎', '🥸', '🤠', '🎅',
+];
+
+class _MaskStrip extends StatelessWidget {
+  final CallController call;
+  const _MaskStrip({required this.call});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!call.beautySupported) return const SizedBox.shrink();
+    Widget cell(String? e) {
+      final on = call.faceMask == e;
+      return GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          call.setFaceMask(e);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          width: 54,
+          height: 54,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: on ? Colors.white : Colors.white12,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: e == null
+              ? Icon(Icons.block_rounded, color: on ? Colors.black : Colors.white70)
+              : Text(e, style: const TextStyle(fontSize: 32)),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(tr('Caras divertidas'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 54,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: faceMasks.length + 1,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) => cell(i == 0 ? null : faceMasks[i - 1]),
           ),
         ),
       ]),

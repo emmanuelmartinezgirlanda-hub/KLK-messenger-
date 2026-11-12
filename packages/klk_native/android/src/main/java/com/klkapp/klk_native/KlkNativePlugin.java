@@ -182,6 +182,12 @@ public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallH
             case "isTestFlight":
                 result.success(false);
                 break;
+            case "setProximity": {
+                Map<String, Object> a = (Map<String, Object>) call.arguments;
+                setProximity(a != null && Boolean.TRUE.equals(a.get("on")));
+                result.success(null);
+                break;
+            }
             case "storeProducts": {
                 Map<String, Object> a = (Map<String, Object>) call.arguments;
                 plusStore.products(a == null ? null : (java.util.List<String>) a.get("ids"), result);
@@ -205,6 +211,25 @@ public class KlkNativePlugin implements FlutterPlugin, MethodChannel.MethodCallH
                 break;
             default:
                 result.notImplemented();
+        }
+    }
+
+    private android.os.PowerManager.WakeLock proximityLock;
+
+    /** Apaga la pantalla al acercar el móvil a la oreja (llamadas de voz). */
+    private void setProximity(boolean on) {
+        try {
+            if (on) {
+                if (proximityLock == null) {
+                    android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                    if (pm == null || !pm.isWakeLockLevelSupported(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) return;
+                    proximityLock = pm.newWakeLock(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "klk:proximity");
+                }
+                if (!proximityLock.isHeld()) proximityLock.acquire(4 * 60 * 60 * 1000L);
+            } else if (proximityLock != null && proximityLock.isHeld()) {
+                proximityLock.release(android.os.PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY);
+            }
+        } catch (Exception ignored) {
         }
     }
 

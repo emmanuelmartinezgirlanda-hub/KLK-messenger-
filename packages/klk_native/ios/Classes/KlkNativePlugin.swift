@@ -74,6 +74,17 @@ public class KlkNativePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
       let track = args["track"] as? String ?? ""
       let level = args["level"] as? Double ?? 0
       result(KLKBeauty.setTrack(track, level: level))
+    case "setFaceMask":
+      let args = call.arguments as? [String: Any] ?? [:]
+      result(KLKBeauty.setTrack(args["track"] as? String ?? "", mask: args["mask"] as? String))
+    case "setEnhance":
+      let args = call.arguments as? [String: Any] ?? [:]
+      result(KLKBeauty.setTrack(args["track"] as? String ?? "", enhance: args["on"] as? Bool ?? false))
+    case "setProximity":
+      // Apaga la pantalla al acercar el móvil a la oreja (llamadas de voz).
+      let on = (call.arguments as? [String: Any])?["on"] as? Bool ?? false
+      UIDevice.current.isProximityMonitoringEnabled = on
+      result(nil)
     case "removeBeauty":
       let args = call.arguments as? [String: Any] ?? [:]
       KLKBeauty.removeTrack(args["track"] as? String ?? "")

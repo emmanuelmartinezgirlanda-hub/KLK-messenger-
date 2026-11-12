@@ -125,6 +125,15 @@ class CallController extends ChangeNotifier {
   static double _lastBeauty = 0;
   double beauty = _lastBeauty;
   bool get beautySupported => KlkNative.supportsBeauty;
+
+  /// Cara de animal encima de mi cara (emoji). null = sin máscara.
+  String? faceMask;
+  /// Mejora de imagen (más luz y nitidez). Se recuerda entre llamadas.
+  static bool _lastEnhance = false;
+  bool enhance = _lastEnhance;
+
+  /// Estoy pasando la llamada de voz a videollamada.
+  bool upgrading = false;
   DateTime? startedAt;
   String status = '';
 
@@ -307,6 +316,79 @@ class CallController extends ChangeNotifier {
     }
   }
 
+  /// Pone o quita una cara de animal (la otra persona también la ve).
+  Future<void> setFaceMask(String? emoji) async {
+    faceMask = emoji;
+    notifyListeners();
+    await _applyFx();
+  }
+
+  /// Mejora de imagen: más luz y nitidez (para sitios con poca luz).
+  Future<void> setEnhance(bool on) async {
+    enhance = on;
+    _lastEnhance = on;
+    notifyListeners();
+    await _applyFx();
+  }
+
+  Future<void> _applyFx() async {
+    if (!beautySupported) return;
+    for (final t in _local?.getVideoTracks() ?? <MediaStreamTrack>[]) {
+      final id = t.id;
+      if (id == null) continue;
+      await KlkNative.setFaceMask(id, faceMask);
+      await KlkNative.setEnhance(id, enhance);
+    }
+  }
+
+  /// Pasa una llamada de voz a videollamada: enciende mi cámara y se la manda al otro.
+  /// Su móvil verá mi vídeo y podrá encender su cámara con el mismo botón.
+  Future<void> upgradeToVideo() async {
+    final pc = _pc;
+    if (video || upgrading || phase != CallPhase.active || pc == null || _local == null) return;
+    upgrading = true;
+    notifyListeners();
+    try {
+      final cam = await navigator.mediaDevices.getUserMedia({'audio': false, 'video': cameraConstraints()});
+      final tracks = cam.getVideoTracks();
+      if (tracks.isEmpty) throw Exception('Sin cámara');
+      final track = tracks.first;
+      await _local!.addTrack(track);
+      await pc.addTrack(track, _local!);
+      localRenderer.srcObject = _local;
+      video = true;
+      cameraOff = false;
+      speaker = true;
+      try {
+        await Helper.setSpeakerphoneOn(true);
+      } catch (_) {}
+      _syncProximity();
+      if (beauty > 0) await _applyBeauty();
+      await _applyFx();
+      final offer = await pc.createOffer({});
+      await pc.setLocalDescription(offer);
+      await _signal({'a': 'reoffer', 'sdp': offer.sdp, 'v': true});
+      unawaited(boostVideoBitrate(pc));
+    } catch (e) {
+      debugPrint('Pasar a vídeo: $e');
+      status = _permissionMessage(e);
+    } finally {
+      upgrading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Con el móvil en la oreja se apaga la pantalla (solo llamadas de voz sin altavoz).
+  bool _proximityOn = false;
+  void _syncProximity() {
+    final on = !video &&
+        !speaker &&
+        (phase == CallPhase.outgoing || phase == CallPhase.connecting || phase == CallPhase.active);
+    if (on == _proximityOn) return;
+    _proximityOn = on;
+    unawaited(KlkNative.setProximity(on));
+  }
+
   /// Activa o quita los subtítulos de lo que dice la otra persona.
   /// Su móvil pasa su voz a texto (dentro del móvil) y me lo manda cifrado.
   Future<void> toggleCaptions() async {
@@ -416,6 +498,7 @@ class CallController extends ChangeNotifier {
 
   Future<void> toggleSpeaker() async {
     speaker = !speaker;
+    _syncProximity();
     try {
       await Helper.setSpeakerphoneOn(speaker);
     } catch (_) {}
@@ -528,6 +611,16 @@ class CallController extends ChangeNotifier {
           if (pc == null) return;
           try {
             await pc.setRemoteDescription(RTCSessionDescription(s['sdp'] as String, 'offer'));
+            if (s['v'] == true && !video) {
+              // Pasó la llamada a vídeo: le veo; yo enciendo mi cámara si quiero.
+              remoteVideo = true;
+              speaker = true;
+              try {
+                await Helper.setSpeakerphoneOn(true);
+              } catch (_) {}
+              _syncProximity();
+              notifyListeners();
+            }
             final answer = await pc.createAnswer({});
             await pc.setLocalDescription(answer);
             await _signal({'a': 'reanswer', 'sdp': answer.sdp});
@@ -568,6 +661,7 @@ class CallController extends ChangeNotifier {
     });
     localRenderer.srcObject = _local;
     if (video && beauty > 0) await _applyBeauty();
+    if (video && (enhance || faceMask != null)) await _applyFx();
     try {
       await Helper.setSpeakerphoneOn(speaker);
     } catch (_) {}
@@ -690,6 +784,7 @@ class CallController extends ChangeNotifier {
   void _setPhase(CallPhase p, String text) {
     phase = p;
     status = text;
+    _syncProximity();
     notifyListeners();
   }
 
@@ -810,6 +905,9 @@ class CallController extends ChangeNotifier {
     remoteVideo = false;
     myFilter = 0;
     remoteFilter = 0;
+    faceMask = null;
+    upgrading = false;
+    _syncProximity();
     notifyListeners();
     _closeScreen();
   }

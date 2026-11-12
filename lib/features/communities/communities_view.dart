@@ -84,12 +84,19 @@ class _CommunitiesViewState extends ConsumerState<CommunitiesView> {
         ? 'Aún no hay nadie · sé el primero'
         : (c.members == 1 ? '1 miembro' : '${c.members} miembros');
     return ListTile(
-      leading: Container(
-        width: 48,
-        height: 48,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: cs.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
-        child: Text(c.flag, style: const TextStyle(fontSize: 26)),
+      // La bandera ocupa todo el cuadrito.
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 48,
+          height: 48,
+          color: cs.surfaceContainerHighest,
+          child: OverflowBox(
+            maxWidth: 120,
+            maxHeight: 120,
+            child: Text(c.flag, style: const TextStyle(fontSize: 70, height: 1)),
+          ),
+        ),
       ),
       title: Text(c.id == 'DO' ? tr('República Dominicana') : 'Dominicanos en ${c.name}',
           style: const TextStyle(fontWeight: FontWeight.w700)),

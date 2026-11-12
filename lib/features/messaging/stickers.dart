@@ -7,9 +7,11 @@ const bool _kPlus = bool.fromEnvironment('KLK_PLUS');
 class KlkSticker {
   final String id;
   final String label;
-  const KlkSticker(this.id, this.label);
+  /// Sticker con movimiento (WebP animado en assets/stickers/anim/).
+  final bool animated;
+  const KlkSticker(this.id, this.label, {this.animated = false});
 
-  String get asset => 'assets/stickers/$id.png';
+  String get asset => animated ? 'assets/stickers/anim/$id.webp' : 'assets/stickers/$id.png';
 }
 
 class StickerPack {
@@ -91,6 +93,107 @@ const stickerPacks = [
     KlkSticker('bochinche', '¡Qué bochinche!'),
     KlkSticker('diosbendiga', 'Dios te bendiga'),
     KlkSticker('mamaben', 'Mamá, la bendición'),
+  ]),
+  StickerPack('Con movimiento', '✨', [
+    KlkSticker('a_wepa', '¡Wepa!', animated: true),
+    KlkSticker('a_jajaja', '¡Jajajá!', animated: true),
+    KlkSticker('a_fuego', '¡Tá en fuego!', animated: true),
+    KlkSticker('a_klk', '¡Klk!', animated: true),
+    KlkSticker('a_dimelo', 'Dímelo', animated: true),
+    KlkSticker('a_diache', '¡Diache!', animated: true),
+    KlkSticker('a_tequiero', 'Te quiero un montón', animated: true),
+    KlkSticker('a_besito', 'Un besito', animated: true),
+    KlkSticker('a_bendiciones', '¡Bendiciones!', animated: true),
+    KlkSticker('a_tamoactivo', 'Tamo\' activo', animated: true),
+    KlkSticker('a_aymimadre', 'Ay mi madre', animated: true),
+    KlkSticker('a_apagon', '¡Se fue la luz!', animated: true),
+    KlkSticker('a_jonron', '¡Jonrón!', animated: true),
+    KlkSticker('a_merengue', '¡Merengue!', animated: true),
+    KlkSticker('a_cumple', '¡Feliz cumple!', animated: true),
+    KlkSticker('a_navidad', '¡Feliz Navidad!', animated: true),
+    KlkSticker('a_buenosdias', '¡Buenos días!', animated: true),
+    KlkSticker('a_buenasnoches', 'Buenas noches', animated: true),
+    KlkSticker('a_quecalor', '¡Qué calor!', animated: true),
+    KlkSticker('a_toyready', 'Toy ready', animated: true),
+  ], plus: true),
+  StickerPack('Jerga dominicana', '🗣️', [
+    KlkSticker('klkmiloco', 'Klk, mi loco'),
+    KlkSticker('tamoeneso', 'Tamo\' en eso'),
+    KlkSticker('tatobien', 'Ta\' to\' bien'),
+    KlkSticker('ytuque', '¿Y tú qué?'),
+    KlkSticker('dique', '¿Dique?'),
+    KlkSticker('esavaina', '¡Esa vaina!'),
+    KlkSticker('nitido', '¡Nítido!'),
+    KlkSticker('pariguayo', '¡Pariguayo!'),
+    KlkSticker('tigueraje', 'Puro tigueraje'),
+    KlkSticker('mijeva', 'Mi jeva'),
+    KlkSticker('mijevo', 'Mi jevo'),
+    KlkSticker('guagua', 'Me dejó la guagua'),
+    KlkSticker('quechulo', '¡Qué chulo!'),
+    KlkSticker('dejaelbulto', 'Deja el bulto'),
+    KlkSticker('palcoro', 'Vamo\' pa\'l coro'),
+    KlkSticker('dejatripear', 'Deja de tripear'),
+    KlkSticker('dameunabola', '¿Me da\' una bola?'),
+    KlkSticker('quechercha', '¡Qué chercha!'),
+    KlkSticker('embullao', 'Toy embullao'),
+    KlkSticker('conyapa', '¡Con ñapa!'),
+    KlkSticker('panafull', 'Pana full'),
+    KlkSticker('manito', '¡Manito!'),
+    KlkSticker('unapila', 'Una pila de gente'),
+    KlkSticker('palzafacon', 'Pa\'l zafacón'),
+    KlkSticker('palcolmado', 'Voy pa\'l colmado'),
+    KlkSticker('concon', '¡Dame el concón!'),
+    KlkSticker('moro', 'Moro de guandules'),
+    KlkSticker('tostones', '¡Tostones!'),
+    KlkSticker('chimi', 'Vamo\' por un chimi'),
+    KlkSticker('yaroa', '¡Una yaroa!'),
+    KlkSticker('inversor', 'Prende el inversor'),
+    KlkSticker('motoconcho', 'Coge un motoconcho'),
+    KlkSticker('quetapon', '¡Qué tapón!'),
+    KlkSticker('yamismo', 'Ya mismo'),
+    KlkSticker('ahoramismito', 'Ahora mismito'),
+    KlkSticker('arrebatao', 'Tá arrebatao'),
+    KlkSticker('tapegao', 'Tá pegao'),
+    KlkSticker('jablador', '¡Jablador!'),
+    KlkSticker('lambon', '¡Lambón!'),
+    KlkSticker('nomefunas', 'No me fuña'),
+    KlkSticker('fucu', '¡Fucú!'),
+    KlkSticker('ojopelao', 'Ojo pela\'o'),
+    KlkSticker('temangue', '¡Te mangué!'),
+    KlkSticker('cogiendolucha', 'Cogiendo lucha'),
+    KlkSticker('bregando', 'Aquí, bregando'),
+    KlkSticker('atoloqueda', 'A to\' lo que da'),
+    KlkSticker('notoyeneso', 'Yo no toy en eso'),
+    KlkSticker('dimelomenor', 'Dímelo, menor'),
+    KlkSticker('miloco', '¡Mi loco!'),
+    KlkSticker('hermanazo', '¡Hermanazo!'),
+    KlkSticker('biengracias', 'Bien, gracias a Dios'),
+    KlkSticker('sidiosquiere', 'Si Dios quiere'),
+    KlkSticker('aydiosmio', '¡Ay, Dios mío!'),
+    KlkSticker('llegopapa', '¡Llegó papá!'),
+    KlkSticker('tunove', '¿Tú no ve\'?'),
+    KlkSticker('yentonce', '¿Y entonce\'?'),
+    KlkSticker('tunumero', 'Ponte pa\' tu número'),
+    KlkSticker('tadificil', 'Tá difícil'),
+    KlkSticker('noesfacil', '¡No e\' fácil!'),
+    KlkSticker('avemaria', '¡Avemaría!'),
+    KlkSticker('jesu', '¡Jesú!'),
+    KlkSticker('miramuchacho', 'Mira, muchacho'),
+    KlkSticker('telojuro', 'Te lo juro'),
+    KlkSticker('hablaclaro', 'Habla claro'),
+    KlkSticker('quebulla', '¡Qué bulla!'),
+    KlkSticker('aguanta', '¡Aguanta!'),
+    KlkSticker('yatusabe', 'Ya tú sabe\''),
+    KlkSticker('asimismoe', 'Así mismo e\''),
+    KlkSticker('bendito', '¡Bendito!'),
+  ]),
+  StickerPack('Saludos', '👋', [
+    KlkSticker('buenosdias', '¡Buenos días!'),
+    KlkSticker('buenasnoches', 'Buenas noches'),
+    KlkSticker('gracias', '¡Gracias!'),
+    KlkSticker('deacuerdo', 'De acuerdo'),
+    KlkSticker('felizfinde', '¡Feliz fin de semana!'),
+    KlkSticker('diadelasmadres', '¡Feliz día, mamá!'),
   ]),
   StickerPack('Amor', '❤️', [
     KlkSticker('tequiero', 'Te quiero un montón'),
@@ -179,5 +282,9 @@ bool isPlusSticker(String id) => stickerPacks.any((p) => p.plus && p.stickers.an
 /// Todos los stickers, en orden.
 final klkStickers = [for (final p in stickerPacks) ...p.stickers];
 
-String stickerAsset(String? id) =>
-    'assets/stickers/${klkStickers.any((s) => s.id == id) ? id : 'klk'}.png';
+String stickerAsset(String? id) {
+  for (final s in klkStickers) {
+    if (s.id == id) return s.asset;
+  }
+  return 'assets/stickers/klk.png';
+}

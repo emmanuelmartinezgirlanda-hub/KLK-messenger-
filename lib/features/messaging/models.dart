@@ -706,6 +706,7 @@ String disappearLabel(int? sec) => switch (sec) {
       86400 => tr('24 horas'),
       604800 => tr('7 días'),
       7776000 => tr('90 días'),
+      31536000 => tr('1 año'),
       _ => '${((sec ?? 0) / 3600).round()} ${tr('horas')}',
     };
 
@@ -919,6 +920,34 @@ String foldForSearch(String s) {
 
 
 /// Aviso de KLK para todos los usuarios (lo escribe el dueño desde su panel).
+/// Anuncio de un negocio (pasa solo arriba de los chats).
+class KlkAd {
+  final String id, title, body, cta, url, color;
+  final bool hasImage;
+  final int imageV;
+  const KlkAd({
+    required this.id,
+    required this.title,
+    required this.body,
+    this.cta = 'Ver',
+    this.url = '',
+    this.color = 'red',
+    this.hasImage = false,
+    this.imageV = 0,
+  });
+
+  factory KlkAd.fromJson(Map<String, dynamic> j) => KlkAd(
+        id: j['id'] as String? ?? '',
+        title: j['title'] as String? ?? '',
+        body: j['body'] as String? ?? '',
+        cta: (j['cta'] as String?)?.isNotEmpty == true ? j['cta'] as String : 'Ver',
+        url: j['url'] as String? ?? '',
+        color: j['color'] as String? ?? 'red',
+        hasImage: j['hasImage'] == true,
+        imageV: (j['imageV'] as num?)?.toInt() ?? 0,
+      );
+}
+
 class KlkAnnouncement {
   final String id;
   final String title;
