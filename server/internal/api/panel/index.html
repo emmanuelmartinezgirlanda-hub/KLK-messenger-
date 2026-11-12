@@ -278,9 +278,9 @@ async function login(){
 
 async function loadAll(){
   try{
-    const [s,r,n,b,tp,g,sv,ex,pl]=await Promise.all([api("stats"),api("reports"+(showAll?"?all=1":"")),api("announcements"),api("banned"),api("topups").catch(()=>({topups:[]})),api("gente").catch(()=>({posts:[]})),api("services").catch(()=>null),api("expenses").catch(()=>null),api("plus").catch(()=>null)]);
+    const [s,r,n,b,tp,g,sv,ex,pl,ad]=await Promise.all([api("stats"),api("reports"+(showAll?"?all=1":"")),api("announcements"),api("banned"),api("topups").catch(()=>({topups:[]})),api("gente").catch(()=>({posts:[]})),api("services").catch(()=>null),api("expenses").catch(()=>null),api("plus").catch(()=>null),api("ads").catch(()=>({ads:[]}))]);
     data.services=sv;if(ex&&!expEditing)data.expenses=ex;const pend=ex?ex.items.filter(i=>i.active&&i.amount==null).length:0;$("#expBadge").hidden=!pend;$("#expBadge").textContent=pend;const bad=sv?sv.checks.filter(c=>!c.ok).length:0;$("#svcBadge").hidden=!bad;$("#svcBadge").textContent=bad;
-    data.stats=s;data.reports=r.reports;data.news=n.announcements;data.banned=b.accounts;data.topups=tp.topups||[];data.gente=g.posts||[];data.plus=pl;
+    data.stats=s;data.reports=r.reports;data.news=n.announcements;data.banned=b.accounts;data.topups=tp.topups||[];data.gente=g.posts||[];data.plus=pl;data.ads=(ad&&ad.ads)||[];
     $("#updated").textContent="Actualizado "+new Date().toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"});
     const open=s.stats.openReports;$("#repBadge").hidden=!open;$("#repBadge").textContent=open;
     render();
@@ -403,8 +403,28 @@ function renderNews(){
     <div class="actions"><button class="btn primary" id="send" style="flex:1">Enviar a todos</button></div>
   </div>
   <h2>Avisos enviados</h2>
-  <div class="card list">${list.length?list.map(n=>`<div class="item"><div><b>${esc(n.title)}</b><div class="small">${esc(n.body)}</div><div class="muted small">${dt(n.createdAt)}</div></div><button class="btn" data-delnews="${esc(n.id)}">Borrar</button></div>`).join(""):`<div class="empty">Todavía no has enviado ningún aviso.</div>`}</div>`;
+  <div class="card list">${list.length?list.map(n=>`<div class="item"><div><b>${esc(n.title)}</b><div class="small">${esc(n.body)}</div><div class="muted small">${dt(n.createdAt)}</div></div><button class="btn" data-delnews="${esc(n.id)}">Borrar</button></div>`).join(""):`<div class="empty">Todavía no has enviado ningún aviso.</div>`}</div>
+  ${renderAds()}`;
 }
+
+function renderAds(){
+  const ads=data.ads||[];
+  return `<h2>Anuncios de negocios (pasan solos arriba de los chats)</h2>
+  <div class="card">
+    <p class="note">🏪 Cada anuncio pasa solo, cada pocos segundos, arriba de la lista de chats de todos. Junto a ellos salen también anuncios de KLK Plus (para quien no lo tiene).</p>
+    <label for="adt">Nombre del negocio</label><input id="adt" maxlength="40" placeholder="Ej.: Colmado La Esquina">
+    <label for="adb">Mensaje</label><input id="adb" maxlength="120" placeholder="Ej.: Pide por KLK y te lo llevamos en 20 minutos">
+    <label for="adc">Texto del botón</label><input id="adc" maxlength="16" placeholder="Ej.: Pedir, Llamar, Ver">
+    <label for="adu">Enlace al tocarlo (web, WhatsApp, tel:…)</label><input id="adu" maxlength="300" placeholder="https://… o tel:+1809…">
+    <label for="adk">Color</label><select id="adk"><option value="red">Rojo</option><option value="navy">Azul oscuro</option><option value="blue">Azul</option><option value="green">Verde</option><option value="purple">Morado</option><option value="orange">Naranja</option><option value="black">Negro</option></select>
+    <label for="add">¿Cuánto tiempo?</label><select id="add"><option value="7">1 semana</option><option value="30" selected>1 mes</option><option value="90">3 meses</option><option value="365">1 año</option><option value="0">Sin fecha de fin</option></select>
+    <label for="adf">Logo o foto (opcional, JPEG o PNG hasta 400 KB)</label><input id="adf" type="file" accept="image/jpeg,image/png">
+    <div class="actions"><button class="btn primary" id="addAd" style="flex:1">Poner anuncio</button></div>
+  </div>
+  <div class="card list">${ads.length?ads.map(a=>`<div class="item"><div><b>${esc(a.title)}</b><div class="small">${esc(a.body)}</div><div class="muted small">Botón «${esc(a.cta)}» · ${a.clicks||0} toques${a.until?" · hasta el "+esc(a.until):""}${a.hasImage?" · con foto":""}</div></div><button class="btn" data-delad="${esc(a.id)}">Quitar</button></div>`).join(""):`<div class="empty">No hay anuncios puestos.</div>`}</div>`;
+}
+
+function fileBase64(f){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(",")[1]||"");r.onerror=no;r.readAsDataURL(f)})}
 
 function renderBanned(){
   const list=data.banned||[];
@@ -623,6 +643,15 @@ document.addEventListener("click",e=>{
   if(t.dataset.delnews){
     if(!confirm("¿Borrar este aviso?"))return;
     act(()=>api(`announcements/${t.dataset.delnews}`,{method:"DELETE"}),"Aviso borrado");return}
+  if(t.dataset.delad){
+    if(!confirm("¿Quitar este anuncio?"))return;
+    act(()=>api(`ads/${t.dataset.delad}`,{method:"DELETE"}),"Anuncio quitado");return}
+  if(t.id==="addAd"){
+    const title=$("#adt").value.trim(),body=$("#adb").value.trim(),cta=$("#adc").value.trim(),url=$("#adu").value.trim();
+    if(!title||!body){toast("Pon el nombre del negocio y el mensaje");return}
+    const f=$("#adf").files[0];
+    if(f&&f.size>400*1024){toast("La foto pesa mucho: máximo 400 KB");return}
+    act(async()=>{const image=f?await fileBase64(f):undefined;return api("ads",{method:"POST",body:JSON.stringify({title,body,cta,url,color:$("#adk").value,days:+$("#add").value,image})})},"Anuncio puesto 🏪");return}
   if(t.id==="send"){
     const title=$("#nt").value.trim(),body=$("#nb").value.trim();
     if(!title||!body){toast("Pon un título y un mensaje");return}
