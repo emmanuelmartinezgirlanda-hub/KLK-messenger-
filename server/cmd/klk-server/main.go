@@ -211,6 +211,13 @@ func main() {
 	default:
 		check("Llamadas (TURN)", false, "sin puente: algunas llamadas pueden fallar")
 	}
+	// GIF (KLIPY): la clave se le da a la app, que busca los GIF directamente.
+	if k := strings.TrimSpace(os.Getenv("KLK_KLIPY_KEY")); k != "" {
+		apiServer.GifKey = k
+		check("GIF (KLIPY)", true, "activado")
+	} else {
+		check("GIF (KLIPY)", false, "falta KLK_KLIPY_KEY")
+	}
 	apiServer.AdminToken = os.Getenv("KLK_ADMIN_TOKEN")
 	apiServer.SMS = &api.SMSGuard{
 		Countries:  smsCountries(os.Getenv("KLK_SMS_COUNTRIES")),
