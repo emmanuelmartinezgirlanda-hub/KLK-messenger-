@@ -28,6 +28,7 @@ import '../../theming/domain/klk_theme.dart';
 import '../../theming/wallpapers.dart';
 import '../../theming/presentation/chat_style_screen.dart';
 import 'trash_anim.dart';
+import 'gif_picker.dart';
 import 'chat_avatar.dart';
 import 'chat_sheets.dart';
 import 'sound_sticker.dart';
@@ -360,6 +361,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       await _sendCustomSticker(path);
     } catch (_) {
       _snack(tr('No se pudo usar esa imagen'));
+    }
+  }
+
+  /// Botón GIF: buscar en KLIPY y enviarlo (cifrado, como una foto).
+  Future<void> _sendGif() async {
+    final key = await _app.gifKey();
+    if (!mounted) return;
+    if (key == null) {
+      _snack(tr('Los GIF llegan muy pronto 🙌'));
+      return;
+    }
+    final g = await pickGif(context, key);
+    if (g == null || !mounted) return;
+    try {
+      final path = await KlipyClient.download(g);
+      await _sendFile(path, name: 'gif.gif');
+      try {
+        await File(path).delete();
+      } catch (_) {}
+    } catch (_) {
+      _snack(tr('No se pudo enviar el GIF'));
     }
   }
 
@@ -1706,12 +1728,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 icon: Icon(Icons.schedule_send_outlined, color: muted),
               ),
             ]
-            else
+            else ...[
+              IconButton(
+                tooltip: 'GIF',
+                onPressed: _sendGif,
+                icon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(border: Border.all(color: muted, width: 1.8), borderRadius: BorderRadius.circular(5)),
+                  child: Text('GIF', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: muted)),
+                ),
+              ),
               IconButton(
                 tooltip: tr('Cámara'),
                 onPressed: () => _attach('camera'),
                 icon: Icon(Icons.photo_camera_outlined, color: muted),
               ),
+            ],
           ]),
         ),
       ),

@@ -89,6 +89,17 @@ class AppController extends ChangeNotifier {
 
   String? adImageUrl(KlkAd a) => a.hasImage && _api != null ? _api!.adImageUrl(a.id, a.imageV) : null;
 
+  String? _gifKey;
+
+  /// Clave para buscar GIF (KLIPY). Se pide una vez al servidor.
+  Future<String?> gifKey() async {
+    if (_gifKey != null) return _gifKey;
+    final api = _api;
+    if (api == null) return null;
+    _gifKey = await api.gifKey();
+    return _gifKey;
+  }
+
   void adClicked(String id) {
     final api = _api;
     if (api != null && !isDemo) unawaited(api.adClick(id).catchError((_) {}));

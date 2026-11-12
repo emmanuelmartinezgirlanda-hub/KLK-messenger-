@@ -425,6 +425,16 @@ class ApiClient {
     return (j['ads'] as List? ?? const []).cast<Map<String, dynamic>>();
   }
 
+  /// Clave de KLIPY para buscar GIF (null si el servidor aún no la tiene).
+  Future<String?> gifKey() async {
+    try {
+      final j = await _send('GET', '/v1/gif/key') as Map<String, dynamic>;
+      return j['key'] as String?;
+    } on ApiException {
+      return null;
+    }
+  }
+
   Future<void> adClick(String id) async => _send('POST', '/v1/ads/$id/click');
 
   String adImageUrl(String id, int v) => '${_u('/v1/ads/$id/image')}?v=$v';

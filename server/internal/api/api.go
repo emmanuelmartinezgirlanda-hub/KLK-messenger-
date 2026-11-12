@@ -38,6 +38,9 @@ type Server struct {
 	touched     sync.Map // accountID -> time.Time (última vez que se apuntó last_seen)
 	adsMu       sync.Mutex
 
+	// GifKey es la clave de KLIPY para buscar GIF (vacía = sin GIF).
+	GifKey string
+
 	// SMS son los límites antifraude de los códigos por SMS (nil = sin límites).
 	SMS *SMSGuard
 	// regs: números que ya pasaron el SMS y solo les falta el PIN.
@@ -109,6 +112,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /v1/blocks/{id}", s.authed(s.blockNotice))
 	mux.HandleFunc("GET /v1/announcements", s.authed(s.announcements))
 	mux.HandleFunc("GET /v1/ads", s.authed(s.ads))
+	mux.HandleFunc("GET /v1/gif/key", s.authed(s.gifKey))
 	mux.HandleFunc("GET /v1/ads/{id}/image", s.adImage) // público, como los logos
 	mux.HandleFunc("POST /v1/ads/{id}/click", s.authed(s.adClick))
 	mux.HandleFunc("GET /v1/account/pin", s.authed(s.pinStatus))

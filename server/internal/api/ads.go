@@ -271,3 +271,13 @@ func (s *Server) adminDeleteAd(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// GET /v1/gif/key: la clave de KLIPY para que la app busque GIF.
+// KLIPY pide que las búsquedas salgan del móvil de cada persona, no del servidor.
+func (s *Server) gifKey(w http.ResponseWriter, r *http.Request) {
+	if s.GifKey == "" {
+		writeErr(w, http.StatusNotFound, "no_gif", "los GIF todavía no están activados")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"key": s.GifKey, "provider": "klipy"})
+}
