@@ -423,7 +423,7 @@ function renderAds(){
     <div class="actions"><button class="btn primary" id="addAd" style="flex:1">Poner anuncio</button></div>
   </div>
   ${(()=>{const pend=ads.filter(a=>a.status==="pending");return pend.length?`<h2>🕒 Anuncios de negocios por aprobar (${pend.length})</h2><div class="card list">${pend.map(a=>`<div class="item"><div>${a.hasImage?`<img src="/v1/ads/${esc(a.id)}/image?v=${a.imageV}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;float:left;margin-right:10px">`:""}<b>${esc(a.title)}</b><div class="small">${esc(a.body)}</div><div class="muted small">Botón «${esc(a.cta)}»${a.url?" → "+esc(a.url):""} · pagado hasta el ${esc(a.paidUntil||"?")}</div></div><div class="actions"><button class="btn primary" data-okad="${esc(a.id)}">Aprobar</button><button class="btn" data-noad="${esc(a.id)}">Rechazar</button></div></div>`).join("")}</div>`:""})()}
-  <div class="card list">${ads.filter(a=>a.status!=="pending").length?ads.filter(a=>a.status!=="pending").map(a=>`<div class="item"><div><b>${esc(a.title)}</b>${a.owner?` <span class="muted small">(negocio · ${a.status==="rejected"?"rechazado":"pagado hasta el "+esc(a.paidUntil||"?")})</span>`:""}<div class="small">${esc(a.body)}</div><div class="muted small">Botón «${esc(a.cta)}» · ${a.clicks||0} toques${a.until?" · hasta el "+esc(a.until):""}${a.hasImage?" · con foto":""}</div></div><button class="btn" data-delad="${esc(a.id)}">Quitar</button></div>`).join(""):`<div class="empty">No hay anuncios puestos.</div>`}</div>`;
+  <div class="card list">${ads.filter(a=>a.status!=="pending").length?ads.filter(a=>a.status!=="pending").map(a=>`<div class="item"><div><b>${esc(a.title)}</b>${a.owner?` <span class="muted small">(negocio · ${a.status==="rejected"?"rechazado":"pagado hasta el "+esc(a.paidUntil||"?")})</span>`:""}<div class="small">${esc(a.body)}</div><div class="muted small">Botón «${esc(a.cta)}» · ${a.clicks||0} toques${a.until?" · hasta el "+esc(a.until):""}${a.hasImage?" · con foto":""}</div></div><div class="actions"><button class="btn" data-editad="${esc(a.id)}">Editar</button><button class="btn" data-delad="${esc(a.id)}">Quitar</button></div></div>`).join(""):`<div class="empty">No hay anuncios puestos.</div>`}</div>`;
 }
 
 function fileBase64(f){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(",")[1]||"");r.onerror=no;r.readAsDataURL(f)})}
@@ -650,6 +650,14 @@ document.addEventListener("click",e=>{
     const note=prompt("¿Por qué lo rechazas? (lo verá el negocio)","");
     if(note===null)return;
     act(()=>api(`ads/${t.dataset.noad}/reject`,{method:"POST",body:JSON.stringify({note})}),"Anuncio rechazado");return}
+  if(t.dataset.editad){
+    const a=(data.ads||[]).find(x=>x.id===t.dataset.editad); if(!a)return;
+    window.editingAd=a.id;
+    $("#adt").value=a.title||"";$("#adb").value=a.body||"";$("#adc").value=a.cta||"";$("#adu").value=a.url||"";$("#adk").value=a.color||"red";
+    $("#add").value="0";
+    $("#addAd").textContent="Guardar cambios";
+    $("#adt").scrollIntoView({behavior:"smooth",block:"center"});
+    toast("Cambia lo que quieras y dale a «Guardar cambios» ✏️");return}
   if(t.dataset.delad){
     if(!confirm("¿Quitar este anuncio?"))return;
     act(()=>api(`ads/${t.dataset.delad}`,{method:"DELETE"}),"Anuncio quitado");return}
@@ -658,7 +666,8 @@ document.addEventListener("click",e=>{
     if(!title||!body){toast("Pon el nombre del negocio y el mensaje");return}
     const f=$("#adf").files[0];
     if(f&&f.size>400*1024){toast("La foto pesa mucho: máximo 400 KB");return}
-    act(async()=>{const image=f?await fileBase64(f):undefined;return api("ads",{method:"POST",body:JSON.stringify({title,body,cta,url,color:$("#adk").value,days:+$("#add").value,image})})},"Anuncio puesto 🏪");return}
+    const id=window.editingAd||undefined;
+    act(async()=>{const image=f?await fileBase64(f):undefined;const r=await api("ads",{method:"POST",body:JSON.stringify({id,title,body,cta,url,color:$("#adk").value,days:+$("#add").value,image})});window.editingAd=null;return r},id?"Anuncio cambiado ✅":"Anuncio puesto 🏪");return}
   if(t.id==="send"){
     const title=$("#nt").value.trim(),body=$("#nb").value.trim();
     if(!title||!body){toast("Pon un título y un mensaje");return}

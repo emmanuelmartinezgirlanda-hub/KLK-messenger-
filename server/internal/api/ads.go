@@ -232,6 +232,8 @@ func (s *Server) adminAddAd(w http.ResponseWriter, r *http.Request) {
 		Color string `json:"color"`
 		Days  int    `json:"days"`
 		Image []byte `json:"image"`
+		// ID: si viene, se CAMBIA ese anuncio en vez de poner uno nuevo.
+		ID string `json:"id"`
 	}
 	if !readJSON(w, r, &req) {
 		return
@@ -281,6 +283,31 @@ func (s *Server) adminAddAd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	list = activeAds(list, time.Now())
+	if req.ID != "" {
+		// Editar: mismos toques, misma foto si no se manda otra.
+		for i := range list {
+			if list[i].ID != req.ID {
+				continue
+			}
+			e := &list[i]
+			e.Title, e.Body, e.CTA, e.URL, e.Color = a.Title, a.Body, a.CTA, a.URL, a.Color
+			if len(req.Image) > 0 {
+				e.Image = req.Image
+				e.ImageV++
+			}
+			if e.OwnerID == "" && req.Days >= 0 {
+				e.Until = a.Until
+			}
+			if err := s.saveAds(r, list); err != nil {
+				writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+				return
+			}
+			writeJSON(w, http.StatusOK, e.view(true))
+			return
+		}
+		writeErr(w, http.StatusNotFound, "not_found", "ese anuncio no existe")
+		return
+	}
 	if countAds(list, false) >= maxAds {
 		writeErr(w, http.StatusBadRequest, "too_many", "ya hay 20 anuncios: borra alguno primero")
 		return
