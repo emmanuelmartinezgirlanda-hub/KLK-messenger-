@@ -3150,6 +3150,7 @@ class AppController extends ChangeNotifier {
     } catch (e) {
       debugPrint('Plus: $e');
     }
+    unawaited(_renewMyAd());
     // Renovaciones (Apple o Google Play): si la suscripción sigue activa, se la paso al servidor.
     if (!plusActive.value && KlkNative.supportsStore) {
       try {
@@ -3182,6 +3183,57 @@ class AppController extends ChangeNotifier {
     if (proofs.isEmpty) return false;
     await _savePlus(await _verifyStore(proofs));
     return plusActive.value;
+  }
+
+  // ---------- KLK Anuncios (suscripción aparte de Plus) ----------
+
+  /// Suscripción para poner un anuncio de negocio arriba de los chats.
+  static const adsProduct = 'klk.ads.mensual';
+
+  Map<String, dynamic> _proofBody(List<String> proofs) =>
+      KlkNative.isGooglePlay ? {'tokens': proofs} : {'jws': proofs};
+
+  Future<Map<String, dynamic>?> myAd() async {
+    if (_api == null) return null;
+    return _api!.myAd();
+  }
+
+  /// Paga la suscripción de anuncios con la tienda y devuelve la prueba.
+  Future<List<String>> buyAdSubscription() async {
+    if (_api == null) throw const ApiException(0, 'demo', 'Entra con tu número para anunciarte.');
+    return [await KlkNative.storeBuy(adsProduct, accountId: session?.accountId)];
+  }
+
+  /// Guarda mi anuncio (queda pendiente de que lo apruebe KLK).
+  Future<Map<String, dynamic>?> saveMyAd(Map<String, dynamic> fields, {List<String> proofs = const []}) async {
+    if (_api == null) throw const ApiException(0, 'demo', 'Entra con tu número para anunciarte.');
+    var p = proofs;
+    if (p.isEmpty && KlkNative.supportsStore) {
+      try {
+        p = await KlkNative.storeEntitlements(); // por si ya pagó antes
+      } catch (_) {}
+    }
+    return _api!.saveMyAd({...fields, ..._proofBody(p)});
+  }
+
+  Future<void> deleteMyAd() async => _api?.deleteMyAd();
+
+  /// Renovaciones de la suscripción de anuncios: se las paso al servidor al abrir la app.
+  Future<void> _renewMyAd() async {
+    if (_api == null || !KlkNative.supportsStore) return;
+    try {
+      if (await _store.read('klk.ad.mine') != '1') return;
+      final proofs = await KlkNative.storeEntitlements();
+      if (proofs.isNotEmpty) await _api!.renewMyAd(_proofBody(proofs));
+    } catch (e) {
+      debugPrint('Anuncio (renovar): $e');
+    }
+  }
+
+  Future<void> markHasAd(bool on) async {
+    try {
+      await _store.write('klk.ad.mine', on ? '1' : '');
+    } catch (_) {}
   }
 
   /// Invita a tus amigos y gana Plus. Null en modo demo o sin conexión.

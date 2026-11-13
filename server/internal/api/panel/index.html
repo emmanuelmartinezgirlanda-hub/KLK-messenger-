@@ -411,6 +411,7 @@ function renderAds(){
   const ads=data.ads||[];
   return `<h2>Anuncios de negocios (pasan solos arriba de los chats)</h2>
   <div class="card">
+    <p class="note">💳 Los negocios también pueden anunciarse desde la app («¿Tienes un negocio? → Anunciar») pagando la suscripción KLK Anuncios. Te salen aquí arriba para aprobarlos.</p>
     <p class="note">🏪 Cada anuncio pasa solo, cada pocos segundos, arriba de la lista de chats de todos. Junto a ellos salen también anuncios de KLK Plus (para quien no lo tiene).</p>
     <label for="adt">Nombre del negocio</label><input id="adt" maxlength="40" placeholder="Ej.: Colmado La Esquina">
     <label for="adb">Mensaje</label><input id="adb" maxlength="120" placeholder="Ej.: Pide por KLK y te lo llevamos en 20 minutos">
@@ -421,7 +422,8 @@ function renderAds(){
     <label for="adf">Logo o foto (opcional, JPEG o PNG hasta 400 KB)</label><input id="adf" type="file" accept="image/jpeg,image/png">
     <div class="actions"><button class="btn primary" id="addAd" style="flex:1">Poner anuncio</button></div>
   </div>
-  <div class="card list">${ads.length?ads.map(a=>`<div class="item"><div><b>${esc(a.title)}</b><div class="small">${esc(a.body)}</div><div class="muted small">Botón «${esc(a.cta)}» · ${a.clicks||0} toques${a.until?" · hasta el "+esc(a.until):""}${a.hasImage?" · con foto":""}</div></div><button class="btn" data-delad="${esc(a.id)}">Quitar</button></div>`).join(""):`<div class="empty">No hay anuncios puestos.</div>`}</div>`;
+  ${(()=>{const pend=ads.filter(a=>a.status==="pending");return pend.length?`<h2>🕒 Anuncios de negocios por aprobar (${pend.length})</h2><div class="card list">${pend.map(a=>`<div class="item"><div>${a.hasImage?`<img src="/v1/ads/${esc(a.id)}/image?v=${a.imageV}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;float:left;margin-right:10px">`:""}<b>${esc(a.title)}</b><div class="small">${esc(a.body)}</div><div class="muted small">Botón «${esc(a.cta)}»${a.url?" → "+esc(a.url):""} · pagado hasta el ${esc(a.paidUntil||"?")}</div></div><div class="actions"><button class="btn primary" data-okad="${esc(a.id)}">Aprobar</button><button class="btn" data-noad="${esc(a.id)}">Rechazar</button></div></div>`).join("")}</div>`:""})()}
+  <div class="card list">${ads.filter(a=>a.status!=="pending").length?ads.filter(a=>a.status!=="pending").map(a=>`<div class="item"><div><b>${esc(a.title)}</b>${a.owner?` <span class="muted small">(negocio · ${a.status==="rejected"?"rechazado":"pagado hasta el "+esc(a.paidUntil||"?")})</span>`:""}<div class="small">${esc(a.body)}</div><div class="muted small">Botón «${esc(a.cta)}» · ${a.clicks||0} toques${a.until?" · hasta el "+esc(a.until):""}${a.hasImage?" · con foto":""}</div></div><button class="btn" data-delad="${esc(a.id)}">Quitar</button></div>`).join(""):`<div class="empty">No hay anuncios puestos.</div>`}</div>`;
 }
 
 function fileBase64(f){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(",")[1]||"");r.onerror=no;r.readAsDataURL(f)})}
@@ -643,6 +645,11 @@ document.addEventListener("click",e=>{
   if(t.dataset.delnews){
     if(!confirm("¿Borrar este aviso?"))return;
     act(()=>api(`announcements/${t.dataset.delnews}`,{method:"DELETE"}),"Aviso borrado");return}
+  if(t.dataset.okad){act(()=>api(`ads/${t.dataset.okad}/approve`,{method:"POST"}),"Anuncio aprobado ✅");return}
+  if(t.dataset.noad){
+    const note=prompt("¿Por qué lo rechazas? (lo verá el negocio)","");
+    if(note===null)return;
+    act(()=>api(`ads/${t.dataset.noad}/reject`,{method:"POST",body:JSON.stringify({note})}),"Anuncio rechazado");return}
   if(t.dataset.delad){
     if(!confirm("¿Quitar este anuncio?"))return;
     act(()=>api(`ads/${t.dataset.delad}`,{method:"DELETE"}),"Anuncio quitado");return}

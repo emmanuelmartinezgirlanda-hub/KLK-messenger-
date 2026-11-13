@@ -81,6 +81,8 @@ func (s *Server) adminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/api/ads", s.admin(s.adminAds))
 	mux.HandleFunc("POST /admin/api/ads", s.admin(s.adminAddAd))
 	mux.HandleFunc("DELETE /admin/api/ads/{id}", s.admin(s.adminDeleteAd))
+	mux.HandleFunc("POST /admin/api/ads/{id}/approve", s.admin(s.adminReviewAd(true)))
+	mux.HandleFunc("POST /admin/api/ads/{id}/reject", s.admin(s.adminReviewAd(false)))
 	mux.HandleFunc("POST /admin/api/accounts/{id}/plus/remove", s.admin(s.adminRemovePlus))
 }
 

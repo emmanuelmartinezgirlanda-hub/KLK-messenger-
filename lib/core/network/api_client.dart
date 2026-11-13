@@ -435,6 +435,25 @@ class ApiClient {
     }
   }
 
+  /// Mi anuncio de negocio (null si no tengo).
+  Future<Map<String, dynamic>?> myAd() async {
+    final j = await _send('GET', '/v1/ads/mine') as Map<String, dynamic>;
+    return j['ad'] as Map<String, dynamic>?;
+  }
+
+  /// Crear o cambiar mi anuncio. [body] lleva los textos, el logo y la prueba de pago.
+  Future<Map<String, dynamic>?> saveMyAd(Map<String, dynamic> body) async {
+    final j = await _send('POST', '/v1/ads/mine', body) as Map<String, dynamic>;
+    return j['ad'] as Map<String, dynamic>?;
+  }
+
+  Future<Map<String, dynamic>?> renewMyAd(Map<String, dynamic> proofs) async {
+    final j = await _send('POST', '/v1/ads/mine/renew', proofs) as Map<String, dynamic>;
+    return j['ad'] as Map<String, dynamic>?;
+  }
+
+  Future<void> deleteMyAd() async => _send('DELETE', '/v1/ads/mine');
+
   Future<void> adClick(String id) async => _send('POST', '/v1/ads/$id/click');
 
   String adImageUrl(String id, int v) => '${_u('/v1/ads/$id/image')}?v=$v';

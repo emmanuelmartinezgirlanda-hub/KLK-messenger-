@@ -9,6 +9,7 @@ import '../../core/l10n/l10n.dart';
 import '../messaging/app_controller.dart';
 import '../plus/plus_screen.dart';
 import '../plus/plus_state.dart';
+import 'my_ad_screen.dart';
 
 /// Anuncios que pasan solos arriba de la lista de chats: negocios (los pone el
 /// dueño desde su panel), cosas de KLK Plus (para quien no lo tiene) y
@@ -26,6 +27,7 @@ class _Slide {
   final String? imageUrl;
   final IconData? icon;
   final String? emoji;
+  final ImageProvider? logo;
   final VoidCallback onTap;
   const _Slide({
     required this.tag,
@@ -38,6 +40,7 @@ class _Slide {
     this.imageUrl,
     this.icon,
     this.emoji,
+    this.logo,
   });
 }
 
@@ -153,7 +156,7 @@ class _AdsCarouselState extends ConsumerState<AdsCarousel> {
       bg: const Color(0xFFF1F3F7),
       fg: const Color(0xFF14213D),
       icon: Icons.storefront_rounded,
-      onTap: () => _open('https://klkmessenger.com/'),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyAdScreen())),
     ));
     return out;
   }
@@ -216,12 +219,36 @@ class _AdCard extends StatelessWidget {
   final _Slide slide;
   const _AdCard({required this.slide});
 
+  /// Vista previa de un anuncio (para «Mi anuncio»).
+  static Widget preview({
+    required String title,
+    required String body,
+    required String cta,
+    required String color,
+    ImageProvider? logo,
+  }) =>
+      _AdCard(
+          slide: _Slide(
+        tag: 'Anuncio',
+        title: title.isEmpty ? 'Tu negocio' : title,
+        body: body.isEmpty ? 'Tu mensaje aquí' : body,
+        cta: cta.isEmpty ? 'Ver' : cta,
+        bg: _adColors[color] ?? _adColors['red']!,
+        logo: logo,
+        onTap: () {},
+      ));
+
   @override
   Widget build(BuildContext context) {
     final s = slide;
     final dark = s.fg == Colors.white;
     Widget tile;
-    if (s.imageUrl != null) {
+    if (s.logo != null) {
+      tile = ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image(image: s.logo!, width: 64, height: 64, fit: BoxFit.cover),
+      );
+    } else if (s.imageUrl != null) {
       tile = ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Image.network(s.imageUrl!,
@@ -327,3 +354,10 @@ class _AdCard extends StatelessWidget {
         ),
       );
 }
+
+/// Vista previa pública del anuncio (la usa «Mi anuncio»).
+Widget adPreview({required String title, required String body, required String cta, required String color, ImageProvider? logo}) =>
+    _AdCard.preview(title: title, body: body, cta: cta, color: color, logo: logo);
+
+/// Colores que puede elegir un negocio (mismos nombres que en el servidor).
+const adColorChoices = _adColors;

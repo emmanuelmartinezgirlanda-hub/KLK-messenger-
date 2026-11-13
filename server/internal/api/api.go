@@ -113,6 +113,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/announcements", s.authed(s.announcements))
 	mux.HandleFunc("GET /v1/ads", s.authed(s.ads))
 	mux.HandleFunc("GET /v1/gif/key", s.authed(s.gifKey))
+	mux.HandleFunc("GET /v1/ads/mine", s.authed(s.myAd))
+	mux.HandleFunc("POST /v1/ads/mine", s.limited(s.authed(s.saveMyAd)))
+	mux.HandleFunc("POST /v1/ads/mine/renew", s.limited(s.authed(s.renewMyAd)))
+	mux.HandleFunc("DELETE /v1/ads/mine", s.authed(s.deleteMyAd))
 	mux.HandleFunc("GET /v1/ads/{id}/image", s.adImage) // público, como los logos
 	mux.HandleFunc("POST /v1/ads/{id}/click", s.authed(s.adClick))
 	mux.HandleFunc("GET /v1/account/pin", s.authed(s.pinStatus))
