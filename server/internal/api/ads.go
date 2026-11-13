@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/klk-app/klk-server/internal/playstore"
 	"github.com/klk-app/klk-server/internal/store"
 )
 
@@ -40,6 +43,12 @@ type ad struct {
 	Image     []byte     `json:"image,omitempty"`
 	ImageV    int        `json:"imageV"`
 	Clicks    int        `json:"clicks"`
+
+	// Anuncios que pone un negocio desde la app (pagando la suscripción «KLK Anuncios»).
+	OwnerID   string     `json:"ownerId,omitempty"`
+	Status    string     `json:"status,omitempty"` // "" o "active" = sale · "pending" = falta aprobarlo · "rejected"
+	Note      string     `json:"note,omitempty"`   // por qué se rechazó
+	PaidUntil *time.Time `json:"paidUntil,omitempty"`
 }
 
 // adView es lo que ve la app (sin la foto: se baja aparte).
@@ -54,6 +63,10 @@ type adView struct {
 	ImageV   int    `json:"imageV"`
 	Clicks   int    `json:"clicks,omitempty"`
 	Until    string `json:"until,omitempty"`
+	Status   string `json:"status,omitempty"`
+	Note     string `json:"note,omitempty"`
+	Owner    string `json:"owner,omitempty"`
+	Paid     string `json:"paidUntil,omitempty"`
 }
 
 func (a ad) view(admin bool) adView {
@@ -62,6 +75,15 @@ func (a ad) view(admin bool) adView {
 		v.Clicks = a.Clicks
 		if a.Until != nil {
 			v.Until = a.Until.Format("2006-01-02")
+		}
+		v.Status = a.Status
+		if v.Status == "" {
+			v.Status = "active"
+		}
+		v.Note = a.Note
+		v.Owner = a.OwnerID
+		if a.PaidUntil != nil {
+			v.Paid = a.PaidUntil.Format("2006-01-02")
 		}
 	}
 	return v
@@ -90,10 +112,26 @@ func (s *Server) saveAds(r *http.Request, list []ad) error {
 	return s.store.SetOwnerSetting(r.Context(), adsKey, raw)
 }
 
+// live dice si el anuncio sale ahora mismo.
+func (a ad) live(now time.Time) bool {
+	if a.Status != "" && a.Status != "active" {
+		return false
+	}
+	if a.Until != nil && now.After(*a.Until) {
+		return false
+	}
+	if a.OwnerID != "" && (a.PaidUntil == nil || now.After(*a.PaidUntil)) {
+		return false
+	}
+	return true
+}
+
+// activeAds quita los del dueño ya caducados (los de negocios se quedan
+// guardados aunque no salgan, para que puedan renovar).
 func activeAds(list []ad, now time.Time) []ad {
 	out := []ad{}
 	for _, a := range list {
-		if a.Until != nil && now.After(*a.Until) {
+		if a.OwnerID == "" && a.Until != nil && now.After(*a.Until) {
 			continue
 		}
 		out = append(out, a)
@@ -108,8 +146,17 @@ func (s *Server) ads(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
 		return
 	}
+	now := time.Now()
+	live := []ad{}
+	for _, a := range list {
+		if a.live(now) {
+			live = append(live, a)
+		}
+	}
+	// Si hay muchos, cada vez salen otros (al azar).
+	rand.Shuffle(len(live), func(i, j int) { live[i], live[j] = live[j], live[i] })
 	out := []adView{}
-	for _, a := range activeAds(list, time.Now()) {
+	for _, a := range live {
 		if len(out) == adsForUsers {
 			break
 		}
@@ -232,7 +279,7 @@ func (s *Server) adminAddAd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	list = activeAds(list, time.Now())
-	if len(list) >= maxAds {
+	if countAds(list, false) >= maxAds {
 		writeErr(w, http.StatusBadRequest, "too_many", "ya hay 20 anuncios: borra alguno primero")
 		return
 	}
@@ -280,4 +327,342 @@ func (s *Server) gifKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"key": s.GifKey, "provider": "klipy"})
+}
+
+// ---------- Anuncios que pone cada negocio desde la app ----------
+
+const (
+	maxUserAds     = 80
+	maxUserAdImage = 150 * 1024
+	adsProductPref = "klk.ads"
+)
+
+func countAds(list []ad, users bool) int {
+	n := 0
+	for _, a := range list {
+		if (a.OwnerID != "") == users {
+			n++
+		}
+	}
+	return n
+}
+
+// adPaidUntil comprueba con Apple o Google la suscripción «KLK Anuncios» y
+// devuelve hasta cuándo está pagada (cero si no hay ninguna activa).
+func (s *Server) adPaidUntil(r *http.Request, acc string, jws, tokens []string) (time.Time, bool, error) {
+	now := time.Now()
+	best := time.Time{}
+	taken := false
+	if s.Apple != nil {
+		for _, j := range jws {
+			tx, err := s.Apple.Verify(j, now)
+			if err != nil || tx.BundleID != s.AppleBundleID || !strings.HasPrefix(tx.ProductID, adsProductPref) ||
+				tx.RevocationDate != 0 || tx.OriginalTransactionID == "" {
+				continue
+			}
+			if tx.AppAccountToken != "" && !strings.EqualFold(tx.AppAccountToken, acc) {
+				taken = true
+				continue
+			}
+			exp := tx.Expires()
+			if !exp.After(now) {
+				continue
+			}
+			owner, err := s.store.ClaimAppleSub(r.Context(), "ad:"+tx.OriginalTransactionID, acc, exp)
+			if err != nil {
+				return time.Time{}, false, err
+			}
+			if owner != acc {
+				taken = true
+				continue
+			}
+			if exp.After(best) {
+				best = exp
+			}
+		}
+	}
+	if s.Play != nil {
+		for _, tok := range tokens {
+			if tok == "" || len(tok) > 4096 {
+				continue
+			}
+			sub, err := s.Play.Subscription(r.Context(), tok)
+			if err != nil {
+				if !errors.Is(err, playstore.ErrNotFound) {
+					slog.Warn("Google Play (anuncios)", "err", err)
+				}
+				continue
+			}
+			if !strings.HasPrefix(sub.ProductID, adsProductPref) || !sub.Entitled(now) {
+				continue
+			}
+			if sub.AccountID != "" && !strings.EqualFold(sub.AccountID, acc) {
+				taken = true
+				continue
+			}
+			owner, err := s.store.ClaimAppleSub(r.Context(), "adgp:"+tok, acc, sub.Expires)
+			if err != nil {
+				return time.Time{}, false, err
+			}
+			if owner != acc {
+				taken = true
+				continue
+			}
+			if !sub.Acknowledged {
+				if err := s.Play.Acknowledge(r.Context(), sub.ProductID, tok); err != nil {
+					slog.Warn("Google Play: no se pudo confirmar la compra del anuncio", "err", err)
+				}
+			}
+			if sub.Expires.After(best) {
+				best = sub.Expires
+			}
+		}
+	}
+	return best, taken, nil
+}
+
+func mineView(a *ad) map[string]any {
+	if a == nil {
+		return map[string]any{"ad": nil}
+	}
+	return map[string]any{"ad": a.view(true)}
+}
+
+// GET /v1/ads/mine: mi anuncio (si tengo).
+func (s *Server) myAd(w http.ResponseWriter, r *http.Request) {
+	dev := deviceFrom(r)
+	list, err := s.loadAds(r)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	for i := range list {
+		if list[i].OwnerID == dev.AccountID {
+			writeJSON(w, http.StatusOK, mineView(&list[i]))
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, mineView(nil))
+}
+
+// POST /v1/ads/mine: crear o cambiar mi anuncio. Hace falta la suscripción
+// «KLK Anuncios» (Apple: "jws"; Google Play: "tokens"). Cada cambio vuelve a
+// pasar por la aprobación del dueño de KLK.
+func (s *Server) saveMyAd(w http.ResponseWriter, r *http.Request) {
+	dev := deviceFrom(r)
+	var req struct {
+		Title     string   `json:"title"`
+		Body      string   `json:"body"`
+		CTA       string   `json:"cta"`
+		URL       string   `json:"url"`
+		Color     string   `json:"color"`
+		Image     []byte   `json:"image"`
+		KeepImage bool     `json:"keepImage"`
+		JWS       []string `json:"jws"`
+		Tokens    []string `json:"tokens"`
+	}
+	if !readJSON(w, r, &req) {
+		return
+	}
+	if len(req.JWS) > 20 || len(req.Tokens) > 10 {
+		writeErr(w, http.StatusBadRequest, "bad_purchase", "compra no válida")
+		return
+	}
+	req.Title, req.Body = strings.TrimSpace(req.Title), strings.TrimSpace(req.Body)
+	req.CTA, req.URL = strings.TrimSpace(req.CTA), strings.TrimSpace(req.URL)
+	if req.Title == "" || req.Body == "" {
+		writeErr(w, http.StatusBadRequest, "empty", "pon el nombre del negocio y el mensaje")
+		return
+	}
+	if utf8.RuneCountInString(req.Title) > maxAdTitle || utf8.RuneCountInString(req.Body) > maxAdBody ||
+		utf8.RuneCountInString(req.CTA) > maxAdCTA || len(req.URL) > maxAdURL {
+		writeErr(w, http.StatusBadRequest, "too_long", "nombre hasta 40 letras, mensaje hasta 120 y botón hasta 16")
+		return
+	}
+	if req.URL != "" && !strings.HasPrefix(req.URL, "https://") && !strings.HasPrefix(req.URL, "http://") &&
+		!strings.HasPrefix(req.URL, "tel:") {
+		req.URL = "https://" + req.URL
+	}
+	if req.CTA == "" {
+		req.CTA = "Ver"
+	}
+	if !adColors[req.Color] {
+		req.Color = "red"
+	}
+	if len(req.Image) > 0 && (len(req.Image) > maxUserAdImage || !validJPEGorPNG(req.Image)) {
+		writeErr(w, http.StatusBadRequest, "bad_image", "ese logo no vale (JPEG o PNG, hasta 150 KB)")
+		return
+	}
+	paid, taken, err := s.adPaidUntil(r, dev.AccountID, req.JWS, req.Tokens)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+
+	s.adsMu.Lock()
+	defer s.adsMu.Unlock()
+	list, err := s.loadAds(r)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	list = activeAds(list, time.Now())
+	idx := -1
+	for i := range list {
+		if list[i].OwnerID == dev.AccountID {
+			idx = i
+			break
+		}
+	}
+	var cur ad
+	if idx >= 0 {
+		cur = list[idx]
+	} else {
+		if countAds(list, true) >= maxUserAds {
+			writeErr(w, http.StatusServiceUnavailable, "full", "ahora mismo no caben más anuncios; prueba en unos días")
+			return
+		}
+		cur = ad{ID: uuid.NewString(), OwnerID: dev.AccountID, CreatedAt: time.Now().UTC()}
+	}
+	if !paid.IsZero() && (cur.PaidUntil == nil || paid.After(*cur.PaidUntil)) {
+		p := paid.UTC()
+		cur.PaidUntil = &p
+	}
+	if cur.PaidUntil == nil || time.Now().After(*cur.PaidUntil) {
+		if taken {
+			writeErr(w, http.StatusConflict, "other_account", "esa suscripción es de otra cuenta de KLK")
+			return
+		}
+		writeErr(w, http.StatusPaymentRequired, "need_payment", "hace falta la suscripción de KLK Anuncios")
+		return
+	}
+	cur.Title, cur.Body, cur.CTA, cur.URL, cur.Color = req.Title, req.Body, req.CTA, req.URL, req.Color
+	if len(req.Image) > 0 {
+		cur.Image = req.Image
+		cur.ImageV++
+	} else if !req.KeepImage {
+		cur.Image = nil
+	}
+	cur.Status = "pending"
+	cur.Note = ""
+	if idx >= 0 {
+		list[idx] = cur
+	} else {
+		list = append(list, cur)
+	}
+	if err := s.saveAds(r, list); err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	writeJSON(w, http.StatusOK, mineView(&cur))
+}
+
+// POST /v1/ads/mine/renew: la tienda renovó la suscripción; alarga el anuncio.
+func (s *Server) renewMyAd(w http.ResponseWriter, r *http.Request) {
+	dev := deviceFrom(r)
+	var req struct {
+		JWS    []string `json:"jws"`
+		Tokens []string `json:"tokens"`
+	}
+	if !readJSON(w, r, &req) {
+		return
+	}
+	if len(req.JWS) > 20 || len(req.Tokens) > 10 {
+		writeErr(w, http.StatusBadRequest, "bad_purchase", "compra no válida")
+		return
+	}
+	paid, _, err := s.adPaidUntil(r, dev.AccountID, req.JWS, req.Tokens)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	s.adsMu.Lock()
+	defer s.adsMu.Unlock()
+	list, err := s.loadAds(r)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	for i := range list {
+		if list[i].OwnerID != dev.AccountID {
+			continue
+		}
+		if !paid.IsZero() && (list[i].PaidUntil == nil || paid.After(*list[i].PaidUntil)) {
+			p := paid.UTC()
+			list[i].PaidUntil = &p
+			if err := s.saveAds(r, list); err != nil {
+				writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, mineView(&list[i]))
+		return
+	}
+	writeJSON(w, http.StatusOK, mineView(nil))
+}
+
+// DELETE /v1/ads/mine: quitar mi anuncio (la suscripción se cancela en la tienda).
+func (s *Server) deleteMyAd(w http.ResponseWriter, r *http.Request) {
+	dev := deviceFrom(r)
+	s.adsMu.Lock()
+	defer s.adsMu.Unlock()
+	list, err := s.loadAds(r)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	out := list[:0]
+	for _, a := range list {
+		if a.OwnerID != dev.AccountID {
+			out = append(out, a)
+		}
+	}
+	if err := s.saveAds(r, out); err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /admin/api/ads/{id}/approve y /reject {"note":"…"}: el dueño de KLK
+// revisa los anuncios de los negocios antes de que salgan.
+func (s *Server) adminReviewAd(approve bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Note string `json:"note"`
+		}
+		if r.ContentLength > 0 && !readJSON(w, r, &req) {
+			return
+		}
+		s.adsMu.Lock()
+		defer s.adsMu.Unlock()
+		list, err := s.loadAds(r)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+			return
+		}
+		for i := range list {
+			if list[i].ID != r.PathValue("id") {
+				continue
+			}
+			if approve {
+				list[i].Status = "active"
+				list[i].Note = ""
+			} else {
+				list[i].Status = "rejected"
+				note := strings.TrimSpace(req.Note)
+				if utf8.RuneCountInString(note) > 200 {
+					note = string([]rune(note)[:200])
+				}
+				list[i].Note = note
+			}
+			if err := s.saveAds(r, list); err != nil {
+				writeErr(w, http.StatusInternalServerError, "internal", "error interno")
+				return
+			}
+			writeJSON(w, http.StatusOK, list[i].view(true))
+			return
+		}
+		writeErr(w, http.StatusNotFound, "not_found", "ese anuncio no existe")
+	}
 }
