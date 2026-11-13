@@ -397,6 +397,7 @@ class _ChatTile extends ConsumerWidget {
         child: AvatarDecor(
           radius: 27,
           ring: ref.watch(appProvider).statusRingOf(chat.id),
+          ringStyle: ref.watch(appProvider).ringStyleOf(chat.id),
           timer: chat.disappearSec != null && chat.disappearSec! > 0,
           child: ChatAvatar(id: chat.id, title: chat.title, photoPath: chat.avatarPath, radius: 27),
         ),

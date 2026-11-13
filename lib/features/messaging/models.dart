@@ -923,6 +923,8 @@ String foldForSearch(String s) {
 /// Anuncio de un negocio (pasa solo arriba de los chats).
 class KlkAd {
   final String id, title, body, cta, url, color;
+  /// Cuenta del negocio que puso el anuncio (para escribirle en KLK).
+  final String chat;
   final bool hasImage;
   final int imageV;
   const KlkAd({
@@ -932,6 +934,7 @@ class KlkAd {
     this.cta = 'Ver',
     this.url = '',
     this.color = 'red',
+    this.chat = '',
     this.hasImage = false,
     this.imageV = 0,
   });
@@ -943,6 +946,7 @@ class KlkAd {
         cta: (j['cta'] as String?)?.isNotEmpty == true ? j['cta'] as String : 'Ver',
         url: j['url'] as String? ?? '',
         color: j['color'] as String? ?? 'red',
+        chat: j['chat'] as String? ?? '',
         hasImage: j['hasImage'] == true,
         imageV: (j['imageV'] as num?)?.toInt() ?? 0,
       );

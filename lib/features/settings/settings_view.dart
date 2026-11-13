@@ -193,6 +193,15 @@ class SettingsView extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ThemePickerScreen())),
         ),
+        if (kWalkieFeatures)
+          SwitchListTile(
+            secondary: const Icon(Icons.settings_voice_outlined),
+            title: Text(tr('Walkie-talkie')),
+            subtitle: Text(tr('Mantén pulsado para hablar y al otro le suena solo, también en el Apple Watch. '
+                'Solo suenan solos los walkies de quien tú tengas en tus chats.')),
+            value: app.walkieOn,
+            onChanged: (v) => app.setWalkieOn(v),
+          ),
         ListTile(
           leading: const Icon(Icons.brush_outlined),
           title: Text(tr('Estilo del chat')),

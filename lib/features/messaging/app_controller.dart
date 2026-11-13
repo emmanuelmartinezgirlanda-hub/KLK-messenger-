@@ -34,6 +34,7 @@ import '../privacy/presentation/privacy_provider.dart';
 import '../communities/community.dart';
 import '../effects/screen_effects.dart';
 import '../plus/plus_state.dart';
+import '../status/status_ring.dart';
 import '../san/san.dart';
 import '../business/business.dart';
 import 'demo_data.dart';
@@ -69,6 +70,40 @@ class AppController extends ChangeNotifier {
   Set<String> _dismissedNews = {};
   static const _newsKey = 'klk.news.dismissed';
   static const _plusKey = 'klk.plus.until';
+
+  // ---------- Anillo del estado ----------
+
+  /// Cómo es el anillo de MI estado (lo ven mis contactos). Sin Plus, verde.
+  String myRingStyle = 'verde';
+  static const _myRingKey = 'klk.ring.mine';
+  static const _ringsKey = 'klk.ring.others';
+
+  /// Anillo que eligió cada contacto para sus estados.
+  final Map<String, String> _rings = {};
+
+  String ringStyleOf(String chatId) => _rings[chatId] ?? 'verde';
+
+  Future<void> setMyRingStyle(String style) async {
+    myRingStyle = ringStyles.containsKey(style) ? style : 'verde';
+    notifyListeners();
+    try {
+      await _store.write(_myRingKey, myRingStyle);
+    } catch (_) {}
+  }
+
+  Future<void> _loadRings() async {
+    try {
+      myRingStyle = await _store.read(_myRingKey) ?? 'verde';
+      final raw = await _store.read(_ringsKey);
+      if (raw != null) _rings.addAll(Map<String, String>.from(jsonDecode(raw) as Map));
+    } catch (_) {}
+  }
+
+  Future<void> _saveRings() async {
+    try {
+      await _store.write(_ringsKey, jsonEncode(_rings));
+    } catch (_) {}
+  }
 
   /// Aro del estado en la foto de un contacto: 0 = no tiene, 1 = nuevo, 2 = ya visto.
   int statusRingOf(String chatId) {
@@ -447,6 +482,10 @@ class AppController extends ChangeNotifier {
     _db = await LocalDb.open(await _store.databaseKey());
     try {
       await _db!.failInterruptedUploads();
+    } catch (_) {}
+    await _loadRings();
+    try {
+      walkieOn = await _store.read(_walkieKey) == '1';
     } catch (_) {}
     final savedProfile = await _store.read(_profileKey);
     if (savedProfile != null) profile = Profile.fromJson(jsonDecode(savedProfile) as Map<String, dynamic>);
@@ -1140,6 +1179,13 @@ class AppController extends ChangeNotifier {
         return;
       }
     }
+    final ring = s['r'];
+    if (ring is String && ringStyles.containsKey(ring)) {
+      _rings[from] = ring;
+    } else {
+      _rings.remove(from);
+    }
+    unawaited(_saveRings());
     await _db!.addStatus(StatusPost(
       id: p.id!,
       ownerId: from,
@@ -2943,7 +2989,13 @@ class AppController extends ChangeNotifier {
         text: text,
         media: media,
         senderPhone: myPhone,
-        status: {'c': color, 'at': post.createdAt.toUtc().toIso8601String(), 'save': allowSave},
+        status: {
+          'c': color,
+          'at': post.createdAt.toUtc().toIso8601String(),
+          'save': allowSave,
+          // Anillo de mi estado (con Plus se puede elegir otro, hasta de neón).
+          if (plusActive.value && myRingStyle != 'verde') 'r': myRingStyle,
+        },
       );
       for (final c in chats.where((c) => !c.isGroup && !c.blocked && c.identityKey != null)) {
         await _sendTo(c.id, c.identityKey!, payload, ref: 'x-${_uuid.v4()}');
@@ -2988,14 +3040,34 @@ class AppController extends ChangeNotifier {
   final _walkieIn = StreamController<({String chatId, String path, String id})>.broadcast();
   Stream<({String chatId, String path, String id})> get walkieIncoming => _walkieIn.stream;
 
-  // ---------- Apple Watch (walkie-talkie) ----------
+  // ---------- Walkie-talkie (cada uno lo activa en Ajustes) ----------
+
+  static const _walkieKey = 'klk.walkie.on';
+
+  /// ¿Activé el walkie-talkie? Apagado de fábrica: hasta que lo actives, los
+  /// walkies que te manden llegan como notas de voz normales (no suenan solos).
+  bool walkieOn = false;
+
+  bool get walkieAvailable => kWalkieFeatures && walkieOn;
+
+  Future<void> setWalkieOn(bool on) async {
+    walkieOn = on;
+    _watchSig = ''; // el reloj enseña (o quita) el walkie
+    _syncWatchContacts();
+    notifyListeners();
+    try {
+      await _store.write(_walkieKey, on ? '1' : '');
+    } catch (_) {}
+  }
+
+  // ---------- Apple Watch (chats, texto, notas de voz y walkie) ----------
 
   bool _watchStarted = false;
   String _watchSig = '';
 
   /// Escucha las grabaciones del reloj y las manda como walkie (cifradas, como siempre).
   void _startWatchLink() {
-    if (_watchStarted || !kWalkieFeatures || !Platform.isIOS || isDemo) return;
+    if (_watchStarted || !Platform.isIOS || isDemo) return;
     _watchStarted = true;
     KlkNative.watchEvents.listen((e) async {
       final chatId = e['chatId'] as String? ?? '';
@@ -3035,9 +3107,11 @@ class AppController extends ChangeNotifier {
   void _syncWatchContacts() {
     if (!_watchStarted) return;
     _syncWatchChats();
+    // Sin el walkie activado, el reloj no enseña la parte del walkie.
     final list = [
-      for (final c in chats.where((c) => !c.isGroup && !c.hidden && !c.isNotes).take(25))
-        {'id': c.id, 'title': c.title},
+      if (walkieAvailable)
+        for (final c in chats.where((c) => !c.isGroup && !c.hidden && !c.isNotes).take(25))
+          {'id': c.id, 'title': c.title},
     ];
     final sig = list.map((m) => '${m['id']}=${m['title']}').join('|');
     if (sig == _watchSig) return;
@@ -3100,7 +3174,7 @@ class AppController extends ChangeNotifier {
       final done = media.copyWith(localPath: path);
       await _db?.setMedia(msg.id, done);
       await _refresh();
-      if (done.isWalkie && !msg.isMine) {
+      if (done.isWalkie && !msg.isMine && walkieAvailable) {
         _walkieIn.add((chatId: msg.chatId, path: path, id: msg.id));
         if (_watchStarted) unawaited(KlkNative.watchPlay(path, chatId: msg.chatId, from: chatById(msg.chatId)?.title ?? ''));
       }

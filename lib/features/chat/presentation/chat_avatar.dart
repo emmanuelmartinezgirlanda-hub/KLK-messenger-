@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../status/status_ring.dart';
+
 const _avatarColors = [
   Color(0xFFCE1126), Color(0xFF00A6B4), Color(0xFF6A2C91),
   Color(0xFF1F7A4D), Color(0xFFC46A00), Color(0xFF002D62),
@@ -60,29 +62,16 @@ class AvatarDecor extends StatelessWidget {
   /// 0 = sin estado · 1 = estado nuevo · 2 = estado ya visto
   final int ring;
   final bool timer;
-  const AvatarDecor({super.key, required this.child, required this.radius, this.ring = 0, this.timer = false});
+  /// Estilo del anillo que eligió esa persona (verde por defecto; con Plus, otros).
+  final String ringStyle;
+  const AvatarDecor(
+      {super.key, required this.child, required this.radius, this.ring = 0, this.timer = false, this.ringStyle = 'verde'});
 
   @override
   Widget build(BuildContext context) {
     final surface = Theme.of(context).colorScheme.surface;
     Widget out = child;
-    if (ring != 0) {
-      out = Container(
-        padding: const EdgeInsets.all(2.2),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: ring == 1
-              ? const SweepGradient(colors: [Color(0xFF002D62), Color(0xFFCE1126), Color(0xFFFFB627), Color(0xFF002D62)])
-              : null,
-          border: ring == 1 ? null : Border.all(color: Colors.grey.withValues(alpha: 0.55), width: 2),
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(1.8),
-          decoration: BoxDecoration(shape: BoxShape.circle, color: surface),
-          child: child,
-        ),
-      );
-    }
+    if (ring != 0) out = StatusRing(style: ringStyle, seen: ring == 2, child: child);
     if (!timer) return out;
     final s = (radius * 0.62).clamp(14.0, 22.0);
     return Stack(clipBehavior: Clip.none, children: [

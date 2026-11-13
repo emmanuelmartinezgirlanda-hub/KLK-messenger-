@@ -6,7 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/l10n.dart';
+import '../../core/ui/link_text.dart';
+import '../chat/presentation/chat_screen.dart';
 import '../messaging/app_controller.dart';
+import '../messaging/models.dart';
 import '../plus/plus_screen.dart';
 import '../plus/plus_state.dart';
 import 'my_ad_screen.dart';
@@ -96,6 +99,46 @@ class _AdsCarouselState extends ConsumerState<AdsCarousel> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  /// Al tocar un anuncio: su web (o teléfono), su @usuario de KLK, o un chat
+  /// con el negocio dentro de KLK. Si no tiene nada, se enseña el anuncio entero.
+  Future<void> _tapAd(AppController app, KlkAd a) async {
+    final url = a.url.trim();
+    try {
+      if (url.startsWith('@')) {
+        final id = await app.startChatWithUsername(url.substring(1));
+        if (id != null && mounted) _openChat(id);
+        return;
+      }
+      if (url.isNotEmpty) {
+        await _open(url);
+        return;
+      }
+      if (a.chat.isNotEmpty && a.chat != app.session?.accountId) {
+        final id = await app.startChatWithAccount(a.chat, a.title);
+        if (mounted) _openChat(id);
+        return;
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(a.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            LinkText(a.body, style: const TextStyle(fontSize: 16)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  void _openChat(String chatId) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(chatId: chatId)));
+
   List<_Slide> _slides(AppController app, bool plus) {
     void plusScreen() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlusScreen()));
     final out = <_Slide>[
@@ -109,7 +152,7 @@ class _AdsCarouselState extends ConsumerState<AdsCarousel> {
           imageUrl: app.adImageUrl(a),
           onTap: () {
             app.adClicked(a.id);
-            _open(a.url);
+            _tapAd(app, a);
           },
         ),
     ];

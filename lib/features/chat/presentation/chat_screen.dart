@@ -92,6 +92,70 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _recording = false;
   /// Animación del zafacón al borrar una nota de voz.
   bool _trashing = false;
+
+  /// Mensajes elegidos para borrar varios a la vez.
+  final Set<String> _selected = {};
+  bool get _selecting => _selected.isNotEmpty;
+
+  void _toggleSelect(Message m) {
+    if (m.kind == MessageKind.system) return;
+    HapticFeedback.selectionClick();
+    setState(() => _selected.contains(m.id) ? _selected.remove(m.id) : _selected.add(m.id));
+  }
+
+  /// Borrar los mensajes elegidos (para mí, o para todos si todos son míos).
+  Future<void> _deleteSelected() async {
+    final msgs = _app.messagesFor(widget.chatId).where((m) => _selected.contains(m.id)).toList();
+    if (msgs.isEmpty) return;
+    final allMine = msgs.every((m) => m.isMine && !m.deleted);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Text('${tr('¿Borrar')} ${msgs.length} ${msgs.length == 1 ? tr('mensaje') : tr('mensajes')}?',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          ),
+          if (allMine)
+            ListTile(
+              leading: const Icon(Icons.delete_forever_outlined, color: Color(0xFFFF6B7A)),
+              title: Text(tr('Borrar para todos'), style: const TextStyle(color: Color(0xFFFF6B7A))),
+              onTap: () => Navigator.pop(ctx, 'all'),
+            ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: Color(0xFFFF6B7A)),
+            title: Text(tr('Borrar para mí'), style: const TextStyle(color: Color(0xFFFF6B7A))),
+            onTap: () => Navigator.pop(ctx, 'me'),
+          ),
+          ListTile(leading: const Icon(Icons.close), title: Text(tr('Cancelar')), onTap: () => Navigator.pop(ctx)),
+        ]),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    for (final m in msgs) {
+      try {
+        if (choice == 'all') {
+          await _app.deleteForEveryone(m);
+        } else {
+          await _app.deleteMessage(m.id);
+        }
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    setState(() => _selected.clear());
+    HapticFeedback.mediumImpact();
+    _snack('${msgs.length} ${msgs.length == 1 ? tr('mensaje borrado') : tr('mensajes borrados')}');
+  }
+
+  /// Copiar el texto de los mensajes elegidos.
+  void _copySelected() {
+    final msgs = _app.messagesFor(widget.chatId).where((m) => _selected.contains(m.id) && m.body.isNotEmpty);
+    Clipboard.setData(ClipboardData(text: msgs.map((m) => m.body).join('\n')));
+    setState(() => _selected.clear());
+    _snack(tr('Copiado'));
+  }
   String? _voicePreview; // nota de voz grabada, para escucharla antes de enviarla
   int _voicePreviewMs = 0;
   DateTime? _recStart;
@@ -113,7 +177,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
     if (kWalkieFeatures) {
       _walkieSub = _app.walkieIncoming
-          .where((w) => w.chatId == widget.chatId && WalkieScreen.activeChat != widget.chatId && !_recording)
+          .where((w) => w.chatId == widget.chatId && WalkieScreen.activeChat != widget.chatId && !_recording && _app.walkieAvailable)
           .listen((w) async {
         try {
           final pl = _walkiePlayer ??= AudioPlayer();
@@ -449,8 +513,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           }
         case 'gallery':
           {
-            final x = await picker.pickMedia(); // foto o vídeo, sin comprimir
-            if (x != null) await _sendFile(x.path);
+            // Varias fotos y vídeos a la vez (hasta 30), sin comprimir las fotos.
+            final list = await picker.pickMultipleMedia(limit: 30);
+            if (list.length > 1) _snack('${tr('Enviando')} ${list.length}…');
+            for (final x in list) {
+              if (!mounted) break;
+              await _sendFile(x.path);
+            }
           }
         case 'file':
           {
@@ -880,6 +949,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
               ]),
             ),
+          ListTile(
+            leading: const Icon(Icons.check_circle_outline),
+            title: Text(tr('Seleccionar varios')),
+            subtitle: Text(tr('Para borrar o copiar varios a la vez')),
+            onTap: () {
+              Navigator.pop(ctx);
+              _toggleSelect(m);
+            },
+          ),
           if (!m.deleted)
             ListTile(
               leading: const Icon(Icons.reply),
@@ -1327,7 +1405,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // teclado (si está abierto), para que se vean enteros.
     return Stack(children: [
       Scaffold(
-      appBar: _searching
+      appBar: _selecting
+          ? AppBar(
+              leading: IconButton(
+                tooltip: tr('Cancelar'),
+                icon: const Icon(Icons.close),
+                onPressed: () => setState(() => _selected.clear()),
+              ),
+              title: Text('${_selected.length}'),
+              actions: [
+                IconButton(tooltip: tr('Copiar'), icon: const Icon(Icons.copy_rounded), onPressed: _copySelected),
+                IconButton(
+                  tooltip: tr('Borrar'),
+                  icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFFF6B7A)),
+                  onPressed: _deleteSelected,
+                ),
+              ],
+            )
+          : _searching
           ? AppBar(
               leading: IconButton(
                 tooltip: tr('Cerrar búsqueda'),
@@ -1370,7 +1465,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ],
           if (!(chat?.isGroup ?? false) && !blocked && !(chat?.isNotes ?? false)) ...[
-            if (kWalkieFeatures)
+            if (_app.walkieAvailable)
               IconButton(
                 tooltip: tr('Walkie-talkie'),
                 icon: const Icon(Icons.settings_voice_outlined),
@@ -1421,6 +1516,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: AvatarDecor(
               radius: 19,
               ring: ref.watch(appProvider).statusRingOf(widget.chatId),
+          ringStyle: ref.watch(appProvider).ringStyleOf(widget.chatId),
               timer: (chat?.disappearSec ?? 0) > 0,
               child: ChatAvatar(id: widget.chatId, title: title, photoPath: chat?.avatarPath, radius: 19),
             ),
@@ -1488,10 +1584,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   if (translator.auto && !m.isMine && !m.deleted && m.body.isNotEmpty) {
                     translator.autoTranslate(m.id, m.body);
                   }
+                  final sel = _selected.contains(m.id);
                   return GestureDetector(
                   key: ValueKey(m.id),
-                  onLongPress: m.kind == MessageKind.system ? null : () => _messageActions(m),
-                  child: MessageBubble(
+                  behavior: _selecting ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
+                  onTap: _selecting ? () => _toggleSelect(m) : null,
+                  onLongPress: m.kind == MessageKind.system
+                      ? null
+                      : () => _selecting ? _toggleSelect(m) : _messageActions(m),
+                  child: _SelectWrap(
+                    selecting: _selecting && m.kind != MessageKind.system,
+                    selected: sel,
+                    child: AbsorbPointer(
+                    absorbing: _selecting,
+                    child: MessageBubble(
                     message: m,
                     showSender: chat?.isGroup ?? false,
                     showReadReceipts: privacy.canSeeOthersReadReceipts,
@@ -1506,6 +1612,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     voiceAvatar: m.media?.type == MediaType.audio ? _voiceAvatar(m, chat, app) : null,
                     voiceHeard: m.isMine && m.status == MessageStatus.read,
                     highlight: _searching ? _search.text : null,
+                  ),
+                  ),
                   ),
                 );
                 },
@@ -1822,6 +1930,40 @@ class _Chip extends StatelessWidget {
           Flexible(child: Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: color))),
         ]),
       ),
+    );
+  }
+}
+
+
+/// Mensaje con su circulito de «elegido» (para borrar varios a la vez).
+class _SelectWrap extends StatelessWidget {
+  final bool selecting;
+  final bool selected;
+  final Widget child;
+  const _SelectWrap({required this.selecting, required this.selected, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!selecting) return child;
+    final cs = Theme.of(context).colorScheme;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      color: selected ? cs.primary.withValues(alpha: 0.14) : Colors.transparent,
+      child: Row(children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 10, right: 2),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 150),
+            child: Icon(
+              selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+              key: ValueKey(selected),
+              color: selected ? cs.primary : cs.onSurfaceVariant,
+              size: 24,
+            ),
+          ),
+        ),
+        Expanded(child: child),
+      ]),
     );
   }
 }

@@ -67,10 +67,12 @@ type adView struct {
 	Note     string `json:"note,omitempty"`
 	Owner    string `json:"owner,omitempty"`
 	Paid     string `json:"paidUntil,omitempty"`
+	// Chat: la cuenta del negocio (para escribirle en KLK al tocar el anuncio).
+	Chat string `json:"chat,omitempty"`
 }
 
 func (a ad) view(admin bool) adView {
-	v := adView{ID: a.ID, Title: a.Title, Body: a.Body, CTA: a.CTA, URL: a.URL, Color: a.Color, HasImage: len(a.Image) > 0, ImageV: a.ImageV}
+	v := adView{ID: a.ID, Title: a.Title, Body: a.Body, CTA: a.CTA, URL: a.URL, Color: a.Color, HasImage: len(a.Image) > 0, ImageV: a.ImageV, Chat: a.OwnerID}
 	if admin {
 		v.Clicks = a.Clicks
 		if a.Until != nil {
@@ -246,7 +248,7 @@ func (s *Server) adminAddAd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.URL != "" && !strings.HasPrefix(req.URL, "https://") && !strings.HasPrefix(req.URL, "http://") &&
-		!strings.HasPrefix(req.URL, "tel:") && !strings.HasPrefix(req.URL, "klk:") {
+		!strings.HasPrefix(req.URL, "tel:") && !strings.HasPrefix(req.URL, "@") && !strings.HasPrefix(req.URL, "klk:") {
 		req.URL = "https://" + req.URL
 	}
 	if req.CTA == "" {
@@ -480,7 +482,7 @@ func (s *Server) saveMyAd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.URL != "" && !strings.HasPrefix(req.URL, "https://") && !strings.HasPrefix(req.URL, "http://") &&
-		!strings.HasPrefix(req.URL, "tel:") {
+		!strings.HasPrefix(req.URL, "tel:") && !strings.HasPrefix(req.URL, "@") {
 		req.URL = "https://" + req.URL
 	}
 	if req.CTA == "" {

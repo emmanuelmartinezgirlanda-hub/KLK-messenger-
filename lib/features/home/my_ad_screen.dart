@@ -260,7 +260,8 @@ class _MyAdScreenState extends ConsumerState<MyAdScreen> {
                 keyboardType: TextInputType.url,
                 decoration: InputDecoration(
                   labelText: tr('Al tocarlo, abrir…'),
-                  hintText: tr('Tu web, Instagram o tel:+1809…'),
+                  hintText: tr('Tu web, tel:+1809… o @tuusuario'),
+                  helperText: tr('Si lo dejas vacío, al tocarlo te escriben a tu chat de KLK.'),
                 ),
               ),
               const SizedBox(height: 16),

@@ -12,9 +12,10 @@ const bool kMoneyFeatures = bool.fromEnvironment('KLK_MONEY', defaultValue: fals
 const bool kGenteFeatures = bool.fromEnvironment('KLK_GENTE', defaultValue: false);
 
 /// Walkie-talkie: mantener pulsado para hablar; al otro le suena sola.
-/// De momento solo en las versiones de prueba (TestFlight lleva KLK_TEST).
-const bool kWalkieFeatures =
-    bool.fromEnvironment('KLK_WALKIE', defaultValue: bool.fromEnvironment('KLK_TEST'));
+/// Está en todas las versiones, pero cada persona lo tiene que ACTIVAR en
+/// Ajustes (apagado de fábrica): así ningún audio suena solo sin que lo pidas.
+/// Para quitarlo del todo: `--dart-define=KLK_WALKIE=false`.
+const bool kWalkieFeatures = bool.fromEnvironment('KLK_WALKIE', defaultValue: true);
 
 /// Llamadas y videollamadas en grupo (hasta 4 personas). De momento solo en
 /// las versiones de prueba (TestFlight lleva KLK_TEST).

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/l10n/l10n.dart';
+import '../../core/ui/link_text.dart';
 import '../../core/network/api_client.dart';
 import '../../core/util/share.dart';
 import '../messaging/app_controller.dart';
@@ -863,7 +864,7 @@ class _PostBubble extends ConsumerWidget {
             if (post.body.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(6, 4, 6, 0),
-                child: SelectableText(post.body, style: const TextStyle(fontSize: 16)),
+                child: LinkText(post.body, style: TextStyle(fontSize: 16, color: cs.onSurface), linkColor: cs.primary),
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),

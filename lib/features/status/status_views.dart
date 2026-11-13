@@ -13,6 +13,9 @@ import '../chat/presentation/chat_avatar.dart';
 import '../channels/channels.dart';
 import '../messaging/app_controller.dart';
 import '../messaging/models.dart';
+import '../plus/plus_screen.dart';
+import '../plus/plus_state.dart';
+import 'status_ring.dart';
 import '../../core/l10n/l10n.dart';
 
 const statusColors = [
@@ -54,6 +57,7 @@ class StatusesView extends ConsumerWidget {
       return ListTile(
         leading: _Ring(
           active: ring,
+          style: app.ringStyleOf(e.key),
           child: ChatAvatar(id: e.key, title: last.ownerName, photoPath: chat?.avatarPath, radius: 24),
         ),
         title: Text(chat?.title ?? last.ownerName, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -71,6 +75,7 @@ class StatusesView extends ConsumerWidget {
         leading: Stack(clipBehavior: Clip.none, children: [
           _Ring(
             active: mine.isNotEmpty,
+            style: app.myRingStyle,
             child: ChatAvatar(id: 'me', title: app.profile.name.isEmpty ? tr('Tú') : app.profile.name,
                 photoPath: app.profile.photoPath, radius: 24),
           ),
@@ -95,6 +100,11 @@ class StatusesView extends ConsumerWidget {
               icon: const Icon(Icons.more_horiz_rounded),
               onPressed: () => showMyStatuses(context),
             ),
+          IconButton(
+            tooltip: tr('Mi anillo'),
+            icon: const Icon(Icons.blur_circular_rounded),
+            onPressed: () => showRingPicker(context),
+          ),
           IconButton(
             tooltip: tr('Nuevo estado'),
             icon: const Icon(Icons.edit_outlined),
@@ -231,26 +241,61 @@ class _StatusThumb extends StatelessWidget {
 
 class _Ring extends StatelessWidget {
   final bool active;
+  final String style;
   final Widget child;
-  const _Ring({required this.active, required this.child});
+  const _Ring({required this.active, required this.child, this.style = 'verde'});
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(2.5),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: active
-              ? const SweepGradient(colors: [Color(0xFF002D62), Color(0xFFCE1126), Color(0xFFFFB627), Color(0xFF002D62)])
-              : null,
-          border: active ? null : Border.all(color: Colors.grey.withValues(alpha: 0.5), width: 2),
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.surface),
-          child: child,
-        ),
-      );
+  Widget build(BuildContext context) => StatusRing(style: style, seen: !active, width: 2.5, child: child);
 }
+
+/// Elegir el anillo de mi estado (verde para todos; los demás, con KLK Plus).
+Future<void> showRingPicker(BuildContext context) => showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => Consumer(builder: (ctx, ref, _) {
+        final app = ref.watch(appProvider);
+        return ValueListenableBuilder<bool>(
+          valueListenable: plusActive,
+          builder: (ctx, plus, __) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(tr('Anillo de tu estado'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(
+                  plus
+                      ? tr('Así verán tus contactos el anillo de tu foto cuando subas un estado.')
+                      : tr('El verde es para todos. Los colores y los de neón que se mueven son de KLK Plus.'),
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                Wrap(spacing: 6, runSpacing: 14, children: [
+                  for (final id in ringStyles.keys)
+                    RingSwatch(
+                      style: id,
+                      selected: app.myRingStyle == id,
+                      locked: ringStyles[id]!.plus && !plus,
+                      onTap: () {
+                        if (ringStyles[id]!.plus && !plus) {
+                          Navigator.pop(ctx);
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PlusScreen()));
+                          return;
+                        }
+                        app.setMyRingStyle(id);
+                      },
+                    ),
+                ]),
+                const SizedBox(height: 10),
+                Text(tr('Se aplica a los estados nuevos que subas.'),
+                    style: TextStyle(fontSize: 12.5, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+              ]),
+            ),
+          ),
+        );
+      }),
+    );
 
 class _Section extends StatelessWidget {
   final String text;

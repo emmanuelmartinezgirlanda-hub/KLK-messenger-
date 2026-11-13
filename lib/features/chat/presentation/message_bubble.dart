@@ -6,6 +6,7 @@ import '../../effects/screen_effects.dart';
 import '../../messaging/models.dart';
 import '../../theming/domain/klk_theme.dart';
 import 'media_bubbles.dart';
+import '../../../core/ui/link_text.dart';
 import '../../../core/l10n/l10n.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -261,26 +262,9 @@ class MessageBubble extends StatelessWidget {
     return Text.rich(TextSpan(style: style, children: spans));
   }
 
-  /// Menciones (@Ana) en negrita y enlaces subrayados.
-  Widget _decorated(String text, TextStyle style, Color accent) {
-    final re = RegExp(r'(?<![^\s])(@[^\s@]{1,40})|(https?://[^\s<>"]+)', caseSensitive: false);
-    if (!re.hasMatch(text)) return Text(text, style: style);
-    final spans = <TextSpan>[];
-    var i = 0;
-    for (final m in re.allMatches(text)) {
-      if (m.start > i) spans.add(TextSpan(text: text.substring(i, m.start)));
-      final isMention = m.group(1) != null;
-      spans.add(TextSpan(
-        text: m.group(0),
-        style: isMention
-            ? TextStyle(fontWeight: FontWeight.w700, color: accent)
-            : const TextStyle(decoration: TextDecoration.underline),
-      ));
-      i = m.end;
-    }
-    if (i < text.length) spans.add(TextSpan(text: text.substring(i)));
-    return Text.rich(TextSpan(style: style, children: spans));
-  }
+  /// Menciones (@Ana) en negrita y páginas web que se pueden tocar.
+  Widget _decorated(String text, TextStyle style, Color accent) =>
+      LinkText(text, style: style, mentions: true, mentionColor: accent);
 }
 
 /// Tarjeta con el título y la descripción del enlace (se abre al tocarla).

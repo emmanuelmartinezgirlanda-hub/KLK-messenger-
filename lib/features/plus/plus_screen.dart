@@ -36,6 +36,8 @@ const _perks = [
       'En llamadas: lee lo que te dicen, en tu idioma.'),
   _Perk(Icons.app_shortcut_rounded, [_oroClaro, _oroOscuro], 'Iconos de la app', 'Noche, Oro y Bandera.',
       iosOnly: true),
+  _Perk(Icons.blur_circular_rounded, [Color(0xFF00E5FF), Color(0xFFFF2BD6)], 'Anillo de estado de neón',
+      'Elige el color del anillo de tu foto, hasta de neón que se mueve'),
   _Perk(Icons.animation_rounded, [Color(0xFFFFD86B), Color(0xFFFF7A59)], 'Stickers con movimiento',
       '20 stickers animados: ¡Wepa!, ¡Jonrón!, ¡Diache!…'),
   _Perk(Icons.emoji_emotions_rounded, [Color(0xFFFF7A59), Color(0xFFE63946)], 'Stickers exclusivos',
