@@ -149,6 +149,61 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _snack('${msgs.length} ${msgs.length == 1 ? tr('mensaje borrado') : tr('mensajes borrados')}');
   }
 
+  /// Tocar un sticker: verlo en grande y guardarlo en ⭐ Favoritos.
+  Future<void> _stickerSheet(Message m) async {
+    final media = m.media!;
+    final Widget img = media.isCustomSticker && media.localPath != null
+        ? Image.file(File(media.localPath!), height: 180, fit: BoxFit.contain)
+        : Image.asset(stickerAsset(media.name), height: 180, fit: BoxFit.contain);
+    final save = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            img,
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.star_rounded),
+              label: Text(tr('Guardar en mis stickers')),
+            ),
+          ]),
+        ),
+      ),
+    );
+    if (save == true) await _saveStickerFav(m);
+  }
+
+  /// Guarda en ⭐ Favoritos un sticker que me mandaron (o que mandé).
+  Future<void> _saveStickerFav(Message m) async {
+    final media = m.media;
+    if (media == null) return;
+    try {
+      if (media.isCustomSticker) {
+        final path = media.localPath;
+        if (path == null || !File(path).existsSync()) {
+          _snack(tr('Espera a que se descargue el sticker'));
+          return;
+        }
+        await CustomStickers.saveBytes(await File(path).readAsBytes());
+      } else {
+        final id = media.name ?? '';
+        if (id.isEmpty) return;
+        if (!await StickerFavorites.add(id)) {
+          _snack(tr('Ya lo tienes en tus stickers ⭐'));
+          return;
+        }
+      }
+      HapticFeedback.mediumImpact();
+      _snack(tr('Guardado en ⭐ Favoritos'));
+    } catch (_) {
+      _snack(tr('No se pudo guardar el sticker'));
+    }
+  }
+
   /// Copiar el texto de los mensajes elegidos.
   void _copySelected() {
     final msgs = _app.messagesFor(widget.chatId).where((m) => _selected.contains(m.id) && m.body.isNotEmpty);
@@ -949,6 +1004,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
               ]),
             ),
+          if (m.media?.type == MediaType.sticker && !m.deleted)
+            ListTile(
+              leading: const Icon(Icons.star_rounded, color: Color(0xFFFFB627)),
+              title: Text(tr('Guardar en mis stickers')),
+              subtitle: Text(tr('Te sale en ⭐ Favoritos para mandarlo cuando quieras')),
+              onTap: () {
+                Navigator.pop(ctx);
+                _saveStickerFav(m);
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.check_circle_outline),
             title: Text(tr('Seleccionar varios')),
@@ -1588,7 +1653,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   return GestureDetector(
                   key: ValueKey(m.id),
                   behavior: _selecting ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
-                  onTap: _selecting ? () => _toggleSelect(m) : null,
+                  onTap: _selecting
+                      ? () => _toggleSelect(m)
+                      : (m.media?.type == MediaType.sticker && !m.deleted ? () => _stickerSheet(m) : null),
                   onLongPress: m.kind == MessageKind.system
                       ? null
                       : () => _selecting ? _toggleSelect(m) : _messageActions(m),

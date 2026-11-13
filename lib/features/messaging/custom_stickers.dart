@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -67,5 +68,39 @@ class CustomStickers {
     try {
       await File(path).delete();
     } catch (_) {}
+  }
+}
+
+/// Stickers de los packs de KLK que guardé en favoritos (por ejemplo, uno que
+/// me mandaron). Se guardan solo en este móvil.
+class StickerFavorites {
+  StickerFavorites._();
+
+  static Future<File> _file() async => File(p.join((await CustomStickers._dir()).path, 'favoritos.json'));
+
+  static Future<List<String>> list() async {
+    try {
+      final f = await _file();
+      if (!await f.exists()) return const [];
+      return (jsonDecode(await f.readAsString()) as List).cast<String>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static Future<bool> contains(String id) async => (await list()).contains(id);
+
+  /// Lo pone el primero. Devuelve false si ya estaba.
+  static Future<bool> add(String id) async {
+    final l = [...await list()];
+    if (l.contains(id)) return false;
+    l.insert(0, id);
+    await (await _file()).writeAsString(jsonEncode(l.take(200).toList()), flush: true);
+    return true;
+  }
+
+  static Future<void> remove(String id) async {
+    final l = [...await list()]..remove(id);
+    await (await _file()).writeAsString(jsonEncode(l), flush: true);
   }
 }

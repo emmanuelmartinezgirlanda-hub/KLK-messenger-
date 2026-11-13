@@ -132,7 +132,7 @@ workflows:
   ios-appstore:
     name: KLK iOS → App Store
     instance_type: mac_mini_m2
-    max_build_duration: 60
+    max_build_duration: 75
     triggering:
       events:
         - push
@@ -151,19 +151,38 @@ workflows:
         bundle_identifier: com.klkapp.klk
       vars:
         KLK_PUSH: "1"
+        KLK_WATCH: "1"
     scripts:
-      - name: Preparar carpetas nativas
-        script: bash tool/prepare_native.sh
+      - name: Preparar carpetas nativas (con el reloj)
+        script: |
+          # Número por encima de los de TestFlight (+100) para no repetir.
+          export KLK_BUILD_NUMBER=$((PROJECT_BUILD_NUMBER + 200))
+          export KLK_BUILD_NAME=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          echo "KLK_BUILD_NUMBER=$KLK_BUILD_NUMBER" >> $CM_ENV
+          echo "KLK_BUILD_NAME=$KLK_BUILD_NAME" >> $CM_ENV
+          bash tool/prepare_native.sh
       - name: Tests
         script: flutter test
+      - name: Perfiles del reloj
+        script: |
+          set -x
+          W=com.klkapp.klk.watchkitapp
+          app-store-connect bundle-ids create $W --name "KLK Watch" --platform IOS || true
+          BID=$(app-store-connect bundle-ids list --bundle-id-identifier $W --json | python3 -c 'import sys,json;d=json.load(sys.stdin);print([x for x in d if x["attributes"]["identifier"]=="'$W'"][0]["id"])')
+          CERTS=$(app-store-connect certificates list --json | python3 -c 'import sys,json;d=json.load(sys.stdin);print(" ".join(x["id"] for x in d if x["attributes"]["certificateType"] in ("DISTRIBUTION","IOS_DISTRIBUTION")))')
+          for f in ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision; do grep -q "$W" "$f" && rm -f "$f"; done
+          app-store-connect profiles create $BID --certificate-ids $CERTS --type IOS_APP_STORE --name "KLK Watch $(date +%s)" --save
       - name: Firma de código
-        script: xcode-project use-profiles
+        script: |
+          xcode-project use-profiles
+          ruby tool/watch_sign_like_runner.rb
       - name: Compilar IPA firmada
         script: |
           # App Store: Negocios, Mi Gente y KLK Plus (suscripciones de Apple) encendidos.
+          # Con la app del Apple Watch dentro. El walkie viene apagado: cada uno lo activa.
           # Dinero (recargas, remesas) apagado hasta tener proveedor autorizado.
           flutter build ipa --release \
-            --build-number=$((PROJECT_BUILD_NUMBER + 10)) \
+            --build-number=$KLK_BUILD_NUMBER \
             --dart-define=KLK_PLUS=true \
             --dart-define=KLK_GROUP_CALLS=true \
             --dart-define=KLK_BUSINESS=true \

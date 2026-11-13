@@ -35,6 +35,8 @@ class _MyAdScreenState extends ConsumerState<MyAdScreen> {
   Map<String, dynamic>? _ad; // mi anuncio en el servidor
   bool _loading = true;
   bool _busy = false;
+  /// La tienda ya tiene la suscripción (si Apple aún no la aprobó, no se puede comprar).
+  bool _storeReady = false;
   String _price = '6,99 €';
 
   @override
@@ -60,6 +62,7 @@ class _MyAdScreenState extends ConsumerState<MyAdScreen> {
       final products = await KlkNative.storeProducts([AppController.adsProduct]);
       if (products.isNotEmpty && (products.first['price'] as String?)?.isNotEmpty == true) {
         _price = products.first['price'] as String;
+        _storeReady = true;
       }
     } catch (_) {}
     try {
@@ -286,13 +289,15 @@ class _MyAdScreenState extends ConsumerState<MyAdScreen> {
               const SizedBox(height: 24),
               FilledButton(
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
-                onPressed: _busy ? null : _publish,
+                onPressed: _busy || (!_paid && !_storeReady) ? null : _publish,
                 child: _busy
                     ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5))
                     : Text(
                         _paid
                             ? (_ad == null ? tr('Enviar mi anuncio') : tr('Guardar cambios'))
-                            : '${tr('Publicar por')} $_price ${tr('al mes')}',
+                            : _storeReady
+                                ? '${tr('Publicar por')} $_price ${tr('al mes')}'
+                                : tr('Muy pronto: anúnciate desde la app'),
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
               ),
               const SizedBox(height: 10),

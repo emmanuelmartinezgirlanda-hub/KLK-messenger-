@@ -155,7 +155,7 @@ class _StickerPickerState extends State<_StickerPicker> {
                 labelColor: cs.primary,
                 labelStyle: const TextStyle(fontWeight: FontWeight.w700),
                 tabs: [
-                  Tab(height: 38, text: tr('⭐ Míos')),
+                  Tab(height: 38, text: tr('⭐ Favoritos')),
                   for (final p in stickerPacks) Tab(height: 38, text: '${p.icon} ${p.name}'),
                   Tab(height: 38, text: '${soundStickers.icon} ${soundStickers.name}'),
                 ],
@@ -185,6 +185,7 @@ class _MyStickers extends StatefulWidget {
 
 class _MyStickersState extends State<_MyStickers> {
   List<String> _paths = const [];
+  List<String> _favs = const []; // stickers de los packs guardados en favoritos
   bool _busy = false;
 
   @override
@@ -195,7 +196,29 @@ class _MyStickersState extends State<_MyStickers> {
 
   Future<void> _load() async {
     final list = await CustomStickers.list();
-    if (mounted) setState(() => _paths = list);
+    final favs = (await StickerFavorites.list()).where((id) => klkStickers.any((s) => s.id == id)).toList();
+    if (mounted) {
+      setState(() {
+        _paths = list;
+        _favs = favs;
+      });
+    }
+  }
+
+  Future<void> _removeFav(String id) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('¿Quitar de favoritos?')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('No'))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Quitar'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await StickerFavorites.remove(id);
+    await _load();
   }
 
   Future<void> _create() async {
@@ -285,6 +308,22 @@ class _MyStickersState extends State<_MyStickers> {
             ),
           ),
         ),
+        for (final id in _favs)
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              if (isPlusSticker(id) && !plusActive.value) {
+                showPlusRequired(context, tr('Este sticker es de KLK Plus'));
+                return;
+              }
+              Navigator.pop(context, id);
+            },
+            onLongPress: () => _removeFav(id),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Image.asset(stickerAsset(id), fit: BoxFit.contain, cacheWidth: 256),
+            ),
+          ),
         for (final path in _paths)
           InkWell(
             borderRadius: BorderRadius.circular(16),
