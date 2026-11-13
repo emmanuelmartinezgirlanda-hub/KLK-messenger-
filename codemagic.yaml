@@ -198,9 +198,10 @@ workflows:
         # suscripción de «KLK Anuncios» a la versión antes de enviarla a revisión.
         # (Para versiones normales, volver a poner true.)
         submit_to_app_store: false
-        cancel_previous_submissions: true
-        release_type: AFTER_APPROVAL
-        copyright: 2026 KLK Messenger
+        # Cuando vuelva a true, añadir otra vez:
+        #   cancel_previous_submissions: true
+        #   release_type: AFTER_APPROVAL
+        #   copyright: 2026 KLK Messenger
 
   # ---------- iPhone sin cuenta de pago: IPA sin firmar (ya la hace GitHub) ----------
   ios-ipa-sin-firmar:
