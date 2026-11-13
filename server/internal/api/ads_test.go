@@ -125,3 +125,24 @@ func TestAnuncioDeNegocio(t *testing.T) {
 		t.Fatalf("quitar: %d", st)
 	}
 }
+
+func TestEditarAnuncio(t *testing.T) {
+	e := newAdminEnv(t)
+	a := e.register("+18095550501", 1)
+	var made struct {
+		ID string `json:"id"`
+	}
+	e.do("POST", "/admin/api/ads", adminTok, map[string]any{"title": "Peluquería", "body": "Pide tu cita"}, &made)
+	if st := e.do("POST", "/admin/api/ads", adminTok, map[string]any{"id": made.ID, "title": "Peluquería", "body": "Pide tu cita", "url": "@emmanuel"}, nil); st != 200 {
+		t.Fatalf("editar: %d", st)
+	}
+	var list struct {
+		Ads []struct {
+			URL string `json:"url"`
+		} `json:"ads"`
+	}
+	e.do("GET", "/v1/ads", a.token, nil, &list)
+	if len(list.Ads) != 1 || list.Ads[0].URL != "@emmanuel" {
+		t.Fatalf("anuncio editado: %+v", list.Ads)
+	}
+}
