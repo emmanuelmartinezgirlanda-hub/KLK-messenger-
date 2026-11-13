@@ -194,9 +194,10 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: false
-        # Se manda sola a revisión de Apple con las novedades de release_notes.json
-        # y sale en la App Store en cuanto Apple la apruebe.
-        submit_to_app_store: true
+        # 1.3.0: NO se manda sola, porque hay que añadir a mano la primera
+        # suscripción de «KLK Anuncios» a la versión antes de enviarla a revisión.
+        # (Para versiones normales, volver a poner true.)
+        submit_to_app_store: false
         cancel_previous_submissions: true
         release_type: AFTER_APPROVAL
         copyright: 2026 KLK Messenger
