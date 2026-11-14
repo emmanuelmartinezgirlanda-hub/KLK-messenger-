@@ -37,6 +37,8 @@ type Server struct {
 	adminLimits sync.Map // ip -> *rate.Limiter (panel)
 	touched     sync.Map // accountID -> time.Time (última vez que se apuntó last_seen)
 	adsMu       sync.Mutex
+	webMu       sync.Mutex
+	webLimits   sync.Map // ip -> *rate.Limiter (visitas de la web)
 
 	// GifKey es la clave de KLIPY para buscar GIF (vacía = sin GIF).
 	GifKey string
@@ -113,6 +115,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /v1/announcements", s.authed(s.announcements))
 	mux.HandleFunc("GET /v1/ads", s.authed(s.ads))
 	mux.HandleFunc("GET /v1/gif/key", s.authed(s.gifKey))
+	mux.HandleFunc("POST /v1/visit", s.limitWith(&s.webLimits, rate.Every(2*time.Second), 20, s.webVisit)) // público, desde la web
 	mux.HandleFunc("GET /v1/ads/mine", s.authed(s.myAd))
 	mux.HandleFunc("POST /v1/ads/mine", s.limited(s.authed(s.saveMyAd)))
 	mux.HandleFunc("POST /v1/ads/mine/renew", s.limited(s.authed(s.renewMyAd)))
